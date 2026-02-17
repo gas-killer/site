@@ -19,6 +19,9 @@ yarn-error.log*
 # env files
 .env*
 
+# wasm binaries (built from gas-killer-analyzer-wasm)
+/public/wasm/
+
 # vercel
 .vercel
 

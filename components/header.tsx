@@ -42,6 +42,9 @@ export function Header() {
               <Link href="#integration">Integration</Link>
             </Button>
             <Button variant="ghost" className="text-amber-900 hover:text-amber-800 hover:bg-amber-100" asChild>
+              <Link href="/analyzer">Analyzer</Link>
+            </Button>
+            <Button variant="ghost" className="text-amber-900 hover:text-amber-800 hover:bg-amber-100" asChild>
               <Link href="https://github.com/BreadchainCoop/monorepo/" className="flex items-center gap-2">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
