@@ -18,6 +18,7 @@ yarn-error.log*
 
 # env files
 .env*
+!.env.example
 
 # wasm binaries (built from gas-killer-analyzer-wasm)
 /public/wasm/
