@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server"
 
+export const runtime = "edge"
+
 const RPC_URLS: Record<string, string | undefined> = {
   ethereum: process.env.RPC_ETHEREUM,
   gnosis: process.env.RPC_GNOSIS,
