@@ -29,8 +29,8 @@ export function validateTraceJson(json: string): { valid: boolean; error?: strin
   }
 }
 
-export async function fetchBlockNumber(rpcUrl: string, txHash: string): Promise<bigint> {
-  const resp = await fetch(rpcUrl, {
+export async function fetchBlockNumber(network: string, txHash: string): Promise<bigint> {
+  const resp = await fetch(`/api/rpc/${network}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -42,7 +42,8 @@ export async function fetchBlockNumber(rpcUrl: string, txHash: string): Promise<
   })
 
   if (!resp.ok) {
-    throw new Error(`HTTP ${resp.status}: ${resp.statusText}`)
+    const errorBody = await resp.json().catch(() => null)
+    throw new Error(errorBody?.error || `HTTP ${resp.status}: ${resp.statusText}`)
   }
 
   const json = await resp.json()
@@ -56,8 +57,8 @@ export async function fetchBlockNumber(rpcUrl: string, txHash: string): Promise<
   return BigInt(json.result.blockNumber)
 }
 
-export async function fetchTraceFromRpc(rpcUrl: string, txHash: string): Promise<string> {
-  const resp = await fetch(rpcUrl, {
+export async function fetchTraceFromRpc(network: string, txHash: string): Promise<string> {
+  const resp = await fetch(`/api/rpc/${network}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -69,7 +70,8 @@ export async function fetchTraceFromRpc(rpcUrl: string, txHash: string): Promise
   })
 
   if (!resp.ok) {
-    throw new Error(`HTTP ${resp.status}: ${resp.statusText}`)
+    const errorBody = await resp.json().catch(() => null)
+    throw new Error(errorBody?.error || `HTTP ${resp.status}: ${resp.statusText}`)
   }
 
   // Use text() instead of json() to handle very large responses (100MB+)

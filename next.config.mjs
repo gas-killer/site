@@ -1,11 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "export",
   typescript: {
     ignoreBuildErrors: true,
   },
   images: {
-    unoptimized: true,
+    unoptimized: true, // TODO: remove if using Vercel Image Optimization
   },
   eslint: {
     ignoreDuringBuilds: true,

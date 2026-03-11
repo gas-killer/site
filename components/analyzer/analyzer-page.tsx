@@ -77,8 +77,6 @@ export function AnalyzerPage() {
   const [txHash, setTxHash] = useState("")
   const [selectedNetwork, setSelectedNetwork] = useState(NETWORKS[0]?.id ?? "")
 
-  const network = NETWORKS.find((n) => n.id === selectedNetwork)
-
   useEffect(() => {
     loadWasm()
       .then(() => dispatch({ type: "WASM_READY" }))
@@ -86,15 +84,15 @@ export function AnalyzerPage() {
   }, [])
 
   async function handleAnalyze() {
-    if (!txHash.trim() || !network?.rpcUrl) return
+    if (!txHash.trim() || !selectedNetwork) return
 
     dispatch({ type: "RUN_START", statusMessage: "Fetching block number..." })
 
     try {
-      const blockNumber = await fetchBlockNumber(network.rpcUrl, txHash)
+      const blockNumber = await fetchBlockNumber(selectedNetwork, txHash)
 
       dispatch({ type: "RUN_STATUS", statusMessage: "Fetching transaction trace..." })
-      const traceJson = await fetchTraceFromRpc(network.rpcUrl, txHash)
+      const traceJson = await fetchTraceFromRpc(selectedNetwork, txHash)
 
       dispatch({ type: "RUN_STATUS", statusMessage: "Analyzing trace..." })
       // Yield to let the UI paint
@@ -120,7 +118,7 @@ export function AnalyzerPage() {
       .catch((e) => dispatch({ type: "WASM_ERROR", error: (e as Error).message }))
   }
 
-  const canAnalyze = state.wasmStatus === "ready" && txHash.trim() && network?.rpcUrl && !state.isRunning
+  const canAnalyze = state.wasmStatus === "ready" && txHash.trim() && selectedNetwork && !state.isRunning
 
   return (
     <VisibilityProvider>
@@ -162,46 +160,36 @@ export function AnalyzerPage() {
                 <CardTitle className="text-amber-900">Transaction</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {NETWORKS.length === 0 ? (
-                  <Alert className="border-amber-200 bg-amber-50">
-                    <AlertDescription className="text-amber-800 text-sm">
-                      No RPC endpoints configured.
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      <Label className="text-amber-900">Network</Label>
-                      <div className="flex gap-2">
-                        {NETWORKS.map((n) => (
-                          <Button
-                            key={n.id}
-                            variant={selectedNetwork === n.id ? "default" : "outline"}
-                            size="sm"
-                            className={
-                              selectedNetwork === n.id
-                                ? "bg-green-700 text-amber-50 hover:bg-green-600"
-                                : "border-amber-200 text-amber-800 hover:bg-amber-100"
-                            }
-                            onClick={() => setSelectedNetwork(n.id)}
-                          >
-                            {n.name}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
+                <div className="space-y-2">
+                  <Label className="text-amber-900">Network</Label>
+                  <div className="flex gap-2">
+                    {NETWORKS.map((n) => (
+                      <Button
+                        key={n.id}
+                        variant={selectedNetwork === n.id ? "default" : "outline"}
+                        size="sm"
+                        className={
+                          selectedNetwork === n.id
+                            ? "bg-green-700 text-amber-50 hover:bg-green-600"
+                            : "border-amber-200 text-amber-800 hover:bg-amber-100"
+                        }
+                        onClick={() => setSelectedNetwork(n.id)}
+                      >
+                        {n.name}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-amber-900">Transaction Hash</Label>
-                      <Input
-                        placeholder="0x..."
-                        value={txHash}
-                        onChange={(e) => setTxHash(e.target.value)}
-                        className="font-mono border-amber-200"
-                      />
-                    </div>
-                  </>
-                )}
+                <div className="space-y-2">
+                  <Label className="text-amber-900">Transaction Hash</Label>
+                  <Input
+                    placeholder="0x..."
+                    value={txHash}
+                    onChange={(e) => setTxHash(e.target.value)}
+                    className="font-mono border-amber-200"
+                  />
+                </div>
               </CardContent>
               <CardFooter>
                 <Button
