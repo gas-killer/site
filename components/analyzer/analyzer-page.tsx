@@ -1,26 +1,26 @@
 "use client"
 
-import { useEffect, useReducer } from "react"
+import { useEffect, useReducer, useState } from "react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
 import { Header } from "@/components/header"
 import { VisibilityProvider, useVisibility } from "@/components/visibility-context"
 import { loadWasm, resetWasm } from "@/lib/wasm/analyzer"
-import type { AnalyzeTraceResult, EncodeTraceResult, EstimateGasResult } from "@/lib/wasm/analyzer"
-import { validateTraceJson, extractOriginalGas, DEFAULT_ESTIMATOR_ADDRESS } from "@/lib/analyzer-utils"
-import { TraceInput } from "./trace-input"
-import { AnalysisConfig, type AnalysisMode } from "./analysis-config"
+import type { AnalyzeTraceResult } from "@/lib/wasm/analyzer"
+import { fetchTraceFromRpc, fetchBlockNumber, extractOriginalGas, DEFAULT_ESTIMATOR_ADDRESS } from "@/lib/analyzer-utils"
+import { NETWORKS } from "@/lib/networks"
 import { AnalysisResults } from "./analysis-results"
 
 type State = {
   wasmStatus: "loading" | "ready" | "error"
   wasmError: string | null
-  traceJson: string
-  analysisMode: AnalysisMode
-  isAnalyzing: boolean
-  result: AnalyzeTraceResult | EstimateGasResult | EncodeTraceResult | null
+  isRunning: boolean
+  statusMessage: string | null
+  result: AnalyzeTraceResult | null
   originalGas: number | null
   error: string | null
   durationMs: number | null
@@ -29,23 +29,16 @@ type State = {
 type Action =
   | { type: "WASM_READY" }
   | { type: "WASM_ERROR"; error: string }
-  | { type: "SET_TRACE_JSON"; json: string }
-  | { type: "SET_ANALYSIS_MODE"; mode: AnalysisMode }
-  | { type: "ANALYSIS_START" }
-  | {
-      type: "ANALYSIS_SUCCESS"
-      result: AnalyzeTraceResult | EstimateGasResult | EncodeTraceResult
-      originalGas: number | null
-      durationMs: number
-    }
-  | { type: "ANALYSIS_ERROR"; error: string }
+  | { type: "RUN_START"; statusMessage: string }
+  | { type: "RUN_STATUS"; statusMessage: string }
+  | { type: "RUN_SUCCESS"; result: AnalyzeTraceResult; originalGas: number | null; durationMs: number }
+  | { type: "RUN_ERROR"; error: string }
 
 const initialState: State = {
   wasmStatus: "loading",
   wasmError: null,
-  traceJson: "",
-  analysisMode: "full",
-  isAnalyzing: false,
+  isRunning: false,
+  statusMessage: null,
   result: null,
   originalGas: null,
   error: null,
@@ -58,23 +51,14 @@ function reducer(state: State, action: Action): State {
       return { ...state, wasmStatus: "ready", wasmError: null }
     case "WASM_ERROR":
       return { ...state, wasmStatus: "error", wasmError: action.error }
-    case "SET_TRACE_JSON":
-      return { ...state, traceJson: action.json, result: null, originalGas: null, error: null }
-    case "SET_ANALYSIS_MODE":
-      return { ...state, analysisMode: action.mode, result: null, originalGas: null, error: null }
-    case "ANALYSIS_START":
-      return { ...state, isAnalyzing: true, result: null, originalGas: null, error: null, durationMs: null }
-    case "ANALYSIS_SUCCESS":
-      return {
-        ...state,
-        isAnalyzing: false,
-        result: action.result,
-        originalGas: action.originalGas,
-        durationMs: action.durationMs,
-        error: null,
-      }
-    case "ANALYSIS_ERROR":
-      return { ...state, isAnalyzing: false, error: action.error }
+    case "RUN_START":
+      return { ...state, isRunning: true, statusMessage: action.statusMessage, result: null, originalGas: null, error: null, durationMs: null }
+    case "RUN_STATUS":
+      return { ...state, statusMessage: action.statusMessage }
+    case "RUN_SUCCESS":
+      return { ...state, isRunning: false, statusMessage: null, result: action.result, originalGas: action.originalGas, durationMs: action.durationMs, error: null }
+    case "RUN_ERROR":
+      return { ...state, isRunning: false, statusMessage: null, error: action.error }
     default:
       return state
   }
@@ -90,6 +74,10 @@ function ShowContent() {
 
 export function AnalyzerPage() {
   const [state, dispatch] = useReducer(reducer, initialState)
+  const [txHash, setTxHash] = useState("")
+  const [selectedNetwork, setSelectedNetwork] = useState(NETWORKS[0]?.id ?? "")
+
+  const network = NETWORKS.find((n) => n.id === selectedNetwork)
 
   useEffect(() => {
     loadWasm()
@@ -98,39 +86,29 @@ export function AnalyzerPage() {
   }, [])
 
   async function handleAnalyze() {
-    const validation = validateTraceJson(state.traceJson)
-    if (!validation.valid) {
-      dispatch({ type: "ANALYSIS_ERROR", error: validation.error! })
-      return
-    }
+    if (!txHash.trim() || !network?.rpcUrl) return
 
-    dispatch({ type: "ANALYSIS_START" })
-
-    // Yield to let the UI paint the loading state
-    await new Promise((r) => setTimeout(r, 0))
+    dispatch({ type: "RUN_START", statusMessage: "Fetching block number..." })
 
     try {
+      const blockNumber = await fetchBlockNumber(network.rpcUrl, txHash)
+
+      dispatch({ type: "RUN_STATUS", statusMessage: "Fetching transaction trace..." })
+      const traceJson = await fetchTraceFromRpc(network.rpcUrl, txHash)
+
+      dispatch({ type: "RUN_STATUS", statusMessage: "Analyzing trace..." })
+      // Yield to let the UI paint
+      await new Promise((r) => setTimeout(r, 0))
+
       const wasm = await loadWasm()
       const start = performance.now()
-
-      let result: AnalyzeTraceResult | EstimateGasResult | EncodeTraceResult
-      switch (state.analysisMode) {
-        case "full":
-          result = wasm.analyze_trace(state.traceJson, DEFAULT_ESTIMATOR_ADDRESS)
-          break
-        case "heuristic":
-          result = wasm.estimate_gas_heuristic(state.traceJson)
-          break
-        case "encode":
-          result = wasm.encode_trace(state.traceJson)
-          break
-      }
-
+      const result = wasm.analyze_trace(traceJson, DEFAULT_ESTIMATOR_ADDRESS, blockNumber) as AnalyzeTraceResult
       const durationMs = performance.now() - start
-      const originalGas = extractOriginalGas(state.traceJson)
-      dispatch({ type: "ANALYSIS_SUCCESS", result, originalGas, durationMs })
+      const originalGas = extractOriginalGas(traceJson)
+
+      dispatch({ type: "RUN_SUCCESS", result, originalGas, durationMs })
     } catch (e) {
-      dispatch({ type: "ANALYSIS_ERROR", error: (e as Error).message || String(e) })
+      dispatch({ type: "RUN_ERROR", error: (e as Error).message || String(e) })
     }
   }
 
@@ -142,7 +120,7 @@ export function AnalyzerPage() {
       .catch((e) => dispatch({ type: "WASM_ERROR", error: (e as Error).message }))
   }
 
-  const canAnalyze = state.wasmStatus === "ready" && state.traceJson.trim() && !state.isAnalyzing
+  const canAnalyze = state.wasmStatus === "ready" && txHash.trim() && network?.rpcUrl && !state.isRunning
 
   return (
     <VisibilityProvider>
@@ -156,11 +134,7 @@ export function AnalyzerPage() {
                 Gas Analyzer
               </h1>
               <p className="text-amber-800">
-                Analyze Ethereum transaction traces in your browser using WebAssembly. Paste a trace from{" "}
-                <code className="rounded bg-amber-100 px-1 py-0.5 font-mono text-sm">
-                  debug_traceTransaction
-                </code>{" "}
-                to estimate gas savings and inspect state changes.
+                Analyze Ethereum transactions to estimate gas savings with Gas Killer.
               </p>
             </div>
 
@@ -183,29 +157,51 @@ export function AnalyzerPage() {
               </Alert>
             )}
 
-            {/* Trace Input */}
             <Card className="border-amber-200">
               <CardHeader>
-                <CardTitle className="text-amber-900">Trace Input</CardTitle>
+                <CardTitle className="text-amber-900">Transaction</CardTitle>
               </CardHeader>
-              <CardContent>
-                <TraceInput
-                  traceJson={state.traceJson}
-                  onTraceJsonChange={(json) => dispatch({ type: "SET_TRACE_JSON", json })}
-                />
-              </CardContent>
-            </Card>
+              <CardContent className="space-y-4">
+                {NETWORKS.length === 0 ? (
+                  <Alert className="border-amber-200 bg-amber-50">
+                    <AlertDescription className="text-amber-800 text-sm">
+                      No RPC endpoints configured.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-amber-900">Network</Label>
+                      <div className="flex gap-2">
+                        {NETWORKS.map((n) => (
+                          <Button
+                            key={n.id}
+                            variant={selectedNetwork === n.id ? "default" : "outline"}
+                            size="sm"
+                            className={
+                              selectedNetwork === n.id
+                                ? "bg-green-700 text-amber-50 hover:bg-green-600"
+                                : "border-amber-200 text-amber-800 hover:bg-amber-100"
+                            }
+                            onClick={() => setSelectedNetwork(n.id)}
+                          >
+                            {n.name}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
 
-            {/* Analysis Config */}
-            <Card className="border-amber-200">
-              <CardHeader>
-                <CardTitle className="text-amber-900">Analysis Mode</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AnalysisConfig
-                  mode={state.analysisMode}
-                  onModeChange={(mode) => dispatch({ type: "SET_ANALYSIS_MODE", mode })}
-                />
+                    <div className="space-y-2">
+                      <Label className="text-amber-900">Transaction Hash</Label>
+                      <Input
+                        placeholder="0x..."
+                        value={txHash}
+                        onChange={(e) => setTxHash(e.target.value)}
+                        className="font-mono border-amber-200"
+                      />
+                    </div>
+                  </>
+                )}
               </CardContent>
               <CardFooter>
                 <Button
@@ -213,10 +209,10 @@ export function AnalyzerPage() {
                   disabled={!canAnalyze}
                   className="bg-green-700 text-amber-50 hover:bg-green-600"
                 >
-                  {state.isAnalyzing ? (
+                  {state.isRunning ? (
                     <>
                       <Spinner className="mr-2" />
-                      Analyzing...
+                      {state.statusMessage}
                     </>
                   ) : (
                     "Analyze"
@@ -239,7 +235,7 @@ export function AnalyzerPage() {
             {state.result && (
               <AnalysisResults
                 result={state.result}
-                mode={state.analysisMode}
+                mode="full"
                 originalGas={state.originalGas}
                 durationMs={state.durationMs}
               />

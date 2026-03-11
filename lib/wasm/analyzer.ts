@@ -20,7 +20,7 @@ export interface EstimateGasResult {
 }
 
 type WasmModule = {
-  analyze_trace: (traceJson: string, estimatorAddress: string) => AnalyzeTraceResult
+  analyze_trace: (traceJson: string, estimatorAddress: string, estimateStateChangesBlockNumber?: bigint) => AnalyzeTraceResult
   estimate_gas_heuristic: (traceJson: string) => EstimateGasResult
   encode_trace: (traceJson: string) => EncodeTraceResult
   default: (moduleOrPath?: string) => Promise<unknown>

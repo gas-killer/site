@@ -6,7 +6,8 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "build:wasm": "wasm-pack build ../../gas-killer-analyzer/monterrey-v1/crates/wasm --target web --release --out-name gas_killer_wasm && mkdir -p public/wasm && cp ../../gas-killer-analyzer/monterrey-v1/crates/wasm/pkg/gas_killer_wasm.js public/wasm/ && cp ../../gas-killer-analyzer/monterrey-v1/crates/wasm/pkg/gas_killer_wasm_bg.wasm public/wasm/"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

@@ -29,6 +29,33 @@ export function validateTraceJson(json: string): { valid: boolean; error?: strin
   }
 }
 
+export async function fetchBlockNumber(rpcUrl: string, txHash: string): Promise<bigint> {
+  const resp = await fetch(rpcUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      method: "eth_getTransactionReceipt",
+      params: [txHash],
+      id: 1,
+    }),
+  })
+
+  if (!resp.ok) {
+    throw new Error(`HTTP ${resp.status}: ${resp.statusText}`)
+  }
+
+  const json = await resp.json()
+  if (json.error) {
+    throw new Error(`RPC error: ${json.error.message || JSON.stringify(json.error)}`)
+  }
+  if (!json.result) {
+    throw new Error("Transaction not found")
+  }
+
+  return BigInt(json.result.blockNumber)
+}
+
 export async function fetchTraceFromRpc(rpcUrl: string, txHash: string): Promise<string> {
   const resp = await fetch(rpcUrl, {
     method: "POST",
@@ -45,12 +72,36 @@ export async function fetchTraceFromRpc(rpcUrl: string, txHash: string): Promise
     throw new Error(`HTTP ${resp.status}: ${resp.statusText}`)
   }
 
-  const json = await resp.json()
-  if (json.error) {
-    throw new Error(`RPC error: ${json.error.message || JSON.stringify(json.error)}`)
+  // Use text() instead of json() to handle very large responses (100MB+)
+  // that can crash the browser's JSON parser with "Unexpected end of JSON input"
+  const text = await resp.text()
+
+  // Extract the "result" field without parsing the entire response.
+  // JSON-RPC envelope is: {"jsonrpc":"2.0","id":1,"result":{...}} or {"jsonrpc":"2.0","id":1,"error":{...}}
+  // We find the "result": or "error": key and extract the value substring.
+  const errorMatch = text.match(/"error"\s*:\s*/)
+  if (errorMatch && errorMatch.index !== undefined) {
+    // Try to parse just the error portion
+    try {
+      const errorStart = errorMatch.index + errorMatch[0].length
+      const errorJson = JSON.parse(text.slice(errorStart).replace(/\}\s*$/, ""))
+      throw new Error(`RPC error: ${errorJson.message || JSON.stringify(errorJson)}`)
+    } catch (e) {
+      if (e instanceof Error && e.message.startsWith("RPC error:")) throw e
+      throw new Error("RPC returned an error response")
+    }
   }
 
-  return JSON.stringify(json.result)
+  const resultMatch = text.match(/"result"\s*:\s*/)
+  if (!resultMatch || resultMatch.index === undefined) {
+    throw new Error("Unexpected RPC response format")
+  }
+
+  // Slice from the start of the result value to the end, trimming the outer closing brace
+  const resultStart = resultMatch.index + resultMatch[0].length
+  const resultJson = text.slice(resultStart).replace(/\}\s*$/, "")
+
+  return resultJson
 }
 
 export function extractOriginalGas(json: string): number | null {
