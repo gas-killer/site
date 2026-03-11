@@ -20,8 +20,8 @@ yarn-error.log*
 .env*
 !.env.example
 
-# wasm binaries (built from gas-killer-analyzer-wasm)
-/public/wasm/
+# wasm binaries are committed for Vercel deployment
+# Rebuild locally with: npm run build:wasm
 
 # vercel
 .vercel
