@@ -18,6 +18,10 @@ yarn-error.log*
 
 # env files
 .env*
+!.env.example
+
+# wasm binaries are committed for Vercel deployment
+# Rebuild locally with: npm run build:wasm
 
 # vercel
 .vercel

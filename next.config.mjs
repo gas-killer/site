@@ -4,9 +4,8 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    unoptimized: true,
+    unoptimized: true, // TODO: remove if using Vercel Image Optimization
   },
- 
   eslint: {
     ignoreDuringBuilds: true,
   },
