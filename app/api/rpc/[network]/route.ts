@@ -24,11 +24,19 @@ export async function POST(
 
   const body = await request.text()
 
-  const resp = await fetch(rpcUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body,
-  })
+  let resp: Response
+  try {
+    resp = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    })
+  } catch {
+    return Response.json(
+      { error: "Upstream RPC request failed" },
+      { status: 502 }
+    )
+  }
 
   return new Response(resp.body, {
     status: resp.status,

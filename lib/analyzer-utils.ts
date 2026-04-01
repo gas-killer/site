@@ -78,15 +78,22 @@ export async function fetchTraceFromRpc(network: string, txHash: string): Promis
   // that can crash the browser's JSON parser with "Unexpected end of JSON input"
   const text = await resp.text()
 
-  // Extract the "result" field without parsing the entire response.
-  // JSON-RPC envelope is: {"jsonrpc":"2.0","id":1,"result":{...}} or {"jsonrpc":"2.0","id":1,"error":{...}}
-  // We find the "result": or "error": key and extract the value substring.
+  // Extract the "result" or "error" value from the JSON-RPC envelope without
+  // parsing the entire response. Check for "result" first because "error" can
+  // appear as a key inside trace data (e.g. revert reasons).
+  const resultMatch = text.match(/"result"\s*:\s*/)
+  if (resultMatch && resultMatch.index !== undefined) {
+    const resultStart = resultMatch.index + resultMatch[0].length
+    return extractValueFromEnvelope(text, resultStart)
+  }
+
+  // No "result" found — check for a JSON-RPC error response
   const errorMatch = text.match(/"error"\s*:\s*/)
   if (errorMatch && errorMatch.index !== undefined) {
-    // Try to parse just the error portion
     try {
       const errorStart = errorMatch.index + errorMatch[0].length
-      const errorJson = JSON.parse(text.slice(errorStart).replace(/\}\s*$/, ""))
+      const errorValue = extractValueFromEnvelope(text, errorStart)
+      const errorJson = JSON.parse(errorValue)
       throw new Error(`RPC error: ${errorJson.message || JSON.stringify(errorJson)}`)
     } catch (e) {
       if (e instanceof Error && e.message.startsWith("RPC error:")) throw e
@@ -94,26 +101,62 @@ export async function fetchTraceFromRpc(network: string, txHash: string): Promis
     }
   }
 
-  const resultMatch = text.match(/"result"\s*:\s*/)
-  if (!resultMatch || resultMatch.index === undefined) {
-    throw new Error("Unexpected RPC response format")
+  throw new Error("Unexpected RPC response format")
+}
+
+/**
+ * Extract a JSON value from a JSON-RPC envelope given the index where the value starts.
+ *
+ * The envelope looks like: {"jsonrpc":"2.0","id":1,"result":{...}}
+ * After locating "result": we know valueStart points to the '{' of the value.
+ * We scan backwards from the end of the text to skip the envelope's closing '}'
+ * and any trailing fields (e.g. ,"id":1), then find the '}' that closes the value.
+ *
+ * This is O(k) where k is the length of any trailing envelope fields (typically < 50 chars),
+ * not O(n) for the full response.
+ */
+function extractValueFromEnvelope(text: string, valueStart: number): string {
+  // This extraction only works for object values (starting with '{').
+  // debug_traceTransaction always returns an object; RPC errors are always objects.
+  if (text[valueStart] !== '{') {
+    return text.slice(valueStart).trim()
   }
 
-  // Slice from the start of the result value to the end, trimming the outer closing brace
-  const resultStart = resultMatch.index + resultMatch[0].length
-  const resultJson = text.slice(resultStart).replace(/\}\s*$/, "")
+  let i = text.length - 1
 
-  return resultJson
+  // Skip trailing whitespace
+  while (i > valueStart && text.charCodeAt(i) <= 32) i--
+
+  // This should be the envelope's closing '}'
+  if (text[i] !== '}') {
+    return text.slice(valueStart).trim()
+  }
+
+  // Step inside the envelope
+  i--
+
+  // Skip any trailing envelope fields (e.g. ,"id":1) by scanning backwards
+  // for the next '}'. These fields contain only simple JSON values (numbers,
+  // short strings like "2.0") — never nested braces.
+  while (i > valueStart && text[i] !== '}') i--
+
+  if (i <= valueStart) {
+    return text.slice(valueStart).trim()
+  }
+
+  // text[i] is the '}' that closes the result/error value
+  return text.slice(valueStart, i + 1)
 }
 
 export function extractOriginalGas(json: string): number | null {
-  try {
-    const parsed = JSON.parse(json)
-    if (typeof parsed.gas === "number") return parsed.gas
-  } catch {
-    // ignore
-  }
-  return null
+  // Extract the top-level "gas" field via regex instead of JSON.parse,
+  // since the trace string can be 100MB+ and would crash the browser.
+  // The top-level gas field appears in the first few hundred bytes,
+  // before structLogs, so we limit the search to avoid matching
+  // per-opcode gas fields deep in the trace.
+  const prefix = json.slice(0, 500)
+  const match = prefix.match(/"gas"\s*:\s*(\d+)/)
+  return match ? Number(match[1]) : null
 }
 
 export function formatGas(gas: number): string {

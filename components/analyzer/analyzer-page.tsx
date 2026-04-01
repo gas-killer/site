@@ -27,6 +27,7 @@ type State = {
 }
 
 type Action =
+  | { type: "WASM_LOADING" }
   | { type: "WASM_READY" }
   | { type: "WASM_ERROR"; error: string }
   | { type: "RUN_START"; statusMessage: string }
@@ -47,6 +48,8 @@ const initialState: State = {
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
+    case "WASM_LOADING":
+      return { ...state, wasmStatus: "loading", wasmError: null }
     case "WASM_READY":
       return { ...state, wasmStatus: "ready", wasmError: null }
     case "WASM_ERROR":
@@ -112,7 +115,7 @@ export function AnalyzerPage() {
 
   function handleRetryWasm() {
     resetWasm()
-    dispatch({ type: "WASM_READY" })
+    dispatch({ type: "WASM_LOADING" })
     loadWasm()
       .then(() => dispatch({ type: "WASM_READY" }))
       .catch((e) => dispatch({ type: "WASM_ERROR", error: (e as Error).message }))
