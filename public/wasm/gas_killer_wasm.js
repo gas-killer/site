@@ -106,19 +106,25 @@ let WASM_VECTOR_LEN = 0;
  * `estimator_address` is the hex address where the gas estimator contract will be
  * deployed in the empty CacheDB, e.g. `"0x1234..."`.
  *
+ * `caller_address` is the hex address of the original transaction sender, used as
+ * `tx.origin` during gas simulation.
+ *
  * Returns a JS object with: `encoded_updates`, `gas_estimate`, `is_heuristic`,
  * `state_update_count`, `skipped_opcodes`.
  * @param {string} trace_json
  * @param {string} estimator_address
+ * @param {string} caller_address
  * @param {bigint | null} [estimate_state_changes_block_number]
  * @returns {any}
  */
-export function analyze_trace(trace_json, estimator_address, estimate_state_changes_block_number) {
+export function analyze_trace(trace_json, estimator_address, caller_address, estimate_state_changes_block_number) {
     const ptr0 = passStringToWasm0(trace_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passStringToWasm0(estimator_address, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.analyze_trace(ptr0, len0, ptr1, len1, !isLikeNone(estimate_state_changes_block_number), isLikeNone(estimate_state_changes_block_number) ? BigInt(0) : estimate_state_changes_block_number);
+    const ptr2 = passStringToWasm0(caller_address, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.analyze_trace(ptr0, len0, ptr1, len1, ptr2, len2, !isLikeNone(estimate_state_changes_block_number), isLikeNone(estimate_state_changes_block_number) ? BigInt(0) : estimate_state_changes_block_number);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
