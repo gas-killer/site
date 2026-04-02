@@ -3,13 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "next build",
-    "dev": "next dev",
+    "build": "npm run copy:wasm && next build",
+    "copy:wasm": "mkdir -p public/wasm && cp node_modules/@gas-killer/gas-killer-wasm/gas_killer_wasm.js public/wasm/ && cp node_modules/@gas-killer/gas-killer-wasm/gas_killer_wasm_bg.wasm public/wasm/",
+    "dev": "npm run copy:wasm && next dev",
     "lint": "eslint .",
     "start": "next start",
-    "build:wasm": "wasm-pack build ${GAS_ANALYZER_WASM_PATH:-../gas-analyzer/crates/wasm} --target web --release --out-name gas_killer_wasm && mkdir -p public/wasm && cp ${GAS_ANALYZER_WASM_PATH:-../gas-analyzer/crates/wasm}/pkg/gas_killer_wasm.js public/wasm/ && cp ${GAS_ANALYZER_WASM_PATH:-../gas-analyzer/crates/wasm}/pkg/gas_killer_wasm_bg.wasm public/wasm/"
+    "build:wasm": "wasm-pack build ${GAS_ANALYZER_WASM_PATH:-../gas-analyzer/crates/wasm} --target web --release --out-name gas_killer_wasm && npm run copy:wasm"
   },
   "dependencies": {
+    "@gas-killer/gas-killer-wasm": "0.1.0-13afaba",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
