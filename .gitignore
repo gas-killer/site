@@ -20,7 +20,7 @@ yarn-error.log*
 .env*
 !.env.example
 
-# wasm build artifacts - generated at build time via copy:wasm script
+# wasm build artifacts - generated at build time via "copy:wasm" script
 /public/wasm/
 
 # vercel
