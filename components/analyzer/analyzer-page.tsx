@@ -11,7 +11,7 @@ import { Header } from "@/components/header"
 import { VisibilityProvider, useVisibility } from "@/components/visibility-context"
 import { loadWasm, resetWasm } from "@/lib/wasm/analyzer"
 import type { AnalyzeTraceResult } from "@/lib/wasm/analyzer"
-import { fetchTraceFromRpc, fetchBlockNumber, extractOriginalGas, DEFAULT_ESTIMATOR_ADDRESS } from "@/lib/analyzer-utils"
+import { fetchTraceFromRpc, fetchTransactionInfo, extractOriginalGas, DEFAULT_ESTIMATOR_ADDRESS } from "@/lib/analyzer-utils"
 import { NETWORKS } from "@/lib/networks"
 import { AnalysisResults } from "./analysis-results"
 
@@ -92,7 +92,7 @@ export function AnalyzerPage() {
     dispatch({ type: "RUN_START", statusMessage: "Fetching block number..." })
 
     try {
-      const blockNumber = await fetchBlockNumber(selectedNetwork, txHash)
+      const { blockNumber, from } = await fetchTransactionInfo(selectedNetwork, txHash)
 
       dispatch({ type: "RUN_STATUS", statusMessage: "Fetching transaction trace..." })
       const traceJson = await fetchTraceFromRpc(selectedNetwork, txHash)
@@ -103,7 +103,7 @@ export function AnalyzerPage() {
 
       const wasm = await loadWasm()
       const start = performance.now()
-      const result = wasm.analyze_trace(traceJson, DEFAULT_ESTIMATOR_ADDRESS, blockNumber) as AnalyzeTraceResult
+      const result = wasm.analyze_trace(traceJson, DEFAULT_ESTIMATOR_ADDRESS, from, blockNumber) as AnalyzeTraceResult
       const durationMs = performance.now() - start
       const originalGas = extractOriginalGas(traceJson)
 

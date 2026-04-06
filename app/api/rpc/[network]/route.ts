@@ -30,6 +30,7 @@ export async function POST(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
+      cache: "no-store",
     })
   } catch {
     return Response.json(
