@@ -19,11 +19,23 @@ export interface EstimateGasResult {
   skipped_opcodes: string[]
 }
 
-type WasmModule = {
+export type WasmModule = {
   analyze_trace: (traceJson: string, estimatorAddress: string, estimateStateChangesBlockNumber?: bigint) => AnalyzeTraceResult
   estimate_gas_heuristic: (traceJson: string) => EstimateGasResult
   encode_trace: (traceJson: string) => EncodeTraceResult
   default: (moduleOrPath?: string) => Promise<unknown>
+  getWasmExports: () => {
+    memory: WebAssembly.Memory
+    __wbindgen_malloc: (size: number, align: number) => number
+    __wbindgen_free: (ptr: number, size: number, align: number) => void
+    analyze_trace: (
+      ptr0: number, len0: number,
+      ptr1: number, len1: number,
+      hasBlock: number, block: bigint
+    ) => [number, number, number]
+    __wbindgen_externrefs: WebAssembly.Table
+    __externref_table_dealloc: (idx: number) => void
+  }
 }
 
 // Use Function constructor to create a dynamic import that webpack cannot

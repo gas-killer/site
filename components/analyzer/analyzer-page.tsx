@@ -11,7 +11,7 @@ import { Header } from "@/components/header"
 import { VisibilityProvider, useVisibility } from "@/components/visibility-context"
 import { loadWasm, resetWasm } from "@/lib/wasm/analyzer"
 import type { AnalyzeTraceResult } from "@/lib/wasm/analyzer"
-import { fetchTraceFromRpc, fetchBlockNumber, extractOriginalGas, DEFAULT_ESTIMATOR_ADDRESS } from "@/lib/analyzer-utils"
+import { fetchTraceFromRpc, fetchBlockNumber, extractOriginalGas, DEFAULT_ESTIMATOR_ADDRESS, analyzeTraceFromBuffer } from "@/lib/analyzer-utils"
 import { NETWORKS } from "@/lib/networks"
 import { AnalysisResults } from "./analysis-results"
 
@@ -103,7 +103,7 @@ export function AnalyzerPage() {
 
       const wasm = await loadWasm()
       const start = performance.now()
-      const result = wasm.analyze_trace(traceJson, DEFAULT_ESTIMATOR_ADDRESS, blockNumber) as AnalyzeTraceResult
+      const result = analyzeTraceFromBuffer(wasm, traceJson, DEFAULT_ESTIMATOR_ADDRESS, blockNumber)
       const durationMs = performance.now() - start
       const originalGas = extractOriginalGas(traceJson)
 

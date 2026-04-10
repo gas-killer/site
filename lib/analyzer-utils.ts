@@ -1,3 +1,5 @@
+import { AnalyzeTraceResult, WasmModule } from "./wasm/analyzer";
+
 export function validateTraceJson(json: string): { valid: boolean; error?: string } {
   if (!json.trim()) return { valid: false, error: "Input is empty" }
 
@@ -57,7 +59,7 @@ export async function fetchBlockNumber(network: string, txHash: string): Promise
   return BigInt(json.result.blockNumber)
 }
 
-export async function fetchTraceFromRpc(network: string, txHash: string): Promise<string> {
+export async function fetchTraceFromRpc(network: string, txHash: string): Promise<Uint8Array> {
   const resp = await fetch(`/api/rpc/${network}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -74,89 +76,195 @@ export async function fetchTraceFromRpc(network: string, txHash: string): Promis
     throw new Error(errorBody?.error || `HTTP ${resp.status}: ${resp.statusText}`)
   }
 
-  // Use text() instead of json() to handle very large responses (100MB+)
-  // that can crash the browser's JSON parser with "Unexpected end of JSON input"
-  const text = await resp.text()
+  if (!resp.body) throw new Error("No response body")
 
-  // Extract the "result" or "error" value from the JSON-RPC envelope without
-  // parsing the entire response. Check for "result" first because "error" can
-  // appear as a key inside trace data (e.g. revert reasons).
-  const resultMatch = text.match(/"result"\s*:\s*/)
-  if (resultMatch && resultMatch.index !== undefined) {
-    const resultStart = resultMatch.index + resultMatch[0].length
-    return extractValueFromEnvelope(text, resultStart)
+  const reader = resp.body.getReader()
+  const chunks: Uint8Array[] = []
+  let totalBytes = 0
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    totalBytes += value.byteLength
   }
 
-  // No "result" found — check for a JSON-RPC error response
-  const errorMatch = text.match(/"error"\s*:\s*/)
-  if (errorMatch && errorMatch.index !== undefined) {
-    try {
-      const errorStart = errorMatch.index + errorMatch[0].length
-      const errorValue = extractValueFromEnvelope(text, errorStart)
-      const errorJson = JSON.parse(errorValue)
-      throw new Error(`RPC error: ${errorJson.message || JSON.stringify(errorJson)}`)
-    } catch (e) {
-      if (e instanceof Error && e.message.startsWith("RPC error:")) throw e
-      throw new Error("RPC returned an error response")
+  const buffer = new Uint8Array(totalBytes)
+  let offset = 0
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+
+  // Find "result": by scanning only the first 200 bytes
+  const headerBytes = buffer.subarray(0, Math.min(200, buffer.length))
+  const headerText = new TextDecoder().decode(headerBytes)
+
+  const resultMatch = headerText.match(/"result"\s*:\s*/)
+  if (resultMatch?.index !== undefined) {
+    // valueStart is a byte offset — safe because header is ASCII-only
+    const valueStart = resultMatch.index + resultMatch[0].length
+    const slice = trimEnvelope(buffer, valueStart)
+    if (slice.length === 0) {
+      throw new Error("Extracted result slice is empty — envelope trimming failed")
     }
+    return slice
+  }
+
+  const errorMatch = headerText.match(/"error"\s*:\s*/)
+  if (errorMatch?.index !== undefined) {
+    const errorStart = errorMatch.index + errorMatch[0].length
+    const errorText = new TextDecoder().decode(buffer.subarray(errorStart, errorStart + 512))
+    const msg = errorText.match(/"message"\s*:\s*"([^"]+)"/)
+    throw new Error(`RPC error: ${msg?.[1] ?? errorText}`)
   }
 
   throw new Error("Unexpected RPC response format")
 }
 
 /**
- * Extract a JSON value from a JSON-RPC envelope given the index where the value starts.
+ * Given the full response buffer and the byte index where the result value starts,
+ * return a subarray that contains exactly the result object.
  *
- * The envelope looks like: {"jsonrpc":"2.0","id":1,"result":{...}}
- * After locating "result": we know valueStart points to the '{' of the value.
- * We scan backwards from the end of the text to skip the envelope's closing '}'
- * and any trailing fields (e.g. ,"id":1), then find the '}' that closes the value.
+ * The envelope is: {"jsonrpc":"2.0","id":1,"result":{...RESULT...}}
+ * We need to strip the trailing envelope `}` (and any fields after the result like `,"id":1`).
  *
- * This is O(k) where k is the length of any trailing envelope fields (typically < 50 chars),
- * not O(n) for the full response.
+ * Strategy: the result value starts at a `{`. We scan backwards from the end of the
+ * buffer to find the `}` that closes the RESULT object. We do this by tracking brace
+ * depth while scanning backwards — the first `}` closes the envelope, then we need
+ * to find where depth returns to 0 going further backwards, which is the result's `}`.
  */
-function extractValueFromEnvelope(text: string, valueStart: number): string {
-  // This extraction only works for object values (starting with '{').
-  // debug_traceTransaction always returns an object; RPC errors are always objects.
-  if (text[valueStart] !== '{') {
-    return text.slice(valueStart).trim()
+function trimEnvelope(buf: Uint8Array, valueStart: number): Uint8Array {
+  // Skip leading whitespace
+  while (valueStart < buf.length && buf[valueStart] <= 32) valueStart++
+
+  if (valueStart >= buf.length || buf[valueStart] !== 0x7b) {
+    // Not an object — return as-is (shouldn't happen for debug_traceTransaction)
+    return buf.subarray(valueStart)
   }
 
-  let i = text.length - 1
+  // Walk forwards with a brace counter to find the matching closing brace.
+  // This is O(n) but unavoidable — we must confirm the result boundary.
+  // We skip string contents to avoid counting braces inside JSON strings.
+  let depth = 0
+  let inString = false
+  let escaped = false
 
-  // Skip trailing whitespace
-  while (i > valueStart && text.charCodeAt(i) <= 32) i--
+  for (let i = valueStart; i < buf.length; i++) {
+    const b = buf[i]
 
-  // This should be the envelope's closing '}'
-  if (text[i] !== '}') {
-    return text.slice(valueStart).trim()
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (inString) {
+      if (b === 0x5c) escaped = true       // backslash
+      else if (b === 0x22) inString = false // closing quote
+      continue
+    }
+
+    if (b === 0x22) { inString = true; continue }  // opening quote
+    if (b === 0x7b) { depth++; continue }           // {
+    if (b === 0x7d) {                               // }
+      depth--
+      if (depth === 0) {
+        return buf.subarray(valueStart, i + 1)
+      }
+    }
   }
 
-  // Step inside the envelope
-  i--
-
-  // Skip any trailing envelope fields (e.g. ,"id":1) by scanning backwards
-  // for the next '}'. These fields contain only simple JSON values (numbers,
-  // short strings like "2.0") — never nested braces.
-  while (i > valueStart && text[i] !== '}') i--
-
-  if (i <= valueStart) {
-    return text.slice(valueStart).trim()
-  }
-
-  // text[i] is the '}' that closes the result/error value
-  return text.slice(valueStart, i + 1)
+  // Depth never reached 0 — truncated response?
+  console.warn("trimEnvelope: never found matching closing brace, returning full tail")
+  return buf.subarray(valueStart)
 }
 
-export function extractOriginalGas(json: string): number | null {
-  // Extract the top-level "gas" field via regex instead of JSON.parse,
-  // since the trace string can be 100MB+ and would crash the browser.
-  // The top-level gas field appears in the first few hundred bytes,
-  // before structLogs, so we limit the search to avoid matching
-  // per-opcode gas fields deep in the trace.
-  const prefix = json.slice(0, 500)
+export function extractOriginalGas(buf: Uint8Array): number | null {
+  const prefix = new TextDecoder().decode(buf.subarray(0, Math.min(500, buf.length)))
   const match = prefix.match(/"gas"\s*:\s*(\d+)/)
   return match ? Number(match[1]) : null
+}
+
+function findPatternOffset(buf: Uint8Array, pattern: string): number {
+  const needle = new TextEncoder().encode(pattern)
+  outer: for (let i = 0; i <= buf.length - needle.length; i++) {
+    for (let j = 0; j < needle.length; j++) {
+      if (buf[i + j] !== needle[j]) continue outer
+    }
+    return i + needle.length  // points just past the pattern
+  }
+  return -1
+}
+
+function findResultOffset(buf: Uint8Array): number {
+  // Search for `"result":` but only in the first 200 bytes (the envelope header)
+  const header = buf.subarray(0, Math.min(200, buf.length))
+  return findPatternOffset(header, '"result":')
+}
+
+function extractResultSlice(buf: Uint8Array, valueStart: number): Uint8Array {
+  // Skip whitespace
+  while (valueStart < buf.length && buf[valueStart] <= 32) valueStart++
+
+  if (buf[valueStart] !== 0x7b) {  // not '{'
+    return buf.subarray(valueStart)
+  }
+
+  // Scan backwards from the end to find the closing '}' of the result value
+  let i = buf.length - 1
+  while (i > valueStart && buf[i] <= 32) i--       // skip trailing whitespace
+  if (buf[i] !== 0x7d) return buf.subarray(valueStart)  // not '}'
+  i--  // step inside envelope's '}'
+  while (i > valueStart && buf[i] !== 0x7d) i--    // skip trailing envelope fields (,"id":1)
+  if (i <= valueStart) return buf.subarray(valueStart)
+
+  return buf.subarray(valueStart, i + 1)  // zero-copy slice (shared memory!)
+}
+
+export function analyzeTraceFromBuffer(
+  mod: WasmModule,
+  traceBytes: Uint8Array,
+  estimatorAddress: string,
+  blockNumber: bigint | null
+): AnalyzeTraceResult {
+  const exports = mod.getWasmExports()
+
+  // Allocate and write trace bytes into WASM memory
+  const tracePtr = exports.__wbindgen_malloc(traceBytes.length, 1)
+  new Uint8Array(exports.memory.buffer).set(traceBytes, tracePtr)
+
+  // Allocate and write estimator address (re-get view after malloc — memory may have grown)
+  const addrBytes = new TextEncoder().encode(estimatorAddress)
+  const addrPtr = exports.__wbindgen_malloc(addrBytes.length, 1)
+  new Uint8Array(exports.memory.buffer).set(addrBytes, addrPtr)
+
+  // Call raw WASM — same signature as generated passStringToWasm0 produces
+  const hasBlock = blockNumber != null ? 1 : 0
+  const block = blockNumber ?? BigInt(0)
+
+  const ret = exports.analyze_trace(
+    tracePtr, traceBytes.length,
+    addrPtr, addrBytes.length,
+    hasBlock, block
+  )
+
+  // DO NOT call __wbindgen_free — dlmalloc tracks chunk sizes internally
+  // and passing the requested byte length (not the actual chunk size) causes
+  // the "psize <= size + max_overhead" panic. WASM memory never shrinks so
+  // this is a safe leak — it gets reclaimed when the WASM instance resets.
+
+  // Unpack the externref result table entries
+  const table = exports.__wbindgen_externrefs
+  const dealloc = exports.__externref_table_dealloc
+
+  if (ret[2]) {
+    const err = table.get(ret[1])
+    dealloc(ret[1])
+    throw err
+  }
+
+  const result = table.get(ret[0])
+  dealloc(ret[0])
+  return result as AnalyzeTraceResult
 }
 
 export function formatGas(gas: number): string {

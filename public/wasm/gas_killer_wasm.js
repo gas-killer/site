@@ -332,5 +332,6 @@ async function __wbg_init(module_or_path) {
     return __wbg_finalize_init(instance, module);
 }
 
+export function getWasmExports() { return wasm; }
 export { initSync };
 export default __wbg_init;
