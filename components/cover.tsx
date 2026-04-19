@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Image from "next/image"
 import { useVisibility } from "./visibility-context"
 
 export function Cover() {
@@ -13,7 +14,7 @@ export function Cover() {
       setIsVisible(false)
       setShowContent(true)
       setTimeout(() => setShouldRender(false), 1000)
-    }, 2000)
+    }, 1800)
 
     return () => clearTimeout(timer)
   }, [setShowContent])
@@ -26,7 +27,14 @@ export function Cover() {
         isVisible ? "opacity-100" : "opacity-0"
       }`}
     >
-      <span className="text-white font-bold text-8xl md:text-9xl tracking-tighter select-none">GK</span>
+      <Image
+        src="/brand/gk-eclipse.png"
+        alt="Gas Killer"
+        width={720}
+        height={720}
+        priority
+        className="w-[min(80vw,720px)] h-auto"
+      />
     </div>
   )
 }

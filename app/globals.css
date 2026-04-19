@@ -4,9 +4,62 @@
 
 @layer base {
   * {
-    @apply border-zinc-800;
+    @apply border-white/10;
+  }
+  html {
+    scroll-behavior: smooth;
   }
   body {
-    @apply bg-black text-white;
+    @apply bg-black text-zinc-200 antialiased;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display), sans-serif;
+  }
+  .font-magz {
+    font-family: var(--font-magz), sans-serif;
+  }
+
+  /* Eclipse glow behind the hero logo — mirrors the pitch deck aesthetic */
+  .eclipse-glow {
+    background: radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0) 40%,
+      rgba(255, 255, 255, 0.12) 48%,
+      rgba(255, 255, 255, 0.04) 58%,
+      rgba(0, 0, 0, 0) 72%
+    );
+  }
+
+  .grid-dots {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .service-card {
+    @apply relative overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 p-8 transition-all duration-300;
+  }
+  .service-card:hover {
+    @apply border-white/25 -translate-y-1;
+    box-shadow: 0 0 40px -10px rgba(255, 255, 255, 0.08);
+  }
+  .service-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, transparent 60%, var(--accent, rgba(255, 255, 255, 0.15)));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .service-card:hover::before {
+    opacity: 1;
   }
 }
