@@ -26,6 +26,28 @@ export const metadata: Metadata = {
   title: "Gas Killer: Optimistic co-processor for the age of agentic coding",
   description:
     "Secure contracts shouldn't cost more. Gas Killer simulates transactions off-chain and writes back only the essential state changes, replacing expensive computation with aggregate signature verification.",
+  metadataBase: new URL("https://gaskiller.xyz"),
+  openGraph: {
+    title: "Gas Killer",
+    description: "Secure contracts shouldn't cost more.",
+    url: "https://gaskiller.xyz",
+    siteName: "Gas Killer",
+    images: [
+      {
+        url: "/brand/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Gas Killer",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Gas Killer",
+    description: "Secure contracts shouldn't cost more.",
+    images: ["/brand/og-image.png"],
+  },
 }
 
 export default function RootLayout({
