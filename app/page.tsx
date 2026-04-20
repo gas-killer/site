@@ -79,7 +79,7 @@ export default function Home() {
                 <div className="rounded-2xl border border-white/10 bg-zinc-950 p-8 hover:border-white/25 hover:-translate-y-1 transition-all duration-300">
                   <h3 className="text-2xl md:text-3xl font-semibold text-white mb-3">Simple integration</h3>
                   <p className="text-zinc-400 leading-relaxed">
-                    One line of Solidity. No new languages. No rearchitecting.
+                    No new languages. No rearchitecting your smart contract.
                   </p>
                 </div>
               </div>
@@ -168,7 +168,7 @@ export default function Home() {
                   style={{ ["--accent" as string]: "rgba(147, 197, 253, 0.45)" }}
                 >
                   <div className="w-10 h-10 rounded-lg bg-sky-400/10 border border-sky-400/20 flex items-center justify-center mb-6 text-sky-300">
-                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="m8 8 4-4"/><path d="M12 4v4"/></svg>
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
                   </div>
                   <h3 className="text-lg font-semibold text-white mb-3">Gas Rebate</h3>
                   <p className="text-zinc-400 text-sm leading-relaxed">

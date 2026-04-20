@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
 import { Header } from "@/components/header"
-import { VisibilityProvider, useVisibility } from "@/components/visibility-context"
 import { loadWasm, resetWasm } from "@/lib/wasm/analyzer"
 import type { AnalyzeTraceResult } from "@/lib/wasm/analyzer"
 import { fetchTraceFromRpc, fetchBlockNumber, extractOriginalGas, DEFAULT_ESTIMATOR_ADDRESS } from "@/lib/analyzer-utils"
@@ -67,14 +66,6 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-function ShowContent() {
-  const { setShowContent } = useVisibility()
-  useEffect(() => {
-    setShowContent(true)
-  }, [setShowContent])
-  return null
-}
-
 export function AnalyzerPage() {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [txHash, setTxHash] = useState("")
@@ -98,7 +89,6 @@ export function AnalyzerPage() {
       const traceJson = await fetchTraceFromRpc(selectedNetwork, txHash)
 
       dispatch({ type: "RUN_STATUS", statusMessage: "Analyzing trace..." })
-      // Yield to let the UI paint
       await new Promise((r) => setTimeout(r, 0))
 
       const wasm = await loadWasm()
@@ -124,116 +114,118 @@ export function AnalyzerPage() {
   const canAnalyze = state.wasmStatus === "ready" && txHash.trim() && selectedNetwork && !state.isRunning
 
   return (
-    <VisibilityProvider>
-      <ShowContent />
-      <div className="flex min-h-screen flex-col bg-amber-50">
-        <Header />
-        <main className="flex-1">
-          <div className="container max-w-4xl px-4 py-8 md:py-12 space-y-6">
-            <div className="space-y-2">
-              <h1 className="text-3xl font-bold tracking-tighter text-amber-900 sm:text-4xl">
-                Gas Analyzer
-              </h1>
-              <p className="text-amber-800">
-                Analyze Ethereum transactions to estimate gas savings with Gas Killer.
-              </p>
-            </div>
-
-            {/* WASM status */}
-            {state.wasmStatus === "loading" && (
-              <div className="flex items-center gap-2 text-amber-700">
-                <Spinner className="text-amber-600" />
-                <span className="text-sm">Loading WebAssembly module...</span>
-              </div>
-            )}
-            {state.wasmStatus === "error" && (
-              <Alert variant="destructive">
-                <AlertTitle>WASM Failed to Load</AlertTitle>
-                <AlertDescription className="flex items-center justify-between">
-                  <span>{state.wasmError}</span>
-                  <Button variant="outline" size="sm" onClick={handleRetryWasm}>
-                    Retry
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <Card className="border-amber-200">
-              <CardHeader>
-                <CardTitle className="text-amber-900">Transaction</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-amber-900">Network</Label>
-                  <div className="flex gap-2">
-                    {NETWORKS.map((n) => (
-                      <Button
-                        key={n.id}
-                        variant={selectedNetwork === n.id ? "default" : "outline"}
-                        size="sm"
-                        className={
-                          selectedNetwork === n.id
-                            ? "bg-green-700 text-amber-50 hover:bg-green-600"
-                            : "border-amber-200 text-amber-800 hover:bg-amber-100"
-                        }
-                        onClick={() => setSelectedNetwork(n.id)}
-                      >
-                        {n.name}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-amber-900">Transaction Hash</Label>
-                  <Input
-                    placeholder="0x..."
-                    value={txHash}
-                    onChange={(e) => setTxHash(e.target.value)}
-                    className="font-mono border-amber-200"
-                  />
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button
-                  onClick={handleAnalyze}
-                  disabled={!canAnalyze}
-                  className="bg-green-700 text-amber-50 hover:bg-green-600"
-                >
-                  {state.isRunning ? (
-                    <>
-                      <Spinner className="mr-2" />
-                      {state.statusMessage}
-                    </>
-                  ) : (
-                    "Analyze"
-                  )}
-                </Button>
-              </CardFooter>
-            </Card>
-
-            {/* Error */}
-            {state.error && (
-              <Alert variant="destructive">
-                <AlertTitle>Analysis Failed</AlertTitle>
-                <AlertDescription className="font-mono text-sm whitespace-pre-wrap">
-                  {state.error}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Results */}
-            {state.result && (
-              <AnalysisResults
-                result={state.result}
-                mode="full"
-                originalGas={state.originalGas}
-                durationMs={state.durationMs}
-              />
-            )}
+    <div className="flex min-h-screen flex-col bg-black text-zinc-200">
+      <Header />
+      <main className="flex-1">
+        <div className="container max-w-4xl px-4 py-12 md:py-16 space-y-8">
+          <div className="space-y-3">
+            <p className="font-display italic text-xs tracking-[0.3em] uppercase text-zinc-500">
+              Gas Analyzer
+            </p>
+            <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white">
+              Estimate your savings.
+            </h1>
+            <p className="text-zinc-400 text-lg max-w-2xl leading-relaxed">
+              Paste an Ethereum transaction hash. Gas Killer replays the trace in your browser and estimates how much gas it would save.
+            </p>
           </div>
-        </main>
-      </div>
-    </VisibilityProvider>
+
+          {/* WASM status */}
+          {state.wasmStatus === "loading" && (
+            <div className="flex items-center gap-2 text-zinc-400">
+              <Spinner className="text-zinc-400" />
+              <span className="text-sm">Loading WebAssembly module...</span>
+            </div>
+          )}
+          {state.wasmStatus === "error" && (
+            <Alert variant="destructive" className="border-rose-500/30 bg-rose-950/40 text-rose-200">
+              <AlertTitle>WASM failed to load</AlertTitle>
+              <AlertDescription className="flex items-center justify-between">
+                <span>{state.wasmError}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRetryWasm}
+                  className="border-white/20 bg-transparent text-white hover:bg-white/10"
+                >
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <Card className="border-white/10 bg-zinc-950 text-zinc-200">
+            <CardHeader>
+              <CardTitle className="text-white">Transaction</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label className="text-zinc-400 text-xs uppercase tracking-widest">Network</Label>
+                <div className="flex flex-wrap gap-2">
+                  {NETWORKS.map((n) => (
+                    <Button
+                      key={n.id}
+                      size="sm"
+                      onClick={() => setSelectedNetwork(n.id)}
+                      className={
+                        selectedNetwork === n.id
+                          ? "bg-white text-black hover:bg-zinc-200"
+                          : "bg-transparent border border-white/15 text-zinc-300 hover:bg-white/10 hover:border-white/30"
+                      }
+                    >
+                      {n.name}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-zinc-400 text-xs uppercase tracking-widest">Transaction hash</Label>
+                <Input
+                  placeholder="0x..."
+                  value={txHash}
+                  onChange={(e) => setTxHash(e.target.value)}
+                  className="font-mono border-white/10 bg-black text-white placeholder:text-zinc-600 focus-visible:ring-white/20"
+                />
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button
+                onClick={handleAnalyze}
+                disabled={!canAnalyze}
+                className="bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500"
+              >
+                {state.isRunning ? (
+                  <>
+                    <Spinner className="mr-2 text-black" />
+                    {state.statusMessage}
+                  </>
+                ) : (
+                  "Analyze"
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
+
+          {state.error && (
+            <Alert variant="destructive" className="border-rose-500/30 bg-rose-950/40 text-rose-200">
+              <AlertTitle>Analysis failed</AlertTitle>
+              <AlertDescription className="font-mono text-sm whitespace-pre-wrap">
+                {state.error}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {state.result && (
+            <AnalysisResults
+              result={state.result}
+              mode="full"
+              originalGas={state.originalGas}
+              durationMs={state.durationMs}
+            />
+          )}
+        </div>
+      </main>
+    </div>
   )
 }
