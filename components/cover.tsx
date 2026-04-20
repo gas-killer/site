@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Image from "next/image"
 import { useVisibility } from "./visibility-context"
 
 export function Cover() {
@@ -11,30 +12,29 @@ export function Cover() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsVisible(false)
-      setShowContent(true) // Show the header as the cover starts to fade
-      // Wait for the fade animation to complete before unmounting
+      setShowContent(true)
       setTimeout(() => setShouldRender(false), 1000)
-    }, 2000)
+    }, 1800)
 
-    return () => {
-      clearTimeout(timer)
-    }
+    return () => clearTimeout(timer)
   }, [setShowContent])
 
   if (!shouldRender) return null
 
   return (
     <div
-      className={`fixed inset-0 z-50 bg-black transition-opacity duration-1000 ease-in-out ${
+      className={`fixed inset-0 z-50 bg-black flex items-center justify-center transition-opacity duration-1000 ease-in-out ${
         isVisible ? "opacity-100" : "opacity-0"
       }`}
     >
-      <img
-        src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-aTYxiWBdSQdtc0mKQtgcpqWyc4JxuM.png"
-        alt="Gas Killer Cover"
-        className="h-full w-full object-cover"
+      <Image
+        src="/brand/gk-eclipse.png"
+        alt="Gas Killer"
+        width={720}
+        height={720}
+        priority
+        className="w-[min(80vw,720px)] h-auto"
       />
     </div>
   )
 }
-
