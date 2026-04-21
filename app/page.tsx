@@ -269,24 +269,6 @@ export default function Home() {
                     private data sharing across web2 and web3.
                   </p>
                 </a>
-                <div className="group rounded-2xl border border-white/10 bg-zinc-950 p-10 hover:border-white/25 hover:-translate-y-1 transition-all duration-300 flex flex-col">
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-14 h-14 rounded-full overflow-hidden flex items-center justify-center">
-                      <Image
-                        src="/brand/scoopy-pfp.jpg"
-                        alt="Scoopy Trooples"
-                        width={56}
-                        height={56}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-semibold text-white">Scoopy Trooples</h3>
-                      <p className="text-zinc-500 text-xs uppercase tracking-widest">Advisor</p>
-                    </div>
-                  </div>
-                  <p className="text-zinc-400 leading-relaxed text-sm">Founder of Alchemix.</p>
-                </div>
               </div>
             </div>
           </section>
