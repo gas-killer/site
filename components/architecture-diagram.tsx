@@ -50,13 +50,7 @@ export function ArchitectureDiagram() {
           <span className="text-zinc-300 text-sm font-semibold">Commonware</span>
         </StackedLayer>
         <StackedLayer>
-          <div className="flex items-center gap-3 md:gap-5 text-zinc-300 text-sm font-semibold">
-            <span>Jito</span>
-            <span className="text-zinc-600">·</span>
-            <span>Symbiotic</span>
-            <span className="text-zinc-600">·</span>
-            <span>EigenCloud</span>
-          </div>
+          <span className="text-zinc-300 text-sm font-semibold">Shared Security</span>
         </StackedLayer>
       </div>
     </div>
