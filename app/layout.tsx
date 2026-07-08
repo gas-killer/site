@@ -59,11 +59,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${spaceGrotesk.variable} ${chakraPetch.variable} ${magz.variable}`}
+      className={`${spaceGrotesk.variable} ${chakraPetch.variable} ${magz.variable} dark`}
       suppressHydrationWarning
     >
       <body className={spaceGrotesk.className}>
-        <RootProvider>{children}</RootProvider>
+        <RootProvider theme={{ forcedTheme: "dark" }}>{children}</RootProvider>
       </body>
     </html>
   )

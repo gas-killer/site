@@ -6,6 +6,8 @@ import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared"
  */
 export function baseOptions(): BaseLayoutProps {
   return {
+    // The site is dark-only; pin dark in the root provider and hide the toggle.
+    themeSwitch: { enabled: false },
     nav: {
       title: "Gas Killer Docs",
       url: "/docs",
