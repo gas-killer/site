@@ -3,6 +3,7 @@ import "./globals.css"
 import type { Metadata } from "next"
 import { Space_Grotesk, Chakra_Petch } from "next/font/google"
 import localFont from "next/font/local"
+import { RootProvider } from "fumadocs-ui/provider/next"
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -56,8 +57,14 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${chakraPetch.variable} ${magz.variable}`}>
-      <body className={spaceGrotesk.className}>{children}</body>
+    <html
+      lang="en"
+      className={`${spaceGrotesk.variable} ${chakraPetch.variable} ${magz.variable}`}
+      suppressHydrationWarning
+    >
+      <body className={spaceGrotesk.className}>
+        <RootProvider>{children}</RootProvider>
+      </body>
     </html>
   )
 }

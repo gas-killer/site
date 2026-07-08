@@ -1,0 +1,81 @@
+---
+title: Quickstart
+description: Get an API key and submit your first compute task.
+---
+
+This guide walks through authenticating with the router and submitting a task.
+
+## 1. Get an API key
+
+Task submission is authenticated with a bearer API key. Keys are issued through
+the admin API, which is guarded by the router's `ADMIN_KEY` shared secret.
+
+```bash
+curl -X POST "$ROUTER_URL/admin/keys" \
+  -H "Authorization: Bearer $ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "label": "my-service" }'
+```
+
+The response contains the raw key exactly once — store it securely, it cannot be
+retrieved again:
+
+```json
+{
+  "id": "a1b2c3d4",
+  "key": "gk_1a2b3c...",
+  "label": "my-service",
+  "created_at": 1751990400,
+  "invalid_at": null
+}
+```
+
+See [Issue an API key](/docs/api/admin/createApiKey) for the full reference.
+
+## 2. Submit a task
+
+Send the task to `POST /trigger` with the key as a bearer token. `call_data` is
+the ABI-encoded calldata as an array of byte values, and `value` is a
+0x-prefixed hex uint256.
+
+```bash
+curl -X POST "$ROUTER_URL/trigger" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": {
+      "target_address": "0x0000000000000000000000000000000000000001",
+      "from_address": "0x0000000000000000000000000000000000000002",
+      "call_data": [171, 205, 239, 1],
+      "value": "0x0",
+      "block_height": 1
+    }
+  }'
+```
+
+A `200` response means the task was accepted and queued:
+
+```json
+{ "success": true, "message": "Task queued" }
+```
+
+A `200` confirms the task was queued, not that it has settled on-chain.
+
+### `transition_index`
+
+Omit `transition_index` (or send `null` / `"auto"`) to let the router assign the
+next available state-transition slot at dequeue time — this is what makes safe
+parallel submissions possible. Send an integer only when you need to target a
+specific slot.
+
+## 3. Handle errors
+
+Every error uses the same envelope, with a stable `code`:
+
+```json
+{ "error": { "code": "QUEUE_FULL", "message": "Service at capacity, please try again in a few minutes" } }
+```
+
+`QUEUE_FULL` and other `503` responses are transient — retry after a short delay.
+See [Submit a compute task](/docs/api/tasks/triggerTask) for every status code
+and error the endpoint can return.

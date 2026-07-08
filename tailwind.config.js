@@ -6,6 +6,8 @@ module.exports = {
     "./components/**/*.{ts,tsx}",
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
+    "./content/**/*.{md,mdx}",
+    "./node_modules/fumadocs-ui/dist/**/*.js",
     "*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {

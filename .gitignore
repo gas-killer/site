@@ -7,6 +7,9 @@
 /.next/
 /out/
 
+# fumadocs - generated content source, regenerated on build
+/.source/
+
 # production
 /build
 
