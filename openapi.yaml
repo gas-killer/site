@@ -20,10 +20,13 @@ servers:
     description: Gas Killer router ingress
     variables:
       baseUrl:
-        default: http://localhost:8080
+        default: https://testnet.gaskiller.xyz
+        enum:
+          - https://testnet.gaskiller.xyz
+          - http://localhost:8080
         description: >
-          Base URL of the router ingress you are calling. Replace with your
-          deployment's public address.
+          Base URL of the router ingress. Defaults to the public testnet; select
+          localhost for local development, or replace with your own deployment.
 
 tags:
   - name: Tasks
@@ -68,9 +71,10 @@ paths:
                 message: Task queued
         "400":
           description: >
-            The request failed validation. `code` is one of `INVALID_REQUEST`,
-            `INVALID_ADDRESS`, `STALE_BLOCK`, `TRANSITION_MISMATCH`,
-            `CALLDATA_TOO_LARGE`, or `CONTRACT_NOT_FOUND`.
+            The request body is malformed JSON, or it failed field-level
+            validation. `code` is one of `INVALID_REQUEST`, `INVALID_ADDRESS`,
+            `STALE_BLOCK`, `TRANSITION_MISMATCH`, `CALLDATA_TOO_LARGE`, or
+            `CONTRACT_NOT_FOUND`.
           content:
             application/json:
               schema:
@@ -81,6 +85,19 @@ paths:
                   message: target_address is zero
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "422":
+          description: >
+            The request body is well-formed JSON but does not match the expected
+            schema (for example, a field has the wrong type). Returned with code
+            `INVALID_REQUEST`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error:
+                  code: INVALID_REQUEST
+                  message: Failed to deserialize the JSON body into the target type
         "502":
           description: An upstream RPC endpoint used for on-chain validation failed.
           content:
@@ -335,6 +352,7 @@ components:
             minimum: 0
             maximum: 255
           minItems: 4
+          maxItems: 131072
           examples:
             - [171, 205, 239, 1]
         value:
@@ -507,7 +525,9 @@ components:
 
     ErrorCode:
       type: string
-      description: A stable machine-readable error identifier.
+      description: >
+        A stable machine-readable error identifier. `RATE_LIMITED` is reserved
+        for future use and is not currently emitted by any endpoint.
       enum:
         - INVALID_ADDRESS
         - STALE_BLOCK
