@@ -9,7 +9,7 @@ info:
     Clients submit compute tasks to `POST /trigger`; the router validates them,
     fans them out to EigenLayer operator nodes, aggregates the BLS signatures,
     and submits a single `verifyAndUpdate` transaction on-chain. Task submission
-    is authenticated with an API key issued through the admin endpoints.
+    is authenticated with an API key.
   contact:
     name: Gas Killer
     url: https://gaskiller.xyz
@@ -33,12 +33,6 @@ tags:
     description: Submitting compute tasks to the network.
   - name: Metadata
     description: Public AVS identity, consumed by the EigenLayer indexer.
-  - name: Admin
-    description: >
-      API-key management. Guarded by the `ADMIN_KEY` shared secret; disabled
-      (503 `NOT_CONFIGURED`) until that secret is set on the router.
-  - name: Operations
-    description: Liveness, readiness, and metrics probes.
 
 paths:
   /trigger:
@@ -140,145 +134,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/AvsMetadata"
 
-  /admin/keys:
-    post:
-      tags: [Admin]
-      summary: Issue an API key
-      operationId: createApiKey
-      description: >
-        Creates a new API key for task submission. The raw `key` is returned
-        exactly once and is never recoverable afterwards — store it securely.
-      security:
-        - AdminAuth: []
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateApiKeyRequest"
-      responses:
-        "201":
-          description: Key created. The `key` field is shown only in this response.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CreatedApiKey"
-        "400":
-          description: The request body is invalid (e.g. `invalid_at` is in the past).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "503":
-          $ref: "#/components/responses/AdminNotConfigured"
-    get:
-      tags: [Admin]
-      summary: List API keys
-      operationId: listApiKeys
-      description: >
-        Lists metadata for all active API keys. Never returns the key value or
-        its hash.
-      security:
-        - AdminAuth: []
-      responses:
-        "200":
-          description: Active API keys.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ApiKeyMetadata"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "503":
-          $ref: "#/components/responses/AdminNotConfigured"
-
-  /admin/keys/{id}:
-    delete:
-      tags: [Admin]
-      summary: Revoke an API key
-      operationId: revokeApiKey
-      description: Revokes the key with the given public identifier. Idempotent per key.
-      security:
-        - AdminAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: The key's public identifier (the `id` field, not the secret).
-          schema:
-            type: string
-      responses:
-        "204":
-          description: Key revoked.
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          description: No key exists with that identifier.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                error:
-                  code: NOT_FOUND
-                  message: API key not found
-        "503":
-          $ref: "#/components/responses/AdminNotConfigured"
-
-  /healthz:
-    get:
-      tags: [Operations]
-      summary: Liveness probe
-      operationId: healthz
-      description: Always returns `200` while the process is running.
-      responses:
-        "200":
-          description: The service is alive.
-
-  /readyz:
-    get:
-      tags: [Operations]
-      summary: Readiness probe
-      operationId: readyz
-      description: Returns `200` once the router is ready to accept traffic.
-      responses:
-        "200":
-          description: The service is ready.
-        "503":
-          description: The service is not yet ready.
-
-  /metrics:
-    get:
-      tags: [Operations]
-      summary: Prometheus metrics
-      operationId: metrics
-      description: Exposes runtime metrics in the Prometheus text exposition format.
-      responses:
-        "200":
-          description: Metrics in Prometheus text format.
-          content:
-            text/plain:
-              schema:
-                type: string
-
 components:
   securitySchemes:
     ApiKeyAuth:
       type: http
       scheme: bearer
       description: >
-        An API key issued via `POST /admin/keys`, sent as
+        An API key for task submission, sent as
         `Authorization: Bearer gk_...`.
-    AdminAuth:
-      type: http
-      scheme: bearer
-      description: >
-        The router's `ADMIN_KEY` shared secret, sent as
-        `Authorization: Bearer <ADMIN_KEY>`.
 
   responses:
     Unauthorized:
@@ -291,16 +154,6 @@ components:
             error:
               code: UNAUTHORIZED
               message: Unauthorized
-    AdminNotConfigured:
-      description: The admin API is not configured (`ADMIN_KEY` is unset).
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ErrorEnvelope"
-          example:
-            error:
-              code: NOT_CONFIGURED
-              message: Admin API is not configured (set ADMIN_KEY)
     InternalError:
       description: An unexpected server-side error occurred.
       content:
@@ -446,68 +299,6 @@ components:
         url:
           type: string
           format: uri
-
-    CreateApiKeyRequest:
-      type: object
-      additionalProperties: false
-      description: >
-        All fields are optional; an empty body creates an unlabeled key that
-        never expires.
-      properties:
-        label:
-          type: [string, "null"]
-          description: A human-readable label for the key.
-        invalid_at:
-          type: [integer, "null"]
-          format: int64
-          description: >
-            Unix timestamp (seconds) at which the key stops authenticating. Must
-            be in the future. Omit or send `null` for a key that never expires.
-
-    CreatedApiKey:
-      type: object
-      required: [id, key, created_at]
-      properties:
-        id:
-          type: string
-          description: Public identifier for the key, used in listings and revocation.
-        key:
-          type: string
-          description: >
-            The raw API key (`gk_` followed by 64 hex characters). Returned only
-            once, on creation; it is stored hashed and cannot be recovered.
-          examples:
-            - "gk_1a2b3c..."
-        label:
-          type: [string, "null"]
-        created_at:
-          type: integer
-          format: int64
-          description: Unix timestamp (seconds) when the key was created.
-        invalid_at:
-          type: [integer, "null"]
-          format: int64
-          description: Unix timestamp (seconds) when the key expires, or null if never.
-
-    ApiKeyMetadata:
-      type: object
-      required: [id, created_at]
-      description: Non-secret metadata about an active key. Never includes the key value.
-      properties:
-        id:
-          type: string
-        label:
-          type: [string, "null"]
-        created_at:
-          type: integer
-          format: int64
-        last_used:
-          type: [integer, "null"]
-          format: int64
-          description: Unix timestamp (seconds) of the key's most recent use, if any.
-        invalid_at:
-          type: [integer, "null"]
-          format: int64
 
     ErrorEnvelope:
       type: object

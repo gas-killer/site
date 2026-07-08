@@ -7,30 +7,9 @@ This guide walks through authenticating with the router and submitting a task.
 
 ## 1. Get an API key
 
-Task submission is authenticated with a bearer API key. Keys are issued through
-the admin API, which is guarded by the router's `ADMIN_KEY` shared secret.
-
-```bash
-curl -X POST "$ROUTER_URL/admin/keys" \
-  -H "Authorization: Bearer $ADMIN_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{ "label": "my-service" }'
-```
-
-The response contains the raw key exactly once — store it securely, it cannot be
-retrieved again:
-
-```json
-{
-  "id": "a1b2c3d4",
-  "key": "gk_1a2b3c...",
-  "label": "my-service",
-  "created_at": 1751990400,
-  "invalid_at": null
-}
-```
-
-See [Issue an API key](/docs/api/admin/createApiKey) for the full reference.
+Task submission is authenticated with a bearer API key (it looks like `gk_…`).
+Keys are provisioned by the Gas Killer team — [reach out](mailto:contact@gaskiller.xyz)
+to request one. Store it securely and pass it as a bearer token on every request.
 
 ## 2. Submit a task
 

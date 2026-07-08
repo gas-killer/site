@@ -25,8 +25,6 @@ The router exposes a small HTTP API:
 | --- | --- |
 | `POST /trigger` | Submit a compute task (requires an API key). |
 | `GET /avs-metadata` | Public AVS identity document. |
-| `POST /admin/keys` | Issue an API key (admin only). |
-| `GET`/`DELETE /admin/keys` | List and revoke API keys (admin only). |
 
 All requests and responses are JSON. Errors share a single envelope shape,
 `{ "error": { "code", "message" } }`, where `code` is a stable machine-readable
