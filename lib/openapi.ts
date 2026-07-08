@@ -7,4 +7,7 @@ import { createOpenAPI } from "fumadocs-openapi/server"
  */
 export const openapi = createOpenAPI({
   input: ["./openapi.yaml"],
+  // Route playground "Send" requests through the same-origin proxy at
+  // app/api/proxy so browser calls to the router aren't blocked by CORS.
+  proxyUrl: "/api/proxy",
 })
