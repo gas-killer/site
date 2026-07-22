@@ -1,15 +1,28 @@
 openapi: 3.1.0
 info:
   title: Gas Killer Router API
-  version: 0.1.0
+  version: 0.2.0
   description: >
     HTTP API for the Gas Killer router (the AVS aggregator).
 
 
-    Clients submit compute tasks to `POST /trigger`; the router validates them,
-    fans them out to EigenLayer operator nodes, aggregates the BLS signatures,
-    and submits a single `verifyAndUpdate` transaction on-chain. Task submission
-    is authenticated with an API key.
+    Clients submit compute tasks to `POST /tasks`; the router validates them,
+    fans them out to EigenLayer operator nodes, and aggregates the BLS
+    signatures into a completed round. Rather than broadcasting on-chain itself,
+    the router returns a **ready-to-sign transaction** — the *payload*. The
+    typical flow is:
+
+
+    1. `POST /tasks` — submit a task and receive a `task_id`.
+
+    2. `GET /tasks/{task_id}` — poll until `status` is `ready`; the response then
+       carries a `payload` object.
+
+    3. Sign and submit that `payload` from your own wallet before its
+       `valid_until_block`.
+
+
+    Task submission and polling are authenticated with an API key.
   contact:
     name: Gas Killer
     url: https://gaskiller.xyz
@@ -30,21 +43,24 @@ servers:
 
 tags:
   - name: Tasks
-    description: Submitting compute tasks to the network.
+    description: >
+      Submitting compute tasks, polling their status, and retrieving the
+      ready-to-sign payload.
   - name: Metadata
     description: Public AVS identity, consumed by the EigenLayer indexer.
 
 paths:
-  /trigger:
+  /tasks:
     post:
       tags: [Tasks]
       summary: Submit a compute task
-      operationId: triggerTask
+      operationId: submitTask
       description: >
-        Queues a task for the operator network. The request is authenticated,
-        load-shed against the queue capacity, then validated (field-level, then
-        on-chain) before it is accepted. A `200` means the task was queued, not
-        that it has settled on-chain.
+        Queues a task for the operator network and returns a `task_id` to poll.
+        The request is authenticated, load-shed against the queue capacity, then
+        validated (field-level, then on-chain) before it is accepted. A `202`
+        means the task was queued — poll [`GET /tasks/{task_id}`](/docs/api/tasks/getTask)
+        until it is `ready`, then sign and submit the returned payload yourself.
       security:
         - ApiKeyAuth: []
       requestBody:
@@ -54,36 +70,71 @@ paths:
             schema:
               $ref: "#/components/schemas/GasKillerTaskRequest"
       responses:
-        "200":
-          description: Task accepted and queued.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GasKillerTaskResponse"
-              example:
-                success: true
-                message: Task queued
+        "202":
+          $ref: "#/components/responses/TaskAccepted"
         "400":
-          description: >
-            The request body is malformed JSON, or it failed field-level
-            validation. `code` is one of `INVALID_REQUEST`, `INVALID_ADDRESS`,
-            `STALE_BLOCK`, `TRANSITION_MISMATCH`, `CALLDATA_TOO_LARGE`, or
-            `CONTRACT_NOT_FOUND`.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                error:
-                  code: INVALID_ADDRESS
-                  message: target_address is zero
+          $ref: "#/components/responses/BadTaskRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "422":
+          $ref: "#/components/responses/UnprocessableTask"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [Tasks]
+      summary: List your tasks
+      operationId: listTasks
+      description: >
+        Lists the tasks created by the calling API key, newest first. Supports an
+        optional `status` filter and `limit`/`offset` pagination. Payloads are
+        returned as last stored; unlike [`GET /tasks/{task_id}`](/docs/api/tasks/getTask),
+        this endpoint does not re-check payload freshness, so always fetch a
+        single task before submitting its payload.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Return only tasks in this lifecycle state.
+          schema:
+            $ref: "#/components/schemas/TaskStatus"
+        - name: limit
+          in: query
+          required: false
           description: >
-            The request body is well-formed JSON but does not match the expected
-            schema (for example, a field has the wrong type). Returned with code
-            `INVALID_REQUEST`.
+            Maximum number of tasks to return. Defaults to 50 and is clamped to
+            the range 1–200.
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          description: Number of tasks to skip, for pagination. Negative values are treated as 0.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: The calling key's tasks, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskView"
+        "400":
+          description: >
+            A query parameter is invalid (for example an unknown `status` value
+            or a non-integer `limit`). Returned with code `INVALID_REQUEST`.
           content:
             application/json:
               schema:
@@ -91,29 +142,100 @@ paths:
               example:
                 error:
                   code: INVALID_REQUEST
-                  message: Failed to deserialize the JSON body into the target type
-        "502":
-          description: An upstream RPC endpoint used for on-chain validation failed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                error:
-                  code: RPC_UNAVAILABLE
-                  message: An upstream RPC endpoint failed or is unreachable
+                  message: Failed to deserialize query string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "503":
-          description: >
-            The service is at capacity (`QUEUE_FULL`) or task persistence is not
-            configured (`NOT_CONFIGURED`). Retry after a short delay.
+          $ref: "#/components/responses/NotConfigured"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /tasks/{task_id}:
+    get:
+      tags: [Tasks]
+      summary: Get task status
+      operationId: getTask
+      description: >
+        Returns the full state of a single task. Poll this endpoint until
+        `status` is `ready`, at which point `payload` holds a ready-to-sign
+        transaction request. This is the authoritative freshness check: for a
+        `ready` task the router re-validates the payload against current chain
+        state, so a stale payload returns `409 PAYLOAD_EXPIRED` (re-request the
+        task) rather than calldata that would revert on submission. A task is
+        visible only to the API key that created it.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          description: The task id returned by `POST /tasks`.
+          schema:
+            type: string
+            format: uuid
+          example: 3f8c1e02-9a4b-4c7d-8e1f-2b6a5c9d0e11
+      responses:
+        "200":
+          description: Current task state.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/TaskView"
               example:
-                error:
-                  code: QUEUE_FULL
-                  message: Service at capacity, please try again in a few minutes
+                task_id: 3f8c1e02-9a4b-4c7d-8e1f-2b6a5c9d0e11
+                status: ready
+                created_at: 1753180800
+                updated_at: 1753180812
+                error: null
+                payload:
+                  to: "0x0000000000000000000000000000000000000001"
+                  data: "0x93de4531000000000000000000000000000000000000000000000000000000000000002a"
+                  value: "0x0"
+                  chain_id: 11155111
+                  estimated_gas: 234000
+                  valid_until_block: 22345678
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/TaskNotFound"
+        "409":
+          $ref: "#/components/responses/PayloadExpired"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /trigger:
+    post:
+      tags: [Tasks]
+      summary: Submit a compute task (deprecated alias)
+      operationId: triggerTask
+      deprecated: true
+      description: >
+        Deprecated alias for [`POST /tasks`](/docs/api/tasks/submitTask) with
+        identical behaviour and response shape. Use `POST /tasks` in new
+        integrations; this path is retained for backward compatibility.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GasKillerTaskRequest"
+      responses:
+        "202":
+          $ref: "#/components/responses/TaskAccepted"
+        "400":
+          $ref: "#/components/responses/BadTaskRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableTask"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -140,10 +262,69 @@ components:
       type: http
       scheme: bearer
       description: >
-        An API key for task submission, sent as
+        An API key for task submission and polling, sent as
         `Authorization: Bearer gk_...`.
 
   responses:
+    TaskAccepted:
+      description: Task accepted and queued. Poll `GET /tasks/{task_id}` for status.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TaskAcceptedResponse"
+          example:
+            task_id: 3f8c1e02-9a4b-4c7d-8e1f-2b6a5c9d0e11
+            status: queued
+    BadTaskRequest:
+      description: >
+        The request body is malformed JSON, or it failed validation. `code` is
+        one of `INVALID_REQUEST`, `INVALID_ADDRESS`, `STALE_BLOCK`,
+        `TRANSITION_MISMATCH`, `CALLDATA_TOO_LARGE`, or `CONTRACT_NOT_FOUND`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: INVALID_ADDRESS
+              message: target_address is zero
+    UnprocessableTask:
+      description: >
+        The request body is well-formed JSON but does not match the expected
+        schema (for example, a field has the wrong type). Returned with code
+        `INVALID_REQUEST`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: INVALID_REQUEST
+              message: Failed to deserialize the JSON body into the target type
+    ServiceUnavailable:
+      description: >
+        The service is at capacity (`QUEUE_FULL`), an upstream RPC endpoint used
+        for validation is unreachable (`RPC_UNAVAILABLE`), or task persistence is
+        not configured (`NOT_CONFIGURED`). `QUEUE_FULL` and `RPC_UNAVAILABLE` are
+        transient — retry after a short delay.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: QUEUE_FULL
+              message: Service at capacity, please try again in a few minutes
+    NotConfigured:
+      description: Task persistence is not configured, so the endpoint cannot serve the request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: NOT_CONFIGURED
+              message: Persistence is not configured
     Unauthorized:
       description: Missing or invalid credentials.
       content:
@@ -154,6 +335,43 @@ components:
             error:
               code: UNAUTHORIZED
               message: Unauthorized
+    Forbidden:
+      description: >
+        The credentials are valid but the task belongs to a different API key.
+        Kept distinct from `404` so a caller can tell "not yours" from "no such
+        task".
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: FORBIDDEN
+              message: Task belongs to a different API key
+    TaskNotFound:
+      description: No task with this id exists (for the calling key).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: NOT_FOUND
+              message: Task not found
+    PayloadExpired:
+      description: >
+        The task's `ready` payload is no longer submittable — its
+        `valid_until_block` has passed, or the on-chain state-transition index
+        has advanced (the round was already consumed). Submit a fresh task and
+        poll again.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: PAYLOAD_EXPIRED
+              message: "payload valid_until_block 22345678 passed (current block 22345700); re-request"
     InternalError:
       description: An unexpected server-side error occurred.
       content:
@@ -172,6 +390,20 @@ components:
       description: A 20-byte Ethereum address, 0x-prefixed hex.
       examples:
         - "0x0000000000000000000000000000000000000001"
+
+    HexBytes:
+      type: string
+      pattern: "^0x[0-9a-fA-F]*$"
+      description: A 0x-prefixed hex byte string.
+      examples:
+        - "0x93de4531"
+
+    HexUint256:
+      type: string
+      pattern: "^0x[0-9a-fA-F]+$"
+      description: A 256-bit unsigned integer, 0x-prefixed hex.
+      examples:
+        - "0x0"
 
     GasKillerTaskRequest:
       type: object
@@ -209,11 +441,9 @@ components:
           examples:
             - [171, 205, 239, 1]
         value:
-          type: string
-          pattern: "^0x[0-9a-fA-F]+$"
+          allOf:
+            - $ref: "#/components/schemas/HexUint256"
           description: Wei value to attach to the call, as a 0x-prefixed hex uint256.
-          examples:
-            - "0x0"
         block_height:
           type: integer
           format: int64
@@ -236,17 +466,109 @@ components:
               const: auto
             - type: "null"
 
-    GasKillerTaskResponse:
+    TaskStatus:
+      type: string
+      description: >
+        Lifecycle state of a task as it moves through aggregation.
+      enum:
+        - queued
+        - processing
+        - ready
+        - failed
+        - expired
+      x-enum-descriptions:
+        queued: Accepted and waiting in the queue.
+        processing: Dequeued; the router is aggregating operator signatures.
+        ready: Aggregation succeeded; `payload` holds the ready-to-sign transaction.
+        failed: Aggregation failed; `error` explains why.
+        expired: The task lapsed before completing, or its payload went stale; `error` explains why.
+
+    TaskAcceptedResponse:
       type: object
-      required: [success, message]
+      required: [task_id, status]
+      description: Returned by `POST /tasks` when a task is accepted.
       properties:
-        success:
-          type: boolean
-        message:
+        task_id:
           type: string
+          format: uuid
+          description: The id to poll for status via `GET /tasks/{task_id}`.
+        status:
+          allOf:
+            - $ref: "#/components/schemas/TaskStatus"
+          description: The task's initial state (`queued`).
       examples:
-        - success: true
-          message: Task queued
+        - task_id: 3f8c1e02-9a4b-4c7d-8e1f-2b6a5c9d0e11
+          status: queued
+
+    TaskView:
+      type: object
+      required: [task_id, status, created_at, updated_at]
+      description: The full state of a task, returned by the status endpoints.
+      properties:
+        task_id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        created_at:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds) when the task was created.
+        updated_at:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds) of the last state change.
+        error:
+          type: [string, "null"]
+          description: Failure reason; present once the task is `failed` or `expired`.
+        payload:
+          oneOf:
+            - $ref: "#/components/schemas/PayloadView"
+            - type: "null"
+          description: The ready-to-sign transaction; present once the task is `ready`.
+
+    PayloadView:
+      type: object
+      required: [to, data, value, chain_id, estimated_gas, valid_until_block]
+      description: >
+        A ready-to-sign transaction request. Sign and submit it as-is from your
+        own wallet. `to` and `value` are server-controlled (rather than bare
+        `verifyAndUpdate` calldata) so that a future on-chain protocol fee is a
+        server change, not a breaking change to your client code.
+      properties:
+        to:
+          allOf:
+            - $ref: "#/components/schemas/Address"
+          description: The contract to send the transaction to.
+        data:
+          allOf:
+            - $ref: "#/components/schemas/HexBytes"
+          description: Full ABI-encoded `verifyAndUpdate` calldata (selector + arguments).
+        value:
+          allOf:
+            - $ref: "#/components/schemas/HexUint256"
+          description: Wei to send with the transaction. Zero in beta.
+        chain_id:
+          type: integer
+          format: int64
+          description: The numeric EVM chain id the transaction must be submitted to.
+          examples:
+            - 11155111
+        estimated_gas:
+          type: integer
+          format: int64
+          description: "`eth_estimateGas` result for the call, provided as a submission hint."
+          examples:
+            - 234000
+        valid_until_block:
+          type: integer
+          format: int64
+          description: >
+            Last block for which the payload is accepted on-chain. Submit before
+            this block; past it, `GET /tasks/{task_id}` returns
+            `409 PAYLOAD_EXPIRED` and you must re-request.
+          examples:
+            - 22345678
 
     AvsMetadata:
       type: object
@@ -323,10 +645,12 @@ components:
         - INVALID_ADDRESS
         - STALE_BLOCK
         - TRANSITION_MISMATCH
+        - PAYLOAD_EXPIRED
         - CALLDATA_TOO_LARGE
         - RATE_LIMITED
         - QUEUE_FULL
         - UNAUTHORIZED
+        - FORBIDDEN
         - RPC_UNAVAILABLE
         - CONTRACT_NOT_FOUND
         - INVALID_REQUEST
