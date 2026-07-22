@@ -31,9 +31,6 @@ The router exposes a small HTTP API:
 | `GET /tasks` | List your tasks, with optional status filter and pagination. |
 | `GET /avs-metadata` | Public AVS identity document. |
 
-`POST /trigger` is a deprecated alias of `POST /tasks`, kept for backward
-compatibility.
-
 All requests and responses are JSON. Errors share a single envelope shape,
 `{ "error": { "code", "message" } }`, where `code` is a stable machine-readable
 identifier.

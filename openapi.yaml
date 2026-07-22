@@ -207,38 +207,6 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /trigger:
-    post:
-      tags: [Tasks]
-      summary: Submit a compute task (deprecated alias)
-      operationId: triggerTask
-      deprecated: true
-      description: >
-        Deprecated alias for [`POST /tasks`](/docs/api/tasks/submitTask) with
-        identical behaviour and response shape. Use `POST /tasks` in new
-        integrations; this path is retained for backward compatibility.
-      security:
-        - ApiKeyAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/GasKillerTaskRequest"
-      responses:
-        "202":
-          $ref: "#/components/responses/TaskAccepted"
-        "400":
-          $ref: "#/components/responses/BadTaskRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "422":
-          $ref: "#/components/responses/UnprocessableTask"
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
   /avs-metadata:
     get:
       tags: [Metadata]

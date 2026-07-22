@@ -1,4 +1,4 @@
 {
   "title": "Tasks",
-  "pages": ["submitTask", "getTask", "listTasks", "triggerTask"]
+  "pages": ["submitTask", "getTask", "listTasks"]
 }
