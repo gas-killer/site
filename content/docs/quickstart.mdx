@@ -252,8 +252,11 @@ Every error uses the same envelope, with a stable `code`:
 { "error": { "code": "QUEUE_FULL", "message": "Service at capacity, please try again in a few minutes" } }
 ```
 
+- **`RATE_LIMITED`** (`429`) means you've exceeded your key's request rate
+  (60 requests/minute by default). Wait for the `Retry-After` header value, in
+  seconds, then retry.
 - **`QUEUE_FULL`, `RPC_UNAVAILABLE`** (`503`) are transient — retry after a short
-  delay.
+  delay. `QUEUE_FULL` also sends a `Retry-After` header.
 - **`PAYLOAD_EXPIRED`** (`409`) means the payload is stale — submit a fresh task
   and poll again.
 - **`4xx`** validation errors (`INVALID_ADDRESS`, `STALE_BLOCK`,

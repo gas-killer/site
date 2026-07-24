@@ -61,6 +61,10 @@ paths:
         validated (field-level, then on-chain) before it is accepted. A `202`
         means the task was queued — poll [`GET /tasks/{task_id}`](/docs/api/tasks/getTask)
         until it is `ready`, then sign and submit the returned payload yourself.
+
+
+        Submission is rate limited per API key (60 requests per minute by
+        default). Over the limit returns `429` with a `Retry-After` header.
       security:
         - ApiKeyAuth: []
       requestBody:
@@ -78,6 +82,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "422":
           $ref: "#/components/responses/UnprocessableTask"
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
         "500":
@@ -269,12 +275,38 @@ components:
             error:
               code: INVALID_REQUEST
               message: Failed to deserialize the JSON body into the target type
+    RateLimited:
+      description: >
+        The API key exceeded its request rate limit. Wait for the number of
+        seconds in the `Retry-After` header, then retry.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+            format: int64
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: RATE_LIMITED
+              message: Rate limit exceeded; retry after the indicated delay
     ServiceUnavailable:
       description: >
         The service is at capacity (`QUEUE_FULL`), an upstream RPC endpoint used
         for validation is unreachable (`RPC_UNAVAILABLE`), or task persistence is
         not configured (`NOT_CONFIGURED`). `QUEUE_FULL` and `RPC_UNAVAILABLE` are
-        transient — retry after a short delay.
+        transient — retry after a short delay. A `QUEUE_FULL` response includes a
+        `Retry-After` header with an estimate in seconds.
+      headers:
+        Retry-After:
+          description: >
+            Seconds to wait before retrying, on a `QUEUE_FULL` response.
+          schema:
+            type: integer
+            format: int64
       content:
         application/json:
           schema:
@@ -607,8 +639,7 @@ components:
     ErrorCode:
       type: string
       description: >
-        A stable machine-readable error identifier. `RATE_LIMITED` is reserved
-        for future use and is not currently emitted by any endpoint.
+        A stable machine-readable error identifier.
       enum:
         - INVALID_ADDRESS
         - STALE_BLOCK
