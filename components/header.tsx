@@ -70,6 +70,16 @@ export function Header() {
             </svg>
           </Link>
           <Link
+            href="https://t.me/gaskillerfriends"
+            target="_blank"
+            aria-label="Telegram"
+            className="text-zinc-400 hover:text-white transition-colors"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 0a12 12 0 1 0 0 24 12 12 0 0 0 0-24zm5.56 8.24-1.86 8.77c-.14.62-.51.77-1.03.48l-2.85-2.1-1.37 1.32c-.15.15-.28.28-.57.28l.2-2.9 5.28-4.77c.23-.2-.05-.32-.36-.11l-6.52 4.1-2.81-.88c-.61-.19-.62-.61.13-.9l10.99-4.24c.51-.19.96.12.79.95z" />
+            </svg>
+          </Link>
+          <Link
             href="mailto:contact@gaskiller.xyz"
             className="text-sm text-black bg-white px-4 py-1.5 rounded-full hover:bg-zinc-200 transition-colors font-medium"
           >
