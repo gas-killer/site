@@ -38,18 +38,34 @@
     background-size: 32px 32px;
   }
 
+  /* Poster card: square corners, 2px ink border, solid hard-offset shadow.
+     Cards translate up-left on hover, deepening the shadow. Borrowed from
+     the llm.gaskiller.xyz demo style. */
+  .card-poster {
+    @apply relative bg-zinc-950 p-8 transition-all duration-150;
+    border: 2px solid #26262c;
+    box-shadow: 4px 4px 0 #1b1b21;
+  }
+  .card-poster:hover {
+    border-color: #34343c;
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 #1b1b21;
+  }
+
   .service-card {
-    @apply relative overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 p-8 transition-all duration-300;
+    @apply relative overflow-hidden bg-zinc-950 p-8 transition-all duration-150;
+    border: 2px solid #26262c;
+    box-shadow: 4px 4px 0 #1b1b21;
   }
   .service-card:hover {
-    @apply border-white/25 -translate-y-1;
-    box-shadow: 0 0 40px -10px rgba(255, 255, 255, 0.08);
+    border-color: #34343c;
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 #1b1b21;
   }
   .service-card::before {
     content: "";
     position: absolute;
     inset: 0;
-    border-radius: inherit;
     padding: 1px;
     background: linear-gradient(135deg, transparent 60%, var(--accent, rgba(255, 255, 255, 0.15)));
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -61,5 +77,20 @@
   }
   .service-card:hover::before {
     opacity: 1;
+  }
+
+  /* Eyebrow chip: uppercase Chakra Petch tag with a thin border.
+     Replaces the italic tracked-out label above section headings. */
+  .eyebrow-chip {
+    display: inline-block;
+    font-family: var(--font-display), sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    padding: 5px 10px;
+    color: #a1a1aa;
+    border: 1px solid #34343c;
+    background: #09090b;
   }
 }
