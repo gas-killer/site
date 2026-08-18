@@ -71,13 +71,13 @@ export default function Home() {
                 <div className="card-poster">
                   <h3 className="text-2xl md:text-3xl font-semibold text-white mb-3">Safer contracts</h3>
                   <p className="text-zinc-400 leading-relaxed">
-                    Room for the checks and invariants that gas costs rule out.
+                    Room for the checks and invariants that <span className="text-orange-300 font-semibold">gas costs rule out</span>.
                   </p>
                 </div>
                 <div className="card-poster">
                   <h3 className="text-2xl md:text-3xl font-semibold text-white mb-3">Simple integration</h3>
                   <p className="text-zinc-400 leading-relaxed">
-                    No new languages. No rearchitecting your smart contract.
+                    <span className="text-orange-300 font-semibold">No new languages.</span> No rearchitecting your smart contract.
                   </p>
                 </div>
               </div>
