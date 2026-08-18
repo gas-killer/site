@@ -23,7 +23,7 @@ const magz = localFont({
 })
 
 export const metadata: Metadata = {
-  title: "Gas Killer: Optimistic co-processor for the age of agentic coding",
+  title: "Gas Killer - Cheaper, safer smart contracts without rewriting them",
   description:
     "Secure contracts shouldn't cost more. Gas Killer simulates transactions off-chain and writes back only the essential state changes, replacing expensive computation with aggregate signature verification.",
   metadataBase: new URL("https://gaskiller.xyz"),
