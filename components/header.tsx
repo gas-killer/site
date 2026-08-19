@@ -43,6 +43,12 @@ export function Header() {
             Case study
           </Link>
           <Link
+            href="/docs"
+            className="text-sm text-zinc-400 hover:text-white transition-colors"
+          >
+            Docs
+          </Link>
+          <Link
             href="https://paragraph.com/@gaskiller"
             target="_blank"
             className="text-sm text-zinc-400 hover:text-white transition-colors"

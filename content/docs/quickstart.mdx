@@ -1,0 +1,267 @@
+---
+title: Quickstart
+description: Submit a task, poll for the result, and settle it on-chain.
+---
+
+import { Tab, Tabs } from "fumadocs-ui/components/tabs"
+import { Callout } from "fumadocs-ui/components/callout"
+
+This guide takes you from an API key to an on-chain state update. The router does
+the expensive off-chain work — fanning your task out to the operator network and
+aggregating their signatures — and hands back a **ready-to-sign transaction**.
+You submit that transaction from your own wallet, so the router never custodies
+your keys or funds.
+
+The flow is three calls plus one on-chain submission:
+
+1. **Submit** a task to `POST /tasks` and get a `task_id`.
+2. **Poll** `GET /tasks/{task_id}` until its `status` is `ready`.
+3. **Sign and submit** the returned `payload` from your wallet.
+
+Set these environment variables to follow along against the public testnet:
+
+```bash
+export ROUTER_URL="https://testnet.gaskiller.xyz"
+export API_KEY="gk_..."         # your API key (see step 1)
+export RPC_URL="https://..."    # an RPC endpoint for the payload's chain
+export PRIVATE_KEY="0x..."      # the wallet that submits the transaction
+```
+
+## 1. Get an API key
+
+Task submission and polling are authenticated with a bearer API key (it looks
+like `gk_…`). Keys are provisioned by the Gas Killer team —
+[reach out](mailto:contact@gaskiller.xyz) to request one. Store it securely and
+pass it as a bearer token on every request.
+
+## 2. Submit a task
+
+Send the task to `POST /tasks` with the key as a bearer token. `call_data` is the
+ABI-encoded calldata as an array of byte values, and `value` is a 0x-prefixed hex
+uint256. A `202` response returns a `task_id` you'll poll in the next step.
+
+<Tabs items={["Terminal", "TypeScript"]}>
+
+<Tab value="Terminal">
+
+```bash
+TASK_ID=$(curl -s -X POST "$ROUTER_URL/tasks" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": {
+      "target_address": "0x0000000000000000000000000000000000000001",
+      "from_address": "0x0000000000000000000000000000000000000002",
+      "call_data": [171, 205, 239, 1],
+      "value": "0x0",
+      "block_height": 1
+    }
+  }' | jq -r .task_id)
+
+echo "$TASK_ID"
+```
+
+</Tab>
+
+<Tab value="TypeScript">
+
+```ts
+const res = await fetch(`${process.env.ROUTER_URL}/tasks`, {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.API_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    body: {
+      target_address: "0x0000000000000000000000000000000000000001",
+      from_address: "0x0000000000000000000000000000000000000002",
+      call_data: [171, 205, 239, 1],
+      value: "0x0",
+      block_height: 1,
+    },
+  }),
+})
+
+const { task_id } = await res.json()
+console.log(task_id)
+```
+
+</Tab>
+
+</Tabs>
+
+The `202` body is `{ "task_id": "…", "status": "queued" }`. See
+[Submit a compute task](/docs/api/tasks/submitTask) for every field and error.
+
+### `transition_index`
+
+Omit `transition_index` (or send `null` / `"auto"`) to let the router assign the
+next available state-transition slot at dequeue time — this is what makes safe
+parallel submissions possible. Send an integer only when you need to target a
+specific slot.
+
+## 3. Poll until ready
+
+Poll `GET /tasks/{task_id}` until `status` becomes `ready`. The task moves
+`queued` → `processing` → `ready`; a `ready` task carries a `payload` object. If
+it ends in `failed` or `expired` instead, the `error` field explains why.
+
+<Tabs items={["Terminal", "TypeScript"]}>
+
+<Tab value="Terminal">
+
+```bash
+# Poll every 2s until the task leaves the queue.
+while :; do
+  TASK=$(curl -s "$ROUTER_URL/tasks/$TASK_ID" -H "Authorization: Bearer $API_KEY")
+  STATUS=$(echo "$TASK" | jq -r .status)
+  echo "status: $STATUS"
+  [ "$STATUS" = "ready" ] && break
+  case "$STATUS" in failed|expired) echo "$TASK" | jq .error; exit 1;; esac
+  sleep 2
+done
+
+echo "$TASK" | jq .payload
+```
+
+</Tab>
+
+<Tab value="TypeScript">
+
+```ts
+async function pollUntilReady(taskId: string) {
+  while (true) {
+    const res = await fetch(`${process.env.ROUTER_URL}/tasks/${taskId}`, {
+      headers: { Authorization: `Bearer ${process.env.API_KEY}` },
+    })
+    if (!res.ok) {
+      const { error } = await res.json()
+      throw new Error(`${error.code}: ${error.message}`)
+    }
+    const task = await res.json()
+    if (task.status === "ready") return task.payload
+    if (task.status === "failed" || task.status === "expired") {
+      throw new Error(`task ${task.status}: ${task.error}`)
+    }
+    await new Promise((r) => setTimeout(r, 2000))
+  }
+}
+
+const payload = await pollUntilReady(task_id)
+```
+
+</Tab>
+
+</Tabs>
+
+A `ready` response looks like this:
+
+```json
+{
+  "task_id": "3f8c1e02-9a4b-4c7d-8e1f-2b6a5c9d0e11",
+  "status": "ready",
+  "created_at": 1753180800,
+  "updated_at": 1753180812,
+  "error": null,
+  "payload": {
+    "to": "0x0000000000000000000000000000000000000001",
+    "data": "0x93de4531000000000000000000000000000000000000000000000000000000000000002a",
+    "value": "0x0",
+    "chain_id": 11155111,
+    "estimated_gas": 234000,
+    "valid_until_block": 22345678
+  }
+}
+```
+
+<Callout type="warn">
+  The payload is only valid until `valid_until_block`. Submit before that block;
+  afterwards — or if the target's on-chain state has already advanced —
+  `GET /tasks/{task_id}` returns `409 PAYLOAD_EXPIRED` and you must submit a new
+  task. Always fetch the single task (not the list endpoint) immediately before
+  submitting, so you get the freshness-checked payload.
+</Callout>
+
+## 4. Sign and submit the payload
+
+The `payload` is a complete transaction request. Sign it with your wallet and
+broadcast it **as-is** — `to`, `data`, and `value` are all supplied by the
+router. Use an RPC endpoint for the chain named in `payload.chain_id` (the
+testnet settles on Sepolia, `11155111`).
+
+<Tabs items={["Terminal", "TypeScript"]}>
+
+<Tab value="Terminal">
+
+Extract the fields with `jq`, then broadcast with [Foundry](https://getfoundry.sh)'s
+`cast send`:
+
+```bash
+TO=$(echo "$TASK" | jq -r .payload.to)
+DATA=$(echo "$TASK" | jq -r .payload.data)
+VALUE=$(echo "$TASK" | jq -r .payload.value)
+
+cast send "$TO" "$DATA" \
+  --value "$VALUE" \
+  --rpc-url "$RPC_URL" \
+  --private-key "$PRIVATE_KEY"
+```
+
+</Tab>
+
+<Tab value="TypeScript">
+
+Submit with [viem](https://viem.sh). Match the `chain` to `payload.chain_id`:
+
+```ts
+import { createWalletClient, http } from "viem"
+import { privateKeyToAccount } from "viem/accounts"
+import { sepolia } from "viem/chains"
+
+const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`)
+
+const walletClient = createWalletClient({
+  account,
+  chain: sepolia,
+  transport: http(process.env.RPC_URL),
+})
+
+const hash = await walletClient.sendTransaction({
+  to: payload.to as `0x${string}`,
+  data: payload.data as `0x${string}`,
+  value: BigInt(payload.value),
+  gas: BigInt(payload.estimated_gas),
+})
+
+console.log("submitted:", hash)
+```
+
+</Tab>
+
+</Tabs>
+
+`estimated_gas` is a hint from the router's `eth_estimateGas`; most wallets and
+libraries will re-estimate, so passing it is optional.
+
+## 5. Handle errors
+
+Every error uses the same envelope, with a stable `code`:
+
+```json
+{ "error": { "code": "QUEUE_FULL", "message": "Service at capacity, please try again in a few minutes" } }
+```
+
+- **`RATE_LIMITED`** (`429`) means you've exceeded your key's request rate
+  (60 requests/minute by default). Wait for the `Retry-After` header value, in
+  seconds, then retry.
+- **`QUEUE_FULL`, `RPC_UNAVAILABLE`** (`503`) are transient — retry after a short
+  delay. `QUEUE_FULL` also sends a `Retry-After` header.
+- **`PAYLOAD_EXPIRED`** (`409`) means the payload is stale — submit a fresh task
+  and poll again.
+- **`4xx`** validation errors (`INVALID_ADDRESS`, `STALE_BLOCK`,
+  `TRANSITION_MISMATCH`, …) mean the request needs fixing before it can succeed.
+
+See [Submit a compute task](/docs/api/tasks/submitTask) and
+[Get task status](/docs/api/tasks/getTask) for the full status-code and error
+matrix for each endpoint.
