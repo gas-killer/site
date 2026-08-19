@@ -2,10 +2,7 @@ import Image from "next/image"
 
 export function ArchitectureDiagram() {
   return (
-    <div
-      className="relative w-full bg-gradient-to-b from-zinc-950 to-black p-5 md:p-10 overflow-hidden"
-      style={{ border: "2px solid #26262c", boxShadow: "4px 4px 0 #1b1b21" }}
-    >
+    <div className="poster-frame relative w-full bg-gradient-to-b from-zinc-950 to-black p-5 md:p-10 overflow-hidden">
       {/* Mobile: vertical, GK branches into two outputs */}
       <div className="flex flex-col items-center gap-2 md:hidden">
         <NodeBox>User</NodeBox>
@@ -45,16 +42,9 @@ export function ArchitectureDiagram() {
 
       {/* Infrastructure stack */}
       <div className="relative mx-auto max-w-md flex flex-col gap-2">
-        <StackedLayer>
-          <span className="text-zinc-300 text-sm font-semibold">Operator network</span>
-          <span className="agree-dot" aria-hidden />
-        </StackedLayer>
-        <StackedLayer>
-          <span className="text-zinc-300 text-sm font-semibold">Commonware</span>
-        </StackedLayer>
-        <StackedLayer>
-          <span className="text-zinc-300 text-sm font-semibold">Shared Security</span>
-        </StackedLayer>
+        <StackedLayer label="Operator network" status={<span className="agree-dot" aria-hidden />} />
+        <StackedLayer label="Commonware" />
+        <StackedLayer label="Shared Security" />
       </div>
     </div>
   )
@@ -102,7 +92,7 @@ function FlowRight({ label, className = "" }: { label: string; className?: strin
     <div className={`flex flex-col items-center gap-2 min-w-0 -translate-y-2 ${className}`}>
       <span className="text-[10px] md:text-xs text-zinc-500 whitespace-nowrap">{label}</span>
       <div className="flow-line-x w-full">
-        <i /><i /><i />
+        <span /><span /><span />
       </div>
     </div>
   )
@@ -112,20 +102,20 @@ function FlowDown({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 py-1">
       <div className="flow-line-y h-10">
-        <i /><i /><i />
+        <span /><span /><span />
       </div>
       <span className="text-[10px] text-zinc-500">{label}</span>
     </div>
   )
 }
 
-function StackedLayer({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+/* Label left, status right -- the slot is always there so the three layers
+   line up whether or not they carry an agreement dot. */
+function StackedLayer({ label, status }: { label: string; status?: React.ReactNode }) {
   return (
-    <div
-      className={`relative bg-gradient-to-b from-zinc-900 to-zinc-950 px-6 py-3 flex items-center justify-between gap-3 ${className}`}
-      style={{ border: "2px solid #26262c", boxShadow: "3px 3px 0 #1b1b21" }}
-    >
-      {children}
+    <div className="poster-frame poster-frame-sm relative bg-gradient-to-b from-zinc-900 to-zinc-950 px-6 py-3 flex items-center justify-between gap-3">
+      <span className="text-zinc-300 text-sm font-semibold">{label}</span>
+      {status}
     </div>
   )
 }

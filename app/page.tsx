@@ -101,7 +101,7 @@ export default function Home() {
                 <ArchitectureDiagram />
               </div>
 
-              <div className="grid md:grid-cols-2 gap-px bg-white/10 overflow-hidden" style={{ border: "2px solid #26262c", boxShadow: "4px 4px 0 #1b1b21" }}>
+              <div className="poster-frame grid md:grid-cols-2 gap-px bg-white/10 overflow-hidden">
                 <div className="bg-zinc-950 p-10 group hover:bg-zinc-900 transition-colors">
                   <span className="font-display text-sm text-zinc-500 tracking-widest">STEP 01</span>
                   <h3 className="text-2xl md:text-3xl font-semibold text-white mt-4 mb-4">
