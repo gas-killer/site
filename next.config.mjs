@@ -1,3 +1,5 @@
+import { createMDX } from "fumadocs-mdx/next"
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
@@ -6,9 +8,8 @@ const nextConfig = {
   images: {
     unoptimized: true, // TODO: remove if using Vercel Image Optimization
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
 }
 
-export default nextConfig
+const withMDX = createMDX()
+
+export default withMDX(nextConfig)

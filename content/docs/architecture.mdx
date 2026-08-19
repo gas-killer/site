@@ -1,0 +1,66 @@
+---
+title: Architecture
+description: How a task flows from submission to on-chain settlement.
+---
+
+Gas Killer replaces expensive on-chain computation with off-chain execution plus
+an aggregate signature check. The network has two roles built on EigenLayer
+restaking.
+
+## Components
+
+- **Operator nodes** receive a task, run the computation locally, and sign the
+  result with their BLS key.
+- **The router** (the AVS aggregator) accepts tasks over HTTP, collects operator
+  signatures, verifies the BLS threshold, and renders a ready-to-sign
+  transaction from the aggregated round.
+
+## Task lifecycle
+
+1. **Submit** — a client calls [`POST /tasks`](/docs/api/tasks/submitTask) with
+   the target contract, calldata, sender, value, and block height, and receives
+   a `task_id`.
+2. **Validate** — the router load-sheds against queue capacity, then runs
+   field-level and on-chain validation before accepting the task. Rejected
+   requests return a `4xx` with a specific error `code`; an overloaded router
+   returns `503 QUEUE_FULL`.
+3. **Fan out** — the accepted task is dispatched to operator nodes, which each
+   execute it and return a BLS signature over the result.
+4. **Aggregate** — the router waits for a quorum threshold of signatures rather
+   than every operator, so the pipeline tolerates timeouts and partial
+   responses.
+5. **Render** — once the threshold is met, the router persists the completed
+   round as a structured *bundle* and renders a *payload*: a full
+   `verifyAndUpdate` transaction request (`to`, `data`, `value`, `chain_id`,
+   plus an `estimated_gas` hint and a `valid_until_block` bound). The task
+   transitions to `ready` and the payload is served from
+   [`GET /tasks/{task_id}`](/docs/api/tasks/getTask).
+6. **Settle** — the client signs the payload and submits it from its own wallet.
+   The `verifyAndUpdate` call writes back only the essential state changes,
+   verified on-chain against the aggregate signature and a compact proof.
+
+## Who submits the transaction
+
+The router does not custody a funded key or broadcast on-chain itself; it hands
+back the transaction and the client submits it. This keeps gas parameters,
+submission timing, and key custody entirely on the client's side.
+
+Because the payload is one *rendering* of the stored bundle, the call target and
+value are server-controlled. Introducing a future on-chain protocol fee, or
+routing submission through an account-abstraction bundler, is a server-side
+change to what the payload contains — not a breaking change to integrator code.
+
+### Payload freshness
+
+A rendered payload is only valid until `valid_until_block` (the round's reference
+block plus a grace buffer). If that block has passed, or the target contract's
+on-chain state-transition index has already advanced (the round was consumed),
+`GET /tasks/{task_id}` returns `409 PAYLOAD_EXPIRED` instead of calldata that
+would revert. The client submits a fresh task and polls again.
+
+## Why it's cheaper
+
+The on-chain cost collapses from *running the full computation* to *verifying an
+aggregate signature and proof*. Security still derives from the restaked operator
+set: producing a valid update requires a quorum of operators to sign the same
+result.

@@ -1,0 +1,659 @@
+openapi: 3.1.0
+info:
+  title: Gas Killer Router API
+  version: 0.2.0
+  description: >
+    HTTP API for the Gas Killer router (the AVS aggregator).
+
+
+    Clients submit compute tasks to `POST /tasks`; the router validates them,
+    fans them out to EigenLayer operator nodes, and aggregates the BLS
+    signatures into a completed round. Rather than broadcasting on-chain itself,
+    the router returns a **ready-to-sign transaction** — the *payload*. The
+    typical flow is:
+
+
+    1. `POST /tasks` — submit a task and receive a `task_id`.
+
+    2. `GET /tasks/{task_id}` — poll until `status` is `ready`; the response then
+       carries a `payload` object.
+
+    3. Sign and submit that `payload` from your own wallet before its
+       `valid_until_block`.
+
+
+    Task submission and polling are authenticated with an API key.
+  contact:
+    name: Gas Killer
+    url: https://gaskiller.xyz
+    email: contact@gaskiller.xyz
+
+servers:
+  - url: "{baseUrl}"
+    description: Gas Killer router ingress
+    variables:
+      baseUrl:
+        default: https://testnet.gaskiller.xyz
+        enum:
+          - https://testnet.gaskiller.xyz
+          - http://localhost:8080
+        description: >
+          Base URL of the router ingress. Defaults to the public testnet; select
+          localhost for local development, or replace with your own deployment.
+
+tags:
+  - name: Tasks
+    description: >
+      Submitting compute tasks, polling their status, and retrieving the
+      ready-to-sign payload.
+  - name: Metadata
+    description: Public AVS identity, consumed by the EigenLayer indexer.
+
+paths:
+  /tasks:
+    post:
+      tags: [Tasks]
+      summary: Submit a compute task
+      operationId: submitTask
+      description: >
+        Queues a task for the operator network and returns a `task_id` to poll.
+        The request is authenticated, load-shed against the queue capacity, then
+        validated (field-level, then on-chain) before it is accepted. A `202`
+        means the task was queued — poll [`GET /tasks/{task_id}`](/docs/api/tasks/getTask)
+        until it is `ready`, then sign and submit the returned payload yourself.
+
+
+        Submission is rate limited per API key (60 requests per minute by
+        default). Over the limit returns `429` with a `Retry-After` header.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GasKillerTaskRequest"
+      responses:
+        "202":
+          $ref: "#/components/responses/TaskAccepted"
+        "400":
+          $ref: "#/components/responses/BadTaskRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableTask"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [Tasks]
+      summary: List your tasks
+      operationId: listTasks
+      description: >
+        Lists the tasks created by the calling API key, newest first. Supports an
+        optional `status` filter and `limit`/`offset` pagination. Payloads are
+        returned as last stored; unlike [`GET /tasks/{task_id}`](/docs/api/tasks/getTask),
+        this endpoint does not re-check payload freshness, so always fetch a
+        single task before submitting its payload.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Return only tasks in this lifecycle state.
+          schema:
+            $ref: "#/components/schemas/TaskStatus"
+        - name: limit
+          in: query
+          required: false
+          description: >
+            Maximum number of tasks to return. Defaults to 50 and is clamped to
+            the range 1–200.
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          description: Number of tasks to skip, for pagination. Negative values are treated as 0.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: The calling key's tasks, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskView"
+        "400":
+          description: >
+            A query parameter is invalid (for example an unknown `status` value
+            or a non-integer `limit`). Returned with code `INVALID_REQUEST`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error:
+                  code: INVALID_REQUEST
+                  message: Failed to deserialize query string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/NotConfigured"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /tasks/{task_id}:
+    get:
+      tags: [Tasks]
+      summary: Get task status
+      operationId: getTask
+      description: >
+        Returns the full state of a single task. Poll this endpoint until
+        `status` is `ready`, at which point `payload` holds a ready-to-sign
+        transaction request. This is the authoritative freshness check: for a
+        `ready` task the router re-validates the payload against current chain
+        state, so a stale payload returns `409 PAYLOAD_EXPIRED` (re-request the
+        task) rather than calldata that would revert on submission. A task is
+        visible only to the API key that created it.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          description: The task id returned by `POST /tasks`.
+          schema:
+            type: string
+            format: uuid
+          example: 3f8c1e02-9a4b-4c7d-8e1f-2b6a5c9d0e11
+      responses:
+        "200":
+          description: Current task state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskView"
+              example:
+                task_id: 3f8c1e02-9a4b-4c7d-8e1f-2b6a5c9d0e11
+                status: ready
+                created_at: 1753180800
+                updated_at: 1753180812
+                error: null
+                payload:
+                  to: "0x0000000000000000000000000000000000000001"
+                  data: "0x93de4531000000000000000000000000000000000000000000000000000000000000002a"
+                  value: "0x0"
+                  chain_id: 11155111
+                  estimated_gas: 234000
+                  valid_until_block: 22345678
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/TaskNotFound"
+        "409":
+          $ref: "#/components/responses/PayloadExpired"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /avs-metadata:
+    get:
+      tags: [Metadata]
+      summary: AVS identity metadata
+      operationId: getAvsMetadata
+      description: >
+        Returns the AVS identity document in the exact shape the EigenLayer
+        indexer expects (the URL registered via `updateAVSMetadataURI`). Public;
+        no authentication required.
+      responses:
+        "200":
+          description: AVS metadata document.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvsMetadata"
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      description: >
+        An API key for task submission and polling, sent as
+        `Authorization: Bearer gk_...`.
+
+  responses:
+    TaskAccepted:
+      description: Task accepted and queued. Poll `GET /tasks/{task_id}` for status.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TaskAcceptedResponse"
+          example:
+            task_id: 3f8c1e02-9a4b-4c7d-8e1f-2b6a5c9d0e11
+            status: queued
+    BadTaskRequest:
+      description: >
+        The request body is malformed JSON, or it failed validation. `code` is
+        one of `INVALID_REQUEST`, `INVALID_ADDRESS`, `STALE_BLOCK`,
+        `TRANSITION_MISMATCH`, `CALLDATA_TOO_LARGE`, or `CONTRACT_NOT_FOUND`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: INVALID_ADDRESS
+              message: target_address is zero
+    UnprocessableTask:
+      description: >
+        The request body is well-formed JSON but does not match the expected
+        schema (for example, a field has the wrong type). Returned with code
+        `INVALID_REQUEST`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: INVALID_REQUEST
+              message: Failed to deserialize the JSON body into the target type
+    RateLimited:
+      description: >
+        The API key exceeded its request rate limit. Wait for the number of
+        seconds in the `Retry-After` header, then retry.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+            format: int64
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: RATE_LIMITED
+              message: Rate limit exceeded; retry after the indicated delay
+    ServiceUnavailable:
+      description: >
+        The service is at capacity (`QUEUE_FULL`), an upstream RPC endpoint used
+        for validation is unreachable (`RPC_UNAVAILABLE`), or task persistence is
+        not configured (`NOT_CONFIGURED`). `QUEUE_FULL` and `RPC_UNAVAILABLE` are
+        transient — retry after a short delay. A `QUEUE_FULL` response includes a
+        `Retry-After` header with an estimate in seconds.
+      headers:
+        Retry-After:
+          description: >
+            Seconds to wait before retrying, on a `QUEUE_FULL` response.
+          schema:
+            type: integer
+            format: int64
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: QUEUE_FULL
+              message: Service at capacity, please try again in a few minutes
+    NotConfigured:
+      description: Task persistence is not configured, so the endpoint cannot serve the request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: NOT_CONFIGURED
+              message: Persistence is not configured
+    Unauthorized:
+      description: Missing or invalid credentials.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: UNAUTHORIZED
+              message: Unauthorized
+    Forbidden:
+      description: >
+        The credentials are valid but the task belongs to a different API key.
+        Kept distinct from `404` so a caller can tell "not yours" from "no such
+        task".
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: FORBIDDEN
+              message: Task belongs to a different API key
+    TaskNotFound:
+      description: No task with this id exists (for the calling key).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: NOT_FOUND
+              message: Task not found
+    PayloadExpired:
+      description: >
+        The task's `ready` payload is no longer submittable — its
+        `valid_until_block` has passed, or the on-chain state-transition index
+        has advanced (the round was already consumed). Submit a fresh task and
+        poll again.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: PAYLOAD_EXPIRED
+              message: "payload valid_until_block 22345678 passed (current block 22345700); re-request"
+    InternalError:
+      description: An unexpected server-side error occurred.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error:
+              code: INTERNAL
+              message: "Internal error: task queue unavailable"
+
+  schemas:
+    Address:
+      type: string
+      pattern: "^0x[0-9a-fA-F]{40}$"
+      description: A 20-byte Ethereum address, 0x-prefixed hex.
+      examples:
+        - "0x0000000000000000000000000000000000000001"
+
+    HexBytes:
+      type: string
+      pattern: "^0x[0-9a-fA-F]*$"
+      description: A 0x-prefixed hex byte string.
+      examples:
+        - "0x93de4531"
+
+    HexUint256:
+      type: string
+      pattern: "^0x[0-9a-fA-F]+$"
+      description: A 256-bit unsigned integer, 0x-prefixed hex.
+      examples:
+        - "0x0"
+
+    GasKillerTaskRequest:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body:
+          $ref: "#/components/schemas/GasKillerTaskRequestBody"
+
+    GasKillerTaskRequestBody:
+      type: object
+      additionalProperties: false
+      required: [target_address, from_address, call_data, value, block_height]
+      properties:
+        target_address:
+          allOf:
+            - $ref: "#/components/schemas/Address"
+          description: The contract the computation is executed against.
+        from_address:
+          allOf:
+            - $ref: "#/components/schemas/Address"
+          description: The address the simulated call is sent from.
+        call_data:
+          type: array
+          description: >
+            ABI-encoded calldata as an array of byte values (0–255). The first
+            four bytes are the function selector, so at least 4 bytes are
+            required; the maximum accepted size is 128 KiB.
+          items:
+            type: integer
+            minimum: 0
+            maximum: 255
+          minItems: 4
+          maxItems: 131072
+          examples:
+            - [171, 205, 239, 1]
+        value:
+          allOf:
+            - $ref: "#/components/schemas/HexUint256"
+          description: Wei value to attach to the call, as a 0x-prefixed hex uint256.
+        block_height:
+          type: integer
+          format: int64
+          minimum: 1
+          description: The block height the computation is pinned to.
+          examples:
+            - 1
+        transition_index:
+          description: >
+            The state-transition slot to occupy. Send an integer to target a
+            specific slot, or `"auto"` / `null` / omit the field to let the
+            router resolve the next available slot at dequeue time (which is what
+            makes safe parallel submissions possible).
+          default: auto
+          anyOf:
+            - type: integer
+              format: int64
+              minimum: 0
+            - type: string
+              const: auto
+            - type: "null"
+
+    TaskStatus:
+      type: string
+      description: >
+        Lifecycle state of a task as it moves through aggregation.
+      enum:
+        - queued
+        - processing
+        - ready
+        - failed
+        - expired
+      x-enum-descriptions:
+        queued: Accepted and waiting in the queue.
+        processing: Dequeued; the router is aggregating operator signatures.
+        ready: Aggregation succeeded; `payload` holds the ready-to-sign transaction.
+        failed: Aggregation failed; `error` explains why.
+        expired: The task lapsed before completing, or its payload went stale; `error` explains why.
+
+    TaskAcceptedResponse:
+      type: object
+      required: [task_id, status]
+      description: Returned by `POST /tasks` when a task is accepted.
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: The id to poll for status via `GET /tasks/{task_id}`.
+        status:
+          allOf:
+            - $ref: "#/components/schemas/TaskStatus"
+          description: The task's initial state (`queued`).
+      examples:
+        - task_id: 3f8c1e02-9a4b-4c7d-8e1f-2b6a5c9d0e11
+          status: queued
+
+    TaskView:
+      type: object
+      required: [task_id, status, created_at, updated_at]
+      description: The full state of a task, returned by the status endpoints.
+      properties:
+        task_id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        created_at:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds) when the task was created.
+        updated_at:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds) of the last state change.
+        error:
+          type: [string, "null"]
+          description: Failure reason; present once the task is `failed` or `expired`.
+        payload:
+          oneOf:
+            - $ref: "#/components/schemas/PayloadView"
+            - type: "null"
+          description: The ready-to-sign transaction; present once the task is `ready`.
+
+    PayloadView:
+      type: object
+      required: [to, data, value, chain_id, estimated_gas, valid_until_block]
+      description: >
+        A ready-to-sign transaction request. Sign and submit it as-is from your
+        own wallet. `to` and `value` are server-controlled (rather than bare
+        `verifyAndUpdate` calldata) so that a future on-chain protocol fee is a
+        server change, not a breaking change to your client code.
+      properties:
+        to:
+          allOf:
+            - $ref: "#/components/schemas/Address"
+          description: The contract to send the transaction to.
+        data:
+          allOf:
+            - $ref: "#/components/schemas/HexBytes"
+          description: Full ABI-encoded `verifyAndUpdate` calldata (selector + arguments).
+        value:
+          allOf:
+            - $ref: "#/components/schemas/HexUint256"
+          description: Wei to send with the transaction. Zero in beta.
+        chain_id:
+          type: integer
+          format: int64
+          description: The numeric EVM chain id the transaction must be submitted to.
+          examples:
+            - 11155111
+        estimated_gas:
+          type: integer
+          format: int64
+          description: "`eth_estimateGas` result for the call, provided as a submission hint."
+          examples:
+            - 234000
+        valid_until_block:
+          type: integer
+          format: int64
+          description: >
+            Last block for which the payload is accepted on-chain. Submit before
+            this block; past it, `GET /tasks/{task_id}` returns
+            `409 PAYLOAD_EXPIRED` and you must re-request.
+          examples:
+            - 22345678
+
+    AvsMetadata:
+      type: object
+      required: [name, website, description]
+      properties:
+        name:
+          type: string
+        website:
+          type: string
+          format: uri
+        description:
+          type: string
+        logo:
+          type: string
+          format: uri
+        twitter:
+          type: string
+        operatorSets:
+          type: array
+          items:
+            $ref: "#/components/schemas/AvsOperatorSetMetadata"
+
+    AvsOperatorSetMetadata:
+      type: object
+      required: [name, id, description, software]
+      properties:
+        name:
+          type: string
+        id:
+          type: string
+        description:
+          type: string
+        software:
+          type: array
+          items:
+            $ref: "#/components/schemas/AvsOperatorSetSoftware"
+        slashingConditions:
+          type: array
+          items:
+            type: string
+
+    AvsOperatorSetSoftware:
+      type: object
+      required: [name, description, url]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+          format: uri
+
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      description: The wire shape of every error response.
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              $ref: "#/components/schemas/ErrorCode"
+            message:
+              type: string
+
+    ErrorCode:
+      type: string
+      description: >
+        A stable machine-readable error identifier.
+      enum:
+        - INVALID_ADDRESS
+        - STALE_BLOCK
+        - TRANSITION_MISMATCH
+        - PAYLOAD_EXPIRED
+        - CALLDATA_TOO_LARGE
+        - RATE_LIMITED
+        - QUEUE_FULL
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - RPC_UNAVAILABLE
+        - CONTRACT_NOT_FOUND
+        - INVALID_REQUEST
+        - NOT_FOUND
+        - METHOD_NOT_ALLOWED
+        - NOT_CONFIGURED
+        - INTERNAL

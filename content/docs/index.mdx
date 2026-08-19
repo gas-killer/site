@@ -1,0 +1,36 @@
+---
+title: Overview
+description: Verifiable off-chain compute for EVM contracts.
+---
+
+Gas Killer is a verifiable off-chain compute service for EVM contracts. Smart
+contracts offload expensive computation to a network of EigenLayer operator
+nodes. Operators run the task and sign the result with BLS keys; the router
+aggregates those signatures into a compact proof and returns a **ready-to-sign
+transaction**. You submit that transaction from your own wallet — a single
+`verifyAndUpdate` call that writes back the result and verifies it against the
+aggregate signature, instead of recomputing it on-chain.
+
+## Where to start
+
+- **[Quickstart](/docs/quickstart)** — submit your first task, poll for the
+  result, and settle it on-chain.
+- **[Architecture](/docs/architecture)** — how a task flows from submission to
+  on-chain settlement.
+- **[API Reference](/docs/api/tasks/submitTask)** — the full HTTP API, generated
+  from the OpenAPI specification.
+
+## The API at a glance
+
+The router exposes a small HTTP API:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /tasks` | Submit a compute task (requires an API key). |
+| `GET /tasks/{task_id}` | Poll a task; returns the ready-to-sign payload once it is `ready`. |
+| `GET /tasks` | List your tasks, with optional status filter and pagination. |
+| `GET /avs-metadata` | Public AVS identity document. |
+
+All requests and responses are JSON. Errors share a single envelope shape,
+`{ "error": { "code", "message" } }`, where `code` is a stable machine-readable
+identifier.
