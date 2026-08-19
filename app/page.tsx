@@ -60,26 +60,24 @@ export default function Home() {
           {/* Benefits */}
           <section id="what" className="w-full py-24 md:py-32 border-t border-white/10">
             <div className="container px-4 md:px-6 max-w-6xl">
-              <p className="font-display italic text-xs tracking-[0.3em] uppercase text-zinc-500 mb-10">
-                Why Gas Killer
-              </p>
+              <p className="mb-10"><span className="eyebrow-chip">Why Gas Killer</span></p>
               <div className="grid gap-5 md:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-zinc-950 p-8 hover:border-white/25 hover:-translate-y-1 transition-all duration-300">
+                <div className="card-poster">
                   <h3 className="text-2xl md:text-3xl font-semibold text-white mb-3">Cheaper execution</h3>
                   <p className="text-zinc-400 leading-relaxed">
-                    Up to 99% gas savings, verified by aggregate signature.
+                    <span className="text-orange-300 font-semibold">Up to 99%</span> gas savings, verified by aggregate signature.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-zinc-950 p-8 hover:border-white/25 hover:-translate-y-1 transition-all duration-300">
+                <div className="card-poster">
                   <h3 className="text-2xl md:text-3xl font-semibold text-white mb-3">Safer contracts</h3>
                   <p className="text-zinc-400 leading-relaxed">
-                    Room for the checks and invariants that gas costs rule out.
+                    Room for the checks and invariants that <span className="text-orange-300 font-semibold">gas costs rule out</span>.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-zinc-950 p-8 hover:border-white/25 hover:-translate-y-1 transition-all duration-300">
+                <div className="card-poster">
                   <h3 className="text-2xl md:text-3xl font-semibold text-white mb-3">Simple integration</h3>
                   <p className="text-zinc-400 leading-relaxed">
-                    No new languages. No rearchitecting your smart contract.
+                    <span className="text-orange-300 font-semibold">No new languages.</span> No rearchitecting your smart contract.
                   </p>
                 </div>
               </div>
@@ -89,9 +87,7 @@ export default function Home() {
           {/* How it works */}
           <section id="how" className="w-full py-24 md:py-32 border-t border-white/10">
             <div className="container px-4 md:px-6 max-w-5xl">
-              <p className="font-display italic text-xs tracking-[0.3em] uppercase text-zinc-500 mb-10">
-                How
-              </p>
+              <p className="mb-10"><span className="eyebrow-chip">How</span></p>
               <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 text-white max-w-3xl">
                 Off-chain execution. On-chain security.
               </h2>
@@ -105,7 +101,7 @@ export default function Home() {
                 <ArchitectureDiagram />
               </div>
 
-              <div className="grid md:grid-cols-2 gap-px bg-white/10 rounded-2xl overflow-hidden border border-white/10">
+              <div className="poster-frame grid md:grid-cols-2 gap-px bg-white/10 overflow-hidden">
                 <div className="bg-zinc-950 p-10 group hover:bg-zinc-900 transition-colors">
                   <span className="font-display text-sm text-zinc-500 tracking-widest">STEP 01</span>
                   <h3 className="text-2xl md:text-3xl font-semibold text-white mt-4 mb-4">
@@ -138,9 +134,7 @@ export default function Home() {
           {/* Composable Services */}
           <section id="services" className="w-full py-24 md:py-32 border-t border-white/10">
             <div className="container px-4 md:px-6 max-w-6xl">
-              <p className="font-display italic text-xs tracking-[0.3em] uppercase text-zinc-500 mb-10">
-                Services
-              </p>
+              <p className="mb-10"><span className="eyebrow-chip">Services</span></p>
               <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 text-white max-w-4xl">
                 Turn gas savings into composable services.
               </h2>
@@ -206,11 +200,10 @@ export default function Home() {
           </section>
 
           {/* Case Study */}
-          <section id="case-study" className="w-full py-24 md:py-32 border-t border-white/10">
-            <div className="container px-4 md:px-6 max-w-5xl">
-              <p className="font-display italic text-xs tracking-[0.3em] uppercase text-zinc-500 mb-10">
-                Case study · RAILGUN
-              </p>
+          <section id="case-study" className="relative w-full py-24 md:py-32 border-t border-white/10">
+            <div className="pointer-events-none absolute inset-0 grid-dots opacity-30" />
+            <div className="relative container px-4 md:px-6 max-w-5xl">
+              <p className="mb-10"><span className="eyebrow-chip">Case study · RAILGUN</span></p>
               <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 text-white max-w-4xl">
                 Privacy on Ethereum at half the cost.
               </h2>
@@ -224,12 +217,12 @@ export default function Home() {
                 Average Gas Killer savings for RAILGUN
               </p>
               <div className="grid gap-5 md:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-zinc-950 p-10 hover:border-white/25 hover:-translate-y-1 transition-all duration-300">
-                  <div className="text-6xl md:text-7xl font-display font-bold text-white mb-4">40.9%</div>
+                <div className="card-poster !p-10">
+                  <div className="text-6xl md:text-7xl font-display font-bold text-emerald-300 mb-4">40.9%</div>
                   <p className="text-zinc-500 text-sm uppercase tracking-widest">Shield</p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-zinc-950 p-10 hover:border-white/25 hover:-translate-y-1 transition-all duration-300">
-                  <div className="text-6xl md:text-7xl font-display font-bold text-white mb-4">53.9%</div>
+                <div className="card-poster !p-10">
+                  <div className="text-6xl md:text-7xl font-display font-bold text-emerald-300 mb-4">53.9%</div>
                   <p className="text-zinc-500 text-sm uppercase tracking-widest">Transact</p>
                 </div>
               </div>
@@ -250,17 +243,16 @@ export default function Home() {
           </section>
 
           {/* Backed */}
-          <section className="w-full py-24 md:py-32 border-t border-white/10">
-            <div className="container px-4 md:px-6 max-w-5xl">
-              <p className="font-display italic text-xs tracking-[0.3em] uppercase text-zinc-500 mb-10">
-                Backed
-              </p>
+          <section className="relative w-full py-24 md:py-32 border-t border-white/10">
+            <div className="pointer-events-none absolute inset-0 grid-dots opacity-30" />
+            <div className="relative container px-4 md:px-6 max-w-5xl">
+              <p className="mb-10"><span className="eyebrow-chip">Backed</span></p>
               <div className="grid gap-5 md:grid-cols-2">
                 <a
                   href="https://opacity.network/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group rounded-2xl border border-white/10 bg-zinc-950 p-10 hover:border-white/25 hover:-translate-y-1 transition-all duration-300 flex flex-col"
+                  className="group card-poster !p-10 flex flex-col"
                 >
                   <div className="flex items-center gap-4 mb-6">
                     <div className="w-14 h-14 rounded-full overflow-hidden bg-white flex items-center justify-center">
@@ -291,9 +283,7 @@ export default function Home() {
             <div className="container px-4 md:px-6 max-w-5xl">
               <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-10">
                 <div>
-                  <p className="font-display italic text-xs tracking-[0.3em] uppercase text-zinc-500 mb-6">
-                    Updates
-                  </p>
+                  <p className="mb-6"><span className="eyebrow-chip">Updates</span></p>
                   <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-white max-w-2xl">
                     Follow our progress.
                   </h2>

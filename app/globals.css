@@ -5,6 +5,17 @@
 @import "fumadocs-openapi/css/preset.css";
 
 @layer base {
+  /* Poster-style ink tokens. Every framed surface (cards, diagram shell,
+     stacked layers) and the eyebrow chips resolve their border/shadow colors
+     from here, so the palette changes in one place. */
+  :root {
+    --poster-ink: #26262c;
+    --poster-ink-hi: #34343c;
+    --poster-shadow: #1b1b21;
+    --poster-offset: 4px;
+    --poster-offset-hover: 6px;
+  }
+
   * {
     @apply border-white/10;
   }
@@ -40,18 +51,38 @@
     background-size: 32px 32px;
   }
 
+  /* Poster frame: square corners, 2px ink border, solid hard-offset shadow.
+     The one definition behind every framed surface -- apply .poster-frame
+     directly, or set --poster-offset to change the shadow depth
+     (.poster-frame-sm is the shallower variant the stack layers use).
+     Borrowed from the llm.gaskiller.xyz demo style. */
+  .poster-frame,
+  .card-poster,
   .service-card {
-    @apply relative overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 p-8 transition-all duration-300;
+    border: 2px solid var(--poster-ink);
+    box-shadow: var(--poster-offset) var(--poster-offset) 0 var(--poster-shadow);
   }
+  .poster-frame-sm {
+    --poster-offset: 3px;
+  }
+
+  /* Poster cards add padding and translate up-left on hover, deepening the shadow. */
+  .card-poster {
+    @apply relative bg-zinc-950 p-8 transition-all duration-150;
+  }
+  .service-card {
+    @apply relative overflow-hidden bg-zinc-950 p-8 transition-all duration-150;
+  }
+  .card-poster:hover,
   .service-card:hover {
-    @apply border-white/25 -translate-y-1;
-    box-shadow: 0 0 40px -10px rgba(255, 255, 255, 0.08);
+    border-color: var(--poster-ink-hi);
+    transform: translate(-2px, -2px);
+    box-shadow: var(--poster-offset-hover) var(--poster-offset-hover) 0 var(--poster-shadow);
   }
   .service-card::before {
     content: "";
     position: absolute;
     inset: 0;
-    border-radius: inherit;
     padding: 1px;
     background: linear-gradient(135deg, transparent 60%, var(--accent, rgba(255, 255, 255, 0.15)));
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -63,5 +94,122 @@
   }
   .service-card:hover::before {
     opacity: 1;
+  }
+
+  /* Diagram flow lines: horizontal/vertical tracks with 3 traveling dots.
+     Each traveller spans the full track and carries the dot as a ::before at
+     its leading edge, so translate(100%) walks the dot end to end. Animating
+     transform/opacity keeps this on the compositor -- animating left/top would
+     re-run layout 60x a second for every dot. Mirrors the pv-flow animation
+     from the llm.gaskiller.xyz demo. */
+  .flow-line-x {
+    position: relative;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: visible;
+  }
+  .flow-line-x > span {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 6px;
+    margin-top: -3px;
+    animation: flow-x 2.4s linear infinite;
+  }
+  .flow-line-x > span::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 6px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 10px #34d399;
+  }
+  .flow-line-x > span:nth-child(2) { animation-delay: 0.8s; }
+  .flow-line-x > span:nth-child(3) { animation-delay: 1.6s; }
+  @keyframes flow-x {
+    0%   { transform: translateX(0);    opacity: 0; }
+    15%  { opacity: 1; }
+    85%  { opacity: 1; }
+    100% { transform: translateX(100%); opacity: 0; }
+  }
+
+  .flow-line-y {
+    position: relative;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: visible;
+  }
+  .flow-line-y > span {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 6px;
+    height: 100%;
+    margin-left: -3px;
+    animation: flow-y 2.4s linear infinite;
+  }
+  .flow-line-y > span::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 6px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 10px #34d399;
+  }
+  .flow-line-y > span:nth-child(2) { animation-delay: 0.8s; }
+  .flow-line-y > span:nth-child(3) { animation-delay: 1.6s; }
+  @keyframes flow-y {
+    0%   { transform: translateY(0);    opacity: 0; }
+    15%  { opacity: 1; }
+    85%  { opacity: 1; }
+    100% { transform: translateY(100%); opacity: 0; }
+  }
+
+  /* GK circle: dashed border rotates slowly. */
+  .gk-rotate {
+    animation: gk-rotate 30s linear infinite;
+  }
+  @keyframes gk-rotate {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Stack layer agreement dot: pulses on the same cadence as flow lines. */
+  .agree-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 8px #34d399;
+    animation: agree-pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes agree-pulse {
+    0%, 100% { opacity: 0.35; transform: scale(0.9); }
+    50%      { opacity: 1;    transform: scale(1.1); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flow-line-x > span, .flow-line-y > span, .gk-rotate, .agree-dot {
+      animation: none;
+    }
+    .flow-line-x > span, .flow-line-y > span { opacity: 1; }
+  }
+
+  /* Eyebrow chip: uppercase Chakra Petch tag with a thin border.
+     Replaces the italic tracked-out label above section headings. */
+  .eyebrow-chip {
+    display: inline-block;
+    font-family: var(--font-display), sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    padding: 5px 10px;
+    color: #a1a1aa;
+    border: 1px solid var(--poster-ink-hi);
+    background: #09090b;
   }
 }
