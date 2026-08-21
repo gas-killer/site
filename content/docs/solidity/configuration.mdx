@@ -1,0 +1,149 @@
+---
+title: Configuration
+description: The addresses your target must be wired to, and how to verify them.
+---
+
+import { Callout } from "fumadocs-ui/components/callout"
+
+`GasKillerSDK` holds its configuration in an
+[ERC-7201](https://eips.ethereum.org/EIPS/eip-7201) namespace, so it never
+collides with your contract's own storage. Two values are required; the rest have
+working defaults.
+
+| Value | Setter | Required | Default |
+| --- | --- | --- | --- |
+| `avsAddress` | `_setAvsAddress` | Yes | none |
+| `blsSignatureChecker` | `_setBlsSignatureChecker` | Yes | none |
+| `blockStaleMeasure` | `_setBlockStaleMeasure` | No | `300` blocks |
+
+All three setters are `internal`. The SDK deliberately ships no access control —
+you decide who may call them and when, by exposing them or not.
+
+## The two required addresses
+
+`blsSignatureChecker` is an EigenLayer `IBLSSignatureChecker`. It is the contract
+your target trusts to verify that a quorum of operators signed the state update,
+and it must be the one bound to the **same operator set the router is signing
+with**. `avsAddress` is the AVS service manager; it scopes the namespace and does
+not participate in signature verification.
+
+For the public testnet (Sepolia, chain `11155111`):
+
+```bash
+AVS_ADDRESS=0xdCec8ce0a03848B55989Bcc711e424Ca31d9eeD9
+SIG_CHECKER_ADDRESS=0x6953fc47FC8b7568801f3fdc327bc0d9aD12E5b9
+```
+
+<Callout type="warn">
+  **Verify these before you deploy.** They are properties of a specific AVS
+  deployment, not constants of the protocol — redeploying the operator set changes
+  them, and a target wired to a superseded checker produces payloads that revert.
+  The check below takes one RPC call and is worth doing every time.
+</Callout>
+
+### Verify before you deploy
+
+A checker is only useful if it points at the registry coordinator the operators
+are actually registered in. Ask it directly:
+
+```bash
+cast call "$SIG_CHECKER_ADDRESS" "registryCoordinator()(address)" --rpc-url "$RPC_URL"
+```
+
+Then compare against a target that is known to be settling. Any contract that has
+successfully applied a transition proves its checker is live, so cross-check
+against one:
+
+```bash
+# A reference target with a non-zero stateTransitionCount is proof its wiring works.
+cast call "$REFERENCE_TARGET" "blsSignatureChecker()(address)" --rpc-url "$RPC_URL"
+cast call "$REFERENCE_TARGET" "stateTransitionCount()(uint256)" --rpc-url "$RPC_URL"
+```
+
+If your checker resolves to a different `registryCoordinator` than a currently
+settling target's, your address is stale. Settlement will fail with
+`InvalidQuorumApkHash` (`0xe1310aed`) — the router computed the quorum's
+aggregate-key indices against the live registry, and your checker looked them up
+in a different one. See the
+[error table](/docs/solidity/reference#revert-selectors).
+
+## Stay reconfigurable
+
+Because the setters are `internal`, a contract that only calls them in its
+constructor can **never be rewired**. If the operator set is redeployed, or you
+got an address wrong, your only remedy is to deploy a new contract and migrate
+state.
+
+Expose a guarded setter unless you have a specific reason not to:
+
+```solidity
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {GasKillerSDK} from "gas-killer-sdk/GasKillerSDK.sol";
+
+contract Counter is GasKillerSDK, Ownable {
+    constructor(address avs, address blsSigChecker)
+        Ownable(msg.sender)
+    {
+        _setAvsAddress(avs);
+        _setBlsSignatureChecker(blsSigChecker);
+    }
+
+    /// Lets the deployment follow an operator-set migration without redeploying.
+    function setGasKillerConfig(address avs, address blsSigChecker) external onlyOwner {
+        _setAvsAddress(avs);
+        _setBlsSignatureChecker(blsSigChecker);
+    }
+}
+```
+
+<Callout>
+  This is a real trust decision, not just convenience: whoever can change
+  `blsSignatureChecker` can point your contract at a checker they control, and
+  authorise arbitrary state updates. Own it with the same care as any upgrade
+  key — a multisig, a timelock, or a deliberate choice to make it immutable and
+  accept redeployment as the migration path.
+</Callout>
+
+## `blockStaleMeasure`
+
+The maximum age, in blocks, of the `referenceBlockNumber` a payload may carry.
+`verifyAndUpdate` requires:
+
+```
+referenceBlockNumber < block.number
+referenceBlockNumber + blockStaleMeasure >= block.number
+```
+
+Unset means `300` blocks — roughly an hour on Sepolia. Below that floor a payload
+expires before a client can reasonably submit it; well above it, a payload stays
+applicable long after the state it was computed against.
+
+Lowering it tightens the window in which a signed transition can land. Raising it
+widens the period during which an operator-set change can invalidate an
+already-assembled signature. `300` is a sensible default; change it only with a
+reason.
+
+```solidity
+constructor(address avs, address blsSigChecker) {
+    _setAvsAddress(avs);
+    _setBlsSignatureChecker(blsSigChecker);
+    _setBlockStaleMeasure(150);
+}
+```
+
+## Reading configuration back
+
+All public, all `view`:
+
+| Getter | Returns |
+| --- | --- |
+| `avsAddress()` | Configured AVS service manager |
+| `blsSignatureChecker()` | Configured signature checker |
+| `blockStaleMeasure()` | Effective value, including the `300` default |
+| `namespace()` | `abi.encodePacked(avsAddress, "gaskiller")`, or empty when unset |
+| `stateTransitionCount()` | Transitions applied so far |
+| `inTransition()` | True while a transition is being applied |
+| `supportsInterface(0x93de4531)` | Whether the router will accept this target |
+
+`namespace()` is derived on read rather than stored, so setting `avsAddress` is a
+single storage write.

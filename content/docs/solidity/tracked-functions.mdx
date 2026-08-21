@@ -1,0 +1,140 @@
+---
+title: Tracked functions
+description: What trackState guarantees, storage layout rules, and what keeps a function extractable.
+---
+
+import { Callout } from "fumadocs-ui/components/callout"
+
+A **tracked function** is one whose execution an operator may reproduce
+off-chain. Marking it does two things: it declares intent, and it advances the
+transition counter that binds a signed payload to one specific state.
+
+```solidity
+function recompute(uint32 rounds) external trackState {
+    // ...
+}
+```
+
+## What `trackState` actually does
+
+`trackState` increments a counter at a fixed slot **before** the function body
+runs. `verifyAndUpdate` carries the same modifier, and enforces:
+
+```solidity
+require(transitionIndex + 1 == stateTransitionCount(), InvalidTransitionIndex());
+```
+
+So a payload is signed against a specific counter value and applies only while
+the contract still sits at that value. Anything that advances the counter — a
+settlement, or a direct call to another tracked function — invalidates every
+outstanding payload.
+
+<Callout type="warn">
+  **Mark every mutating path, not just the expensive one.** `verifyAndUpdate`
+  bumps the counter itself, so a contract with no `trackState` anywhere still
+  settles and still looks correct. What breaks is replay protection: a direct call
+  to an unmarked function changes state without advancing the counter, so a
+  payload computed against the *old* state stays applicable and overwrites the
+  newer values when submitted.
+</Callout>
+
+The counter lives at `keccak256("gasKiller.stateTracker") - 1`, outside any
+Solidity-allocated slot, so it never collides with your variables.
+
+## Storage layout matters
+
+A settlement is a list of raw `STORE` operations at specific slot numbers,
+computed off-chain from a simulation of your function. It writes slots, not
+variables. Two consequences:
+
+- **The layout is part of your interface with a signed payload.** Reordering state
+  variables changes which slot holds what. Any payload assembled before the change
+  writes the old positions.
+- **The layout must be predictable.** Declare tracked state first and check it:
+
+```bash
+forge inspect src/Counter.sol:Counter storage-layout
+```
+
+SDK state is unaffected either way — the configuration namespace is ERC-7201 and
+the transition counter is at a hashed slot, so neither consumes slots your
+variables could occupy.
+
+## What keeps a function extractable
+
+Operators derive the diff by simulating your call and reading which slots changed.
+That works cleanly when the tracked function:
+
+- **Succeeds.** A reverting call has no diff to sign; analysis fails rather than
+  producing an empty payload.
+- **Writes only its own contract's storage.** Storage changes in *other* accounts
+  cannot be represented as a plain slot diff and need a full call replay, which
+  is dramatically more expensive to extract and may not complete at all for a
+  heavy function.
+- **Makes no state-changing external calls.** Read-only calls (`STATICCALL`, so
+  `view`/`pure` on another contract) are fine and are ignored by the analysis.
+
+Emitting logs is fully supported — they are reproduced as `LOG0`–`LOG4`
+operations, including indexed topics.
+
+<Callout>
+  The sweet spot is *heavy compute, small diff*: the cost of settling depends on
+  how many slots changed, not on how much work produced them. A function that
+  loops a million times and writes two slots settles for the same cost as one that
+  loops twice.
+</Callout>
+
+If your design genuinely needs a mid-transition external call, it is supported —
+`StateChangeHandlerLib` can replay `CALL`, `CREATE` and `CREATE2` — but it is the
+expensive path and brings the reentrancy considerations below into play.
+
+## Reading state during a transition
+
+A `CALL` state update runs arbitrary external code partway through a settlement,
+while only a prefix of the transition's writes have landed. At that moment the
+counter already reads `N+1` while the state is neither `N` nor `N+1`. The quorum
+signed the *final* state, never that intermediate.
+
+`verifyAndUpdate` is guarded, so re-entering it reverts with
+`ReentrantTransition`. The same latch is readable, for one warm `TLOAD`:
+
+```solidity
+function inTransition() public view virtual returns (bool);
+```
+
+If your contract is read by another protocol that could be called mid-transition,
+have that reader fail closed:
+
+```solidity
+if (IGasKillerConsumer(target).inTransition()) revert MidTransition();
+```
+
+Contracts that never make external calls during a transition do not need this.
+
+## Value-bearing transitions
+
+`verifyAndUpdate` is `payable` so a caller can fund `CALL`/`CREATE`/`CREATE2`
+updates that move ETH out of `msg.value` rather than pre-funding the contract.
+
+How much value each update moves, and to whom, is fixed inside the quorum-signed
+updates — `msg.value` only tops up the balance and cannot redirect anything. That
+leaves exactly two ways to get it wrong:
+
+- **Under-funding** reverts the whole transition: `RevertingContext` for a `CALL`,
+  `DeploymentFailed` for a deployment.
+- **Over-funding is not refunded.** The surplus stays in your contract.
+
+If your callers might over-send, provide a recovery path — a withdrawal function,
+or a refund executed as a signed `CALL` update in a later transition. The SDK
+intentionally has no balance-delta check on the entrypoint, since the signature
+already fixes every movement.
+
+## Checklist
+
+- Every state-mutating function carries `trackState`.
+- Tracked state is declared first, and the layout is pinned by a test.
+- The tracked function succeeds, touches only its own storage, and makes no
+  state-changing external calls.
+- If other protocols read you and you make mid-transition calls, they check
+  `inTransition()`.
+- If value can be over-sent, there is a way to recover it.

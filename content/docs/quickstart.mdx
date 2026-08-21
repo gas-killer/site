@@ -18,6 +18,12 @@ The flow is three calls plus one on-chain submission:
 2. **Poll** `GET /tasks/{task_id}` until its `status` is `ready`.
 3. **Sign and submit** the returned `payload` from your wallet.
 
+<Callout>
+  This guide assumes you already have a target contract that inherits the Gas
+  Killer SDK. To make one of your own contracts a valid target, see the
+  [Solidity Reference](/docs/solidity/integrate).
+</Callout>
+
 Set these environment variables to follow along against the public testnet:
 
 ```bash
