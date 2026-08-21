@@ -7,7 +7,7 @@ info:
 
 
     Clients submit compute tasks to `POST /tasks`; the router validates them,
-    fans them out to EigenLayer operator nodes, and aggregates the BLS
+    fans them out to restaked operator nodes, and aggregates the BLS
     signatures into a completed round. Rather than broadcasting on-chain itself,
     the router returns a **ready-to-sign transaction** — the *payload*. The
     typical flow is:
@@ -47,7 +47,7 @@ tags:
       Submitting compute tasks, polling their status, and retrieving the
       ready-to-sign payload.
   - name: Metadata
-    description: Public AVS identity, consumed by the EigenLayer indexer.
+    description: Public AVS identity, consumed by the restaking indexer.
 
 paths:
   /tasks:
@@ -219,7 +219,7 @@ paths:
       summary: AVS identity metadata
       operationId: getAvsMetadata
       description: >
-        Returns the AVS identity document in the exact shape the EigenLayer
+        Returns the AVS identity document in the exact shape the restaking
         indexer expects (the URL registered via `updateAVSMetadataURI`). Public;
         no authentication required.
       responses:
