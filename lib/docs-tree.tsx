@@ -3,6 +3,20 @@ import type * as PageTree from "fumadocs-core/page-tree"
 import { source } from "@/lib/source"
 
 /**
+ * The Analyzer link is hidden while the analyzer itself is not working. Flip
+ * this to `true` to put it back; the `/analyzer` route is untouched and still
+ * reachable directly.
+ */
+const showAnalyzer = false
+
+const analyzerLink: PageTree.Item = {
+  type: "page",
+  name: "Analyzer",
+  url: "/analyzer",
+  icon: <Gauge />,
+}
+
+/**
  * Secondary destinations appended to the end of the sidebar, so they stack with
  * the page entries instead of sitting above them or being pinned to the panel.
  *
@@ -11,12 +25,7 @@ import { source } from "@/lib/source"
  * unmodified tree — otherwise the last page's "next" link would be GitHub.
  */
 const secondaryLinks: PageTree.Item[] = [
-  {
-    type: "page",
-    name: "Analyzer",
-    url: "/analyzer",
-    icon: <Gauge />,
-  },
+  ...(showAnalyzer ? [analyzerLink] : []),
   {
     type: "page",
     name: "GitHub",
