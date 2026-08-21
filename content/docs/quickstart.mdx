@@ -18,51 +18,126 @@ The flow is three calls plus one on-chain submission:
 2. **Poll** `GET /tasks/{task_id}` until its `status` is `ready`.
 3. **Sign and submit** the returned `payload` from your wallet.
 
-<Callout>
-  This guide assumes you already have a target contract that inherits the Gas
-  Killer SDK. To make one of your own contracts a valid target, see the
-  [Solidity Reference](/docs/solidity/integrate).
-</Callout>
-
 Set these environment variables to follow along against the public testnet:
 
 ```bash
 export ROUTER_URL="https://testnet.gaskiller.xyz"
-export API_KEY="gk_..."         # your API key (see step 1)
+export API_KEY="gk_..."         # your API key (see step 2)
 export RPC_URL="https://..."    # an RPC endpoint for the payload's chain
 export PRIVATE_KEY="0x..."      # the wallet that submits the transaction
+export TARGET_ADDRESS="0x..."   # the contract to settle into (see step 1)
 ```
 
-## 1. Get an API key
+## 1. Choose a target contract
+
+Gas Killer settles into a contract that inherits the Gas Killer Solidity SDK —
+that inheritance is what gives it the `verifyAndUpdate` function the payload
+calls. A contract without it cannot be a target, and the router will reject the
+task.
+
+You can borrow one for this guide, or use your own.
+
+<Tabs items={["Use the public demo target", "Use your own contract"]}>
+
+<Tab value="Use the public demo target">
+
+A deployed `ArraySummation` on Sepolia, already wired to the live operator set:
+
+```bash
+export TARGET_ADDRESS="0xF143a9D93045474C2B573d21AC1CCe8dB2b06dbD"
+```
+
+Its tracked function is `sum(uint256[] indexes)`, which adds up the array
+elements at the indexes you pass. The array holds 10 elements, so any index
+`0`–`9` is valid. That is the call used in the examples below.
+
+Check it is still a live target before relying on it — `true` means the router
+will accept tasks for it:
+
+```bash
+cast call "$TARGET_ADDRESS" "supportsInterface(bytes4)(bool)" 0x93de4531 \
+  --rpc-url "$RPC_URL"
+```
+
+<Callout type="warn">
+  This is shared scratch space, not a stable fixture. Anyone else settling
+  against it advances its transition counter, which invalidates a payload you are
+  holding — submit a new task if that happens. Do not build anything on it.
+</Callout>
+
+</Tab>
+
+<Tab value="Use your own contract">
+
+Inherit `GasKillerSDK`, wire it to the live operator set, and mark the expensive
+function `trackState`:
+
+```solidity
+import {GasKillerSDK} from "gas-killer-sdk/GasKillerSDK.sol";
+
+contract Counter is GasKillerSDK {
+    uint256 public total;
+
+    constructor(address avs, address blsSigChecker) {
+        _setAvsAddress(avs);
+        _setBlsSignatureChecker(blsSigChecker);
+    }
+
+    function recompute(uint32 rounds) external trackState {
+        // the expensive path operators reproduce off-chain
+    }
+}
+```
+
+The [Solidity Reference](/docs/solidity/integrate) covers this end to end — a
+complete minimal contract, the addresses to wire, and the checks to run after
+deploying. Then set `TARGET_ADDRESS` to your deployment and carry on.
+
+</Tab>
+
+</Tabs>
+
+## 2. Get an API key
 
 Task submission and polling are authenticated with a bearer API key (it looks
 like `gk_…`). Keys are provisioned by the Gas Killer team —
 [reach out](mailto:contact@gaskiller.xyz) to request one. Store it securely and
 pass it as a bearer token on every request.
 
-## 2. Submit a task
+## 3. Submit a task
 
 Send the task to `POST /tasks` with the key as a bearer token. `call_data` is the
 ABI-encoded calldata as an array of byte values, and `value` is a 0x-prefixed hex
-uint256. A `202` response returns a `task_id` you'll poll in the next step.
+uint256. `block_height` is the block the off-chain execution is anchored to and
+must be recent — within a few hundred blocks of head — so read it from the chain
+rather than hardcoding it. A `202` response returns a `task_id` you'll poll in
+the next step.
 
 <Tabs items={["Terminal", "TypeScript"]}>
 
 <Tab value="Terminal">
 
 ```bash
+ACCOUNT=$(cast wallet address --private-key "$PRIVATE_KEY")
+BLOCK=$(cast block-number --rpc-url "$RPC_URL")
+
+# call_data is a JSON array of byte values, so expand the ABI-encoded calldata.
+CALLDATA=$(cast calldata "sum(uint256[])" "[1,2,3]")
+BYTES=$(printf '%s' "${CALLDATA#0x}" | xxd -r -p \
+  | od -An -tu1 -v | tr -s ' ' '\n' | grep . | paste -sd, -)
+
 TASK_ID=$(curl -s -X POST "$ROUTER_URL/tasks" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "body": {
-      "target_address": "0x0000000000000000000000000000000000000001",
-      "from_address": "0x0000000000000000000000000000000000000002",
-      "call_data": [171, 205, 239, 1],
-      "value": "0x0",
-      "block_height": 1
+  -d "{
+    \"body\": {
+      \"target_address\": \"$TARGET_ADDRESS\",
+      \"from_address\": \"$ACCOUNT\",
+      \"call_data\": [$BYTES],
+      \"value\": \"0x0\",
+      \"block_height\": $BLOCK
     }
-  }' | jq -r .task_id)
+  }" | jq -r .task_id)
 
 echo "$TASK_ID"
 ```
@@ -72,6 +147,24 @@ echo "$TASK_ID"
 <Tab value="TypeScript">
 
 ```ts
+import { createPublicClient, encodeFunctionData, http, parseAbi } from "viem"
+import { privateKeyToAccount } from "viem/accounts"
+import { sepolia } from "viem/chains"
+
+const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`)
+const publicClient = createPublicClient({
+  chain: sepolia,
+  transport: http(process.env.RPC_URL),
+})
+
+const blockHeight = await publicClient.getBlockNumber()
+
+const callData = encodeFunctionData({
+  abi: parseAbi(["function sum(uint256[] indexes)"]),
+  functionName: "sum",
+  args: [[1n, 2n, 3n]],
+})
+
 const res = await fetch(`${process.env.ROUTER_URL}/tasks`, {
   method: "POST",
   headers: {
@@ -80,11 +173,12 @@ const res = await fetch(`${process.env.ROUTER_URL}/tasks`, {
   },
   body: JSON.stringify({
     body: {
-      target_address: "0x0000000000000000000000000000000000000001",
-      from_address: "0x0000000000000000000000000000000000000002",
-      call_data: [171, 205, 239, 1],
+      target_address: process.env.TARGET_ADDRESS,
+      from_address: account.address,
+      // call_data is a byte array, not a hex string.
+      call_data: Array.from(Buffer.from(callData.slice(2), "hex")),
       value: "0x0",
-      block_height: 1,
+      block_height: Number(blockHeight),
     },
   }),
 })
@@ -107,7 +201,7 @@ next available state-transition slot at dequeue time — this is what makes safe
 parallel submissions possible. Send an integer only when you need to target a
 specific slot.
 
-## 3. Poll until ready
+## 4. Poll until ready
 
 Poll `GET /tasks/{task_id}` until `status` becomes `ready`. The task moves
 `queued` → `processing` → `ready`; a `ready` task carries a `payload` object. If
@@ -171,12 +265,12 @@ A `ready` response looks like this:
   "updated_at": 1753180812,
   "error": null,
   "payload": {
-    "to": "0x0000000000000000000000000000000000000001",
+    "to": "0xF143a9D93045474C2B573d21AC1CCe8dB2b06dbD",
     "data": "0x93de4531000000000000000000000000000000000000000000000000000000000000002a",
     "value": "0x0",
     "chain_id": 11155111,
-    "estimated_gas": 234000,
-    "valid_until_block": 22345678
+    "estimated_gas": 257468,
+    "valid_until_block": 11535702
   }
 }
 ```
@@ -189,7 +283,7 @@ A `ready` response looks like this:
   submitting, so you get the freshness-checked payload.
 </Callout>
 
-## 4. Sign and submit the payload
+## 5. Sign and submit the payload
 
 The `payload` is a complete transaction request. Sign it with your wallet and
 broadcast it **as-is** — `to`, `data`, and `value` are all supplied by the
@@ -250,7 +344,7 @@ console.log("submitted:", hash)
 `estimated_gas` is a hint from the router's `eth_estimateGas`; most wallets and
 libraries will re-estimate, so passing it is optional.
 
-## 5. Handle errors
+## 6. Handle errors
 
 Every error uses the same envelope, with a stable `code`:
 
