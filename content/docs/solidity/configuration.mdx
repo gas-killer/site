@@ -61,20 +61,31 @@ cast call "$REFERENCE_TARGET" "stateTransitionCount()(uint256)" --rpc-url "$RPC_
 ```
 
 If your checker resolves to a different `registryCoordinator` than a currently
-settling target's, your address is stale. Settlement will fail with
-`InvalidQuorumApkHash` (`0xe1310aed`) — the router computed the quorum's
-aggregate-key indices against the live registry, and your checker looked them up
+settling target's, your address is stale. The task fails with
+`InvalidQuorumApkHash` (`0xe1310aed`) — the router computes the quorum's
+aggregate-key indices against the live registry, and your checker looks them up
 in a different one. See the
 [error table](/docs/solidity/reference#revert-selectors).
 
 ## Stay reconfigurable
+
+<Callout type="warn">
+  **Gas Killer is not production-ready.** It is unaudited and under active
+  development, and nothing should be deployed with real value behind it yet.
+
+  Treat this section as required rather than optional while that is true. The
+  operator set and the addresses on this page are expected to change as the
+  system stabilises, and each change strands every target wired only in its
+  constructor. A contract you can reconfigure follows a migration; one you cannot
+  has to be redeployed with its state moved across.
+</Callout>
 
 Because the setters are `internal`, a contract that only calls them in its
 constructor can **never be rewired**. If the operator set is redeployed, or you
 got an address wrong, your only remedy is to deploy a new contract and migrate
 state.
 
-Expose a guarded setter unless you have a specific reason not to:
+Expose a guarded setter:
 
 ```solidity
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -100,8 +111,11 @@ contract Counter is GasKillerSDK, Ownable {
   This is a real trust decision, not just convenience: whoever can change
   `blsSignatureChecker` can point your contract at a checker they control, and
   authorise arbitrary state updates. Own it with the same care as any upgrade
-  key — a multisig, a timelock, or a deliberate choice to make it immutable and
-  accept redeployment as the migration path.
+  key — a multisig, or a timelock.
+
+  Making it immutable instead is a legitimate choice, but understand what you are
+  accepting: today that means redeployment and state migration on every
+  operator-set change, which for now is the more likely outcome.
 </Callout>
 
 ## `blockStaleMeasure`

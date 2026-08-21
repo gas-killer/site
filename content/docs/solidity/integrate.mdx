@@ -3,7 +3,6 @@ title: Integrate the SDK
 description: Make your contract a valid Gas Killer target.
 ---
 
-import { Callout } from "fumadocs-ui/components/callout"
 import { Steps, Step } from "fumadocs-ui/components/steps"
 
 The HTTP API returns a **ready-to-sign `verifyAndUpdate` transaction**. That call
@@ -17,15 +16,13 @@ different stage:
 | Requirement | Enforced by | Symptom when missing |
 | --- | --- | --- |
 | Inherits `GasKillerSDK` | Router, at submit time | Task rejected — the target does not report the interface |
-| `avsAddress` and `blsSignatureChecker` wired to the live deployment | The contract, at settlement | Task reaches `ready`, then the transaction reverts |
+| `avsAddress` and `blsSignatureChecker` wired to the live deployment | Router, while building the payload | Task fails — the router will not return a payload that cannot settle |
 | Mutating functions marked `trackState` | Nothing — it is your replay protection | Silent: stale payloads stay applicable |
 
-<Callout type="warn">
-  The second one is the trap. A contract wired to the wrong `blsSignatureChecker`
-  passes every validation the router performs and produces a `ready` payload that
-  can never land. Read
-  [Configuration](/docs/solidity/configuration) before you deploy.
-</Callout>
+The router proves the settlement call before handing it back, so a mis-wired
+target fails as a task with the underlying error rather than as a reverted
+transaction you paid for. Get the addresses right up front anyway —
+see [Configuration](/docs/solidity/configuration).
 
 ## Requirements
 
