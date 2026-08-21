@@ -19,6 +19,24 @@ aggregate signature, instead of recomputing it on-chain.
   on-chain settlement.
 - **[API Reference](/docs/api/tasks/submitTask)** — the full HTTP API, generated
   from the OpenAPI specification.
+- **[Solidity Reference](/docs/solidity/integrate)** — add the SDK to your
+  contract and configure it to accept payloads.
+
+## What an integration looks like
+
+An integration has two halves, and both must be in place:
+
+- **On-chain** — your contract inherits `GasKillerSDK`, which gives it the
+  `verifyAndUpdate` entrypoint and a transition counter. You mark the expensive
+  function `trackState` and wire the contract to the live operator set.
+- **Off-chain** — you submit a task naming that contract and the call you want
+  performed. The router returns a `verifyAndUpdate` transaction; you sign it and
+  submit it from your own wallet.
+
+Evaluating rather than building? The [Quickstart](/docs/quickstart) borrows an
+already-deployed contract, so you can watch a settlement land without writing any
+Solidity. When you want this on a contract of your own, start with the
+[Solidity Reference](/docs/solidity/integrate).
 
 ## The API at a glance
 
@@ -34,3 +52,19 @@ The router exposes a small HTTP API:
 All requests and responses are JSON. Errors share a single envelope shape,
 `{ "error": { "code", "message" } }`, where `code` is a stable machine-readable
 identifier.
+
+## The contract side at a glance
+
+Inheriting `GasKillerSDK` is what makes a contract a valid target. It supplies:
+
+| Member | Purpose |
+| --- | --- |
+| `verifyAndUpdate` | Settlement entrypoint — verifies the quorum signature, then applies the diff. |
+| `trackState` | Marks a function as a tracked transition and advances the counter. |
+| `stateTransitionCount()` | Binds a payload to one specific state, so it cannot be replayed. |
+| `avsAddress` / `blsSignatureChecker` | The operator set the contract trusts. |
+| `inTransition()` | Lets external readers reject mid-transition state. |
+
+See the [Solidity Reference](/docs/solidity/reference) for the full surface, and
+[Configuration](/docs/solidity/configuration) for the addresses a target must be
+wired to.

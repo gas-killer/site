@@ -1,0 +1,162 @@
+---
+title: Reference
+description: GasKillerSDK API surface, state update types, and revert selectors.
+---
+
+import { Callout } from "fumadocs-ui/components/callout"
+
+API surface of `GasKillerSDK` (BLS scheme). Inheriting it gives your contract
+everything on this page.
+
+```solidity
+abstract contract GasKillerSDK is StateTracker, TransitionGuard, IGasKillerSDK
+```
+
+## Constants
+
+| Constant | Value | Meaning |
+| --- | --- | --- |
+| `QUORUM_THRESHOLD` | `66` | Minimum share of each quorum's stake that must sign |
+| `THRESHOLD_DENOMINATOR` | `100` | Denominator for the above — so 66% |
+| — | `300` | Default `blockStaleMeasure`, in blocks, when unset |
+| ERC-165 id | `0x93de4531` | `type(IGasKillerSDK).interfaceId`; the router requires it |
+
+The threshold is checked **per quorum**, not across their union: every quorum in
+`quorumNumbers` must independently clear 66%.
+
+## `verifyAndUpdate`
+
+The settlement entrypoint. The router builds this call for you — you never encode
+it by hand — but its parameters explain every failure mode.
+
+```solidity
+function verifyAndUpdate(
+    bytes32 msgHash,
+    bytes calldata quorumNumbers,
+    uint32 referenceBlockNumber,
+    bytes calldata storageUpdates,
+    uint256 transitionIndex,
+    bytes4 targetFunction,
+    IBLSSignatureCheckerTypes.NonSignerStakesAndSignature calldata nonSignerStakesAndSignature
+) external payable guardTransition trackState;
+```
+
+| Parameter | Purpose |
+| --- | --- |
+| `msgHash` | The signed digest; recomputed on-chain and compared |
+| `quorumNumbers` | Which quorums must clear the threshold |
+| `referenceBlockNumber` | Block the operator set was snapshotted at |
+| `storageUpdates` | ABI-encoded `(StateUpdateType[], bytes[])` — the diff to apply |
+| `transitionIndex` | Counter value this payload was computed against |
+| `targetFunction` | Selector of the tracked function that was simulated |
+| `nonSignerStakesAndSignature` | Aggregate signature plus per-non-signer stake proofs |
+
+It executes in this order, so an earlier check masks any later one:
+
+1. `referenceBlockNumber < block.number` → else `FutureBlockNumber`
+2. `referenceBlockNumber + blockStaleMeasure >= block.number` → else `StaleBlockNumber`
+3. `transitionIndex + 1 == stateTransitionCount()` → else `InvalidTransitionIndex`
+4. Digest matches `msgHash` → else `InvalidSignature`
+5. `checkSignatures` on the configured checker, then the 66% test per quorum
+6. Apply the updates
+
+### The signed digest
+
+```solidity
+sha256(abi.encode(transitionIndex, address(this), targetFunction, storageUpdates))
+```
+
+Available as a view for off-chain cross-checking:
+
+```solidity
+function getMessageHash(
+    uint256 transitionIndex,
+    bytes4 targetFunction,
+    bytes calldata storageUpdates
+) external view returns (bytes32);
+```
+
+Binding `address(this)` means a payload cannot be replayed against a different
+contract, and binding `transitionIndex` means it cannot be replayed against a
+different state of the same one.
+
+## State update types
+
+`storageUpdates` decodes to a list of operations applied in order.
+
+| Type | Effect |
+| --- | --- |
+| `STORE` | Write a 32-byte value to a storage slot |
+| `CALL` | External call, optionally with ETH value |
+| `LOG0`–`LOG4` | Emit a log with 0–4 indexed topics |
+| `CREATE` | Deploy a contract, nonce-derived address |
+| `CREATE2` | Deploy a contract, salt-derived address |
+
+Most integrations only ever produce `STORE` and `LOG*`. See
+[Tracked functions](/docs/solidity/tracked-functions#value-bearing-transitions)
+for the funding rules that apply to the value-bearing types.
+
+## Inherited members
+
+From `StateTracker`:
+
+| Member | Description |
+| --- | --- |
+| `trackState` | Modifier; increments the transition counter before the body |
+| `stateTransitionCount()` | Transitions applied so far |
+
+From `TransitionGuard`:
+
+| Member | Description |
+| --- | --- |
+| `guardTransition` | Modifier; reverts re-entry, holds the in-transition latch |
+| `inTransition()` | True while a transition is applying |
+
+Both use fixed hashed slots, and `TransitionGuard` uses EIP-1153 transient
+storage — so a Cancun-or-later EVM is required.
+
+## Revert selectors
+
+What a failed settlement means. Reverts from the SDK:
+
+| Selector | Error | Cause | Fix |
+| --- | --- | --- | --- |
+| `0x252f8a0e` | `FutureBlockNumber` | Reference block is not yet mined | Retry; usually a node lagging behind head |
+| `0x305c3e93` | `StaleBlockNumber` | Payload older than `blockStaleMeasure` | Submit a new task — the payload expired |
+| `0x7376e0a2` | `InvalidTransitionIndex` | Contract state advanced since signing | Submit a new task; another transition landed first |
+| `0x8baa579f` | `InvalidSignature` | Recomputed digest ≠ `msgHash` | Payload was altered, or the target's ABI differs from the router's |
+| `0x6d8605db` | `InsufficientQuorumThreshold` | Signers hold under 66% of a quorum | Transient: too many operators missed the round |
+| `0xfbbb7b2b` | `InvalidStorageUpdates` | Updates could not be decoded | Report it — malformed payload |
+| `0x398d4d32` | `InvalidOperation` | Unrecognised update type | Report it — version mismatch |
+| `0x287cdced` | `ReentrantTransition` | `verifyAndUpdate` re-entered mid-transition | A `CALL` update re-entered the contract; see `inTransition()` |
+| `0x493f09c4` | `RevertingContext` | A `CALL` update reverted | Often under-funded `msg.value`; carries the inner revert data |
+| `0x30116425` | `DeploymentFailed` | A `CREATE`/`CREATE2` update failed | Usually under-funded `msg.value` |
+| `0x5f6f132c` | `InvalidArguments` | Update arguments malformed | Report it |
+| `0x25773e13` | `MalformedLogPayload` | Log update malformed | Report it |
+
+Reverts that come from the EigenLayer signature checker, not the SDK:
+
+| Selector | Error | What it usually means |
+| --- | --- | --- |
+| `0xe1310aed` | `InvalidQuorumApkHash` | **Your `blsSignatureChecker` is bound to a different operator set than the router signs with.** See [Configuration](/docs/solidity/configuration#verify-before-you-deploy) |
+| `0x4b874f45` | `InvalidReferenceBlocknumber` | Reference block outside the checker's usable range |
+| `0xaffc5edb` | `StaleStakesForbidden` | Stake snapshot too old for the checker's policy |
+| `0x43714afd` | `InputArrayLengthMismatch` | Malformed non-signer arrays — report it |
+
+<Callout>
+  Decode an unknown selector with `cast 4byte <selector>`, or recover a revert
+  locally by replaying the payload at a block inside its validity window:
+
+```bash
+cast call "$TO" "$DATA" --from "$FROM" --block <n> --rpc-url "$RPC_URL"
+```
+
+  A payload that reverts at *every* block in its window is not a timing problem —
+  it is a configuration problem.
+</Callout>
+
+## Source
+
+- [`gas-killer/solidity-sdk`](https://github.com/gas-killer/solidity-sdk) — the SDK
+- [`gas-killer/example-contracts`](https://github.com/gas-killer/example-contracts) —
+  worked examples of progressively richer targets

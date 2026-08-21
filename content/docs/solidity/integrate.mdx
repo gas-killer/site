@@ -1,0 +1,181 @@
+---
+title: Integrate the SDK
+description: Make your contract a valid Gas Killer target.
+---
+
+import { Steps, Step } from "fumadocs-ui/components/steps"
+
+The HTTP API returns a **ready-to-sign `verifyAndUpdate` transaction**. That call
+only exists if your contract inherits the Gas Killer Solidity SDK, so the
+contract side comes first: the router refuses to accept a task for a target that
+does not advertise the SDK interface.
+
+A valid target needs three things. Miss any one and the failure shows up at a
+different stage:
+
+| Requirement | Enforced by | Symptom when missing |
+| --- | --- | --- |
+| Inherits `GasKillerSDK` | Router, at submit time | Task rejected — the target does not report the interface |
+| `avsAddress` and `blsSignatureChecker` wired to the live deployment | Router, while building the payload | Task fails — the router will not return a payload that cannot settle |
+| Mutating functions marked `trackState` | Nothing — it is your replay protection | Silent: stale payloads stay applicable |
+
+The router proves the settlement call before handing it back, so a mis-wired
+target fails as a task with the underlying error rather than as a reverted
+transaction you paid for. Get the addresses right up front anyway —
+see [Configuration](/docs/solidity/configuration).
+
+## Requirements
+
+- **Solidity ^0.8.27** and [Foundry](https://getfoundry.sh).
+- **An EVM at Cancun or later.** `TransitionGuard` uses EIP-1153 transient
+  storage and has no pre-Cancun fallback path, so deploying to a chain without it
+  breaks settlement itself rather than just the guard. The public testnet settles
+  on Sepolia, which qualifies.
+
+## Install
+
+```bash
+forge install gas-killer/solidity-sdk
+```
+
+Add the remapping to `remappings.txt` (or `foundry.toml`):
+
+```
+gas-killer-sdk/=lib/solidity-sdk/src/
+```
+
+The SDK pulls `eigenlayer-middleware` for `IBLSSignatureChecker`, and pins
+`evm_version = "cancun"` in its own `foundry.toml`. Set the same in yours.
+
+## A minimal target
+
+Everything an integration needs, and nothing else. `Counter` keeps one value and
+one tracked function that recomputes it; in a real contract that function is
+whatever is too expensive to run on-chain.
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.27;
+
+import {GasKillerSDK} from "gas-killer-sdk/GasKillerSDK.sol";
+
+contract Counter is GasKillerSDK {
+    /// Declared first, so `total` occupies storage slot 0 and `runs` slot 1.
+    /// The signed diff writes raw slots — see Tracked functions.
+    uint256 public total;
+    uint256 public runs;
+
+    event Recomputed(uint256 indexed runs, uint256 total);
+
+    constructor(address avs, address blsSigChecker) {
+        _setAvsAddress(avs);
+        _setBlsSignatureChecker(blsSigChecker);
+    }
+
+    /// The expensive path. On-chain this is the reference implementation the
+    /// operators reproduce off-chain; you never have to call it on-chain.
+    function recompute(uint32 rounds) external trackState {
+        uint256 acc = total;
+        for (uint32 i = 0; i < rounds; i++) {
+            acc = uint256(keccak256(abi.encode(acc, i)));
+        }
+        total = acc;
+        runs += 1;
+        emit Recomputed(runs, total);
+    }
+}
+```
+
+That is the whole contract-side integration. `verifyAndUpdate`,
+`stateTransitionCount()`, `supportsInterface`, and the transition guard all come
+from the base.
+
+## Deploy and verify
+
+Pass the live addresses from [Configuration](/docs/solidity/configuration):
+
+```bash
+forge create src/Counter.sol:Counter \
+  --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" \
+  --constructor-args "$AVS_ADDRESS" "$SIG_CHECKER_ADDRESS"
+```
+
+Then check all four of these before submitting a task. Each maps to a failure you
+would otherwise debug from a revert:
+
+<Steps>
+
+<Step>
+
+**The router will accept it.** Must return `true`, or task submission is rejected:
+
+```bash
+cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x93de4531 --rpc-url "$RPC_URL"
+```
+
+</Step>
+
+<Step>
+
+**The wiring took.** Both must equal the values you passed:
+
+```bash
+cast call "$TARGET" "avsAddress()(address)" --rpc-url "$RPC_URL"
+cast call "$TARGET" "blsSignatureChecker()(address)" --rpc-url "$RPC_URL"
+```
+
+</Step>
+
+<Step>
+
+**The checker is bound to the live operator set.** This is the check that catches
+a stale address — see
+[Verify before you deploy](/docs/solidity/configuration#verify-before-you-deploy).
+
+</Step>
+
+<Step>
+
+**The counter starts at zero.** Confirms `StateTracker` is reachable:
+
+```bash
+cast call "$TARGET" "stateTransitionCount()(uint256)" --rpc-url "$RPC_URL"
+```
+
+</Step>
+
+</Steps>
+
+## Then submit a task
+
+With the contract deployed, the API side is unchanged from the
+[Quickstart](/docs/quickstart): `POST /tasks` with your target address and the
+ABI-encoded calldata for the tracked function, poll until `ready`, submit the
+payload.
+
+```ts
+call_data: Array.from(
+  Buffer.from(
+    encodeFunctionData({ abi, functionName: "recompute", args: [1000] }).slice(2),
+    "hex",
+  ).values(),
+)
+```
+
+The operators execute `recompute(1000)` off-chain, sign the resulting diff, and
+the payload you get back is a `verifyAndUpdate` call that writes `total`, `runs`,
+and the `Recomputed` log directly — without running the loop on-chain.
+
+## Where to go next
+
+- **[Configuration](/docs/solidity/configuration)** — the addresses to wire, how
+  to verify them, and how to stay reconfigurable.
+- **[Tracked functions](/docs/solidity/tracked-functions)** — what `trackState`
+  guarantees, storage layout rules, and what keeps a function extractable.
+- **[Reference](/docs/solidity/reference)** — full API surface, state update
+  types, and a revert-selector lookup table.
+
+The SDK also ships an aggregate-Schnorr scheme (`SchnorrGasKillerSDK`) that
+verifies a single secp256k1 signature in constant gas. The public testnet runs
+the BLS scheme, which is what this section documents; see the
+[SDK README](https://github.com/gas-killer/solidity-sdk) for Schnorr.

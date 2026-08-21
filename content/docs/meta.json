@@ -3,6 +3,7 @@
     "index",
     "quickstart",
     "architecture",
-    "api"
+    "api",
+    "solidity"
   ]
 }
