@@ -2,11 +2,11 @@ import Image from "next/image"
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared"
 
 /**
- * Shared layout options for the docs section: the nav brand and the links that
- * point back into the main marketing site.
+ * Shared layout options for the docs section.
  *
- * `Analyzer` and `GitHub` are not listed here — they render from the sidebar
- * footer (`DocsSidebarFooter`) so the page tree stays at the top of the sidebar.
+ * `links` is empty on purpose: the brand returns to the marketing home page, and
+ * the secondary destinations render at the end of the sidebar tree instead of
+ * above it (see `lib/docs-tree.tsx`).
  */
 export function baseOptions(): BaseLayoutProps {
   return {
@@ -17,18 +17,18 @@ export function baseOptions(): BaseLayoutProps {
         <span className="flex items-center gap-2">
           <Image
             src="/brand/gk-wordmark-transparent.png"
-            alt="Gas Killer"
+            alt=""
             width={200}
             height={200}
             priority
             className="h-7 w-auto"
           />
-          <span className="text-fd-muted-foreground">Docs</span>
+          <span className="font-medium">Gas Killer Docs</span>
         </span>
       ),
       // The brand returns to the marketing home page; the sidebar covers docs.
       url: "/",
     },
-    links: [{ text: "Home", url: "/", external: false }],
+    links: [],
   }
 }

@@ -6,6 +6,7 @@ import {
   DocsTitle,
 } from "fumadocs-ui/layouts/docs/page"
 import { notFound } from "next/navigation"
+import { findNeighbour } from "fumadocs-core/page-tree"
 import { createRelativeLink } from "fumadocs-ui/mdx"
 import type { Metadata } from "next"
 import { getMDXComponents } from "@/components/mdx"
@@ -21,8 +22,16 @@ export default async function Page(props: {
 
   const MDX = page.data.body
 
+  // Previous/next come from the unmodified tree: the sidebar tree appends
+  // secondary links, which `findNeighbour` would otherwise treat as pages.
+  const neighbours = findNeighbour(source.getPageTree(), page.url)
+
   return (
-    <DocsPage toc={page.data.toc} full={page.data.full}>
+    <DocsPage
+      toc={page.data.toc}
+      full={page.data.full}
+      footer={{ items: neighbours }}
+    >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody>
