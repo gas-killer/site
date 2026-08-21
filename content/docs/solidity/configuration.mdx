@@ -21,11 +21,11 @@ you decide who may call them and when, by exposing them or not.
 
 ## The two required addresses
 
-`blsSignatureChecker` is an EigenLayer `IBLSSignatureChecker`. It is the contract
-your target trusts to verify that a quorum of operators signed the state update,
-and it must be the one bound to the **same operator set the router is signing
-with**. `avsAddress` is the AVS service manager; it scopes the namespace and does
-not participate in signature verification.
+`blsSignatureChecker` is the restaking middleware's `IBLSSignatureChecker`. It
+is the contract your target trusts to verify that a quorum of operators signed
+the state update, and it must be the one bound to the **same operator set the
+router is signing with**. `avsAddress` is the AVS service manager; it scopes the
+namespace and does not participate in signature verification.
 
 For the public testnet (Sepolia, chain `11155111`):
 
