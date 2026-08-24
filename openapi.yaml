@@ -253,7 +253,8 @@ components:
       description: >
         The request body is malformed JSON, or it failed validation. `code` is
         one of `INVALID_REQUEST`, `INVALID_ADDRESS`, `STALE_BLOCK`,
-        `TRANSITION_MISMATCH`, `CALLDATA_TOO_LARGE`, or `CONTRACT_NOT_FOUND`.
+        `TRANSITION_MISMATCH`, `CALLDATA_TOO_LARGE`, `CONTRACT_NOT_FOUND`, or
+        `TARGET_NOT_DEPLOYED`.
       content:
         application/json:
           schema:
@@ -652,6 +653,7 @@ components:
         - FORBIDDEN
         - RPC_UNAVAILABLE
         - CONTRACT_NOT_FOUND
+        - TARGET_NOT_DEPLOYED
         - INVALID_REQUEST
         - NOT_FOUND
         - METHOD_NOT_ALLOWED
