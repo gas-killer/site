@@ -29,43 +29,46 @@ namespace and does not participate in signature verification.
 
 For the public testnet (Sepolia, chain `11155111`):
 
+<AvsContracts />
+
+These are properties of a specific AVS deployment, not constants of the protocol:
+redeploying the operator set provisions a new signature checker, and a target
+wired to a superseded one produces payloads that revert. That is why the table
+above is read from the router rather than written down here — the router knows
+which deployment is currently signing, and no document can.
+
+Read it yourself the same way, in a script or a deploy pipeline:
+
 ```bash
-AVS_ADDRESS=0xdCec8ce0a03848B55989Bcc711e424Ca31d9eeD9
-SIG_CHECKER_ADDRESS=0x6953fc47FC8b7568801f3fdc327bc0d9aD12E5b9
+curl -s https://testnet.gaskiller.xyz/avs-metadata | jq .contracts
 ```
 
-<Callout type="warn">
-  **Verify these before you deploy.** They are properties of a specific AVS
-  deployment, not constants of the protocol — redeploying the operator set changes
-  them, and a target wired to a superseded checker produces payloads that revert.
-  The check below takes one RPC call and is worth doing every time.
-</Callout>
+The full response shape is in the
+[API reference](/docs/api/metadata/getAvsMetadata).
 
-### Verify before you deploy
+### Verify your own wiring
 
-A checker is only useful if it points at the registry coordinator the operators
-are actually registered in. Ask it directly:
+Once your target is deployed, confirm it agrees with the published set. A checker
+is only useful if it points at the registry coordinator the operators are
+actually registered in, so ask it directly and compare against
+`registryCoordinator` above:
 
 ```bash
 cast call "$SIG_CHECKER_ADDRESS" "registryCoordinator()(address)" --rpc-url "$RPC_URL"
 ```
 
-Then compare against a target that is known to be settling. Any contract that has
-successfully applied a transition proves its checker is live, so cross-check
-against one:
-
-```bash
-# A reference target with a non-zero stateTransitionCount is proof its wiring works.
-cast call "$REFERENCE_TARGET" "blsSignatureChecker()(address)" --rpc-url "$RPC_URL"
-cast call "$REFERENCE_TARGET" "stateTransitionCount()(uint256)" --rpc-url "$RPC_URL"
-```
-
-If your checker resolves to a different `registryCoordinator` than a currently
-settling target's, your address is stale. The task fails with
-`InvalidQuorumApkHash` (`0xe1310aed`) — the router computes the quorum's
-aggregate-key indices against the live registry, and your checker looks them up
-in a different one. See the
+If your checker resolves to a different `registryCoordinator`, your address is
+stale. The task fails with `InvalidQuorumApkHash` (`0xe1310aed`) — the router
+computes the quorum's aggregate-key indices against the live registry, and your
+checker looks them up in a different one. See the
 [error table](/docs/solidity/reference#revert-selectors).
+
+<Callout type="warn">
+  A contract that has already settled is **not** proof its wiring is still
+  current. Every contract of a superseded deployment stays deployed and keeps its
+  registered, staked operators, so it reads identically to a live one on chain.
+  Which deployment is current is only knowable from `/avs-metadata`.
+</Callout>
 
 ## Stay reconfigurable
 
