@@ -62,8 +62,9 @@ It executes in this order, so an earlier check masks any later one:
 
 ### Where each argument comes from
 
-Every value above is derivable from public on-chain state except two. Those two are
-what the operator network exists to produce.
+Every value above can be produced without operator keys except two. Most come from
+public on-chain reads; `storageUpdates` comes from an off-chain trace of the tracked
+function. The two exceptions are what the operator network exists to produce.
 
 | Value | Source | Needs operator keys |
 | --- | --- | --- |
