@@ -60,6 +60,34 @@ It executes in this order, so an earlier check masks any later one:
 5. `checkSignatures` on the configured checker, then the 66% test per quorum
 6. Apply the updates
 
+### Where each argument comes from
+
+Every value above is derivable from public on-chain state except two. Those two are
+what the operator network exists to produce.
+
+| Value | Source | Needs operator keys |
+| --- | --- | --- |
+| `storageUpdates` | The analyzer traces the tracked function and emits its net storage diff | No |
+| `transitionIndex` | `stateTransitionCount()` on the target | No |
+| `targetFunction` | Selector of the tracked function | No |
+| `msgHash` | `getMessageHash(transitionIndex, targetFunction, storageUpdates)` | No |
+| `referenceBlockNumber` | A recent block inside the `blockStaleMeasure` window | No |
+| `quorumNumbers` | The AVS quorum bytes | No |
+| `quorumApks`, `quorumApkIndices`, `totalStakeIndices` | `OperatorStateRetriever` and `BLSApkRegistry` at `referenceBlockNumber` | No |
+| `nonSignerPubkeys`, `nonSignerStakeIndices`, `nonSignerQuorumBitmapIndices` | The registry, for operators that did not sign | No |
+| `sigma` | Aggregate G1 signature over `hashToG1(msgHash)` | **Yes** |
+| `apkG2` | Aggregate G2 public key of the signers | **Yes** |
+
+The last two rows are the irreducible part: enough operators signing the same
+`msgHash` to clear the quorum threshold, aggregated into a single signature.
+Everything above them is registry bookkeeping the router performs so that a payload
+arrives as one transaction rather than an indexing exercise.
+
+Those registry rows are read against one specific `RegistryCoordinator`, which is
+why a target bound to a different `blsSignatureChecker` fails at
+[`InvalidQuorumApkHash`](#revert-selectors) instead of producing a payload you could
+repair.
+
 ### The signed digest
 
 ```solidity
