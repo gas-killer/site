@@ -66,7 +66,7 @@ export function Header() {
             </svg>
           </Link>
           <Link
-            href="https://twitter.com/gaskiller_"
+            href="https://x.com/gaskiller_"
             target="_blank"
             aria-label="X / Twitter"
             className="text-zinc-400 hover:text-white transition-colors"
