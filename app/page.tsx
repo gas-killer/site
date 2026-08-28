@@ -316,7 +316,7 @@ export default function Home() {
                   </svg>
                 </Link>
                 <Link
-                  href="https://twitter.com/gaskiller_"
+                  href="https://x.com/gaskiller_"
                   target="_blank"
                   aria-label="X / Twitter"
                   className="hover:text-white transition-colors"

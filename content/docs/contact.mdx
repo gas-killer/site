@@ -1,0 +1,27 @@
+---
+title: Contact
+description: Where to reach the team and follow development.
+---
+
+import { ChannelIcon } from "@/components/channel-icon"
+
+Questions about an integration, a task that will not settle, or access to the
+public testnet all have a home. Here is where each one goes.
+
+| Channel | Use it for |
+| --- | --- |
+| <ChannelIcon name="form" />[API key request form](https://forms.gle/35mat6TKpL7cQxhKA) | Requesting an API key for Sepolia. |
+| <ChannelIcon name="mail" />[contact@gaskiller.xyz](mailto:contact@gaskiller.xyz) | Partnerships and anything that is not a quick question. |
+| <ChannelIcon name="telegram" />[Chat channel](https://t.me/gaskillerfriends) | Chat with the team and other users. Keep up with updates. |
+| <ChannelIcon name="telegram" />[Support channel](https://t.me/gaskillerfriends/1) | Issues and technical assistance. |
+| <ChannelIcon name="github" />[gas-killer](https://github.com/gas-killer) | Keep up with development and report bugs. |
+| <ChannelIcon name="x" />[@gaskiller_](https://x.com/gaskiller_) | Announcements, social posts, and marketing. |
+
+When you report a problem with a task, include the `task_id`, the target
+contract address, and the error `code` from the response envelope. Ideally the
+target is verified on a block explorer, or you can share its source, since
+reading the tracked function is usually what identifies the cause. The
+[Solidity Reference](/docs/solidity/reference) lists the revert selectors a
+settlement can fail with, and
+[Configuration](/docs/solidity/configuration) covers the addresses a target must
+be wired to, which is the most common source of failures.
