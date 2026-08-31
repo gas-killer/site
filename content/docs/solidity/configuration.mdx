@@ -77,23 +77,16 @@ computes the quorum's aggregate-key indices against the live registry, and your
 checker looks them up in a different one. See the
 [error table](/docs/solidity/reference#revert-selectors).
 
-<Callout type="warn">
-  A contract that has already settled is **not** proof its wiring is still
-  current. Every contract of a superseded deployment stays deployed and keeps its
-  registered, staked operators, so it reads identically to a live one on chain.
-  Which deployment is current is only knowable from `/avs-metadata`.
-</Callout>
-
 ## Stay reconfigurable
 
 <Callout type="warn">
   **Gas Killer is not production-ready.** It is unaudited and under active
-  development, and nothing should be deployed with real value behind it yet.
-
-  Treat this section as required rather than optional while that is true.
-  Because [the addresses above can change](#the-two-required-addresses), a
-  contract you can reconfigure follows a migration; one you cannot has to be
-  redeployed with its state moved across.
+  development, so treat this section as required rather than optional. Because
+  [the addresses above can change](#the-two-required-addresses), a contract you
+  can reconfigure follows a migration, while one you cannot has to be redeployed
+  with its state moved across. Guard the setter like the upgrade key it is, with
+  a multisig or a timelock: whoever can change `blsSignatureChecker` can point
+  your contract at a checker they control.
 </Callout>
 
 Because the setters are `internal`, a contract that only calls them in its
@@ -121,16 +114,6 @@ contract Counter is GasKillerSDK, Ownable {
     }
 }
 ```
-
-<Callout>
-  This is a real trust decision, not just convenience: whoever can change
-  `blsSignatureChecker` can point your contract at a checker they control, and
-  authorise arbitrary state updates. Own it with the same care as any upgrade
-  key — a multisig, or a timelock.
-
-  Making it immutable instead is a legitimate choice, but understand what you are
-  accepting: today that means redeploying and migrating state on each change.
-</Callout>
 
 ## `blockStaleMeasure`
 
