@@ -29,61 +29,69 @@ namespace and does not participate in signature verification.
 
 For the public testnet (Sepolia, chain `11155111`):
 
-```bash
-AVS_ADDRESS=0xdCec8ce0a03848B55989Bcc711e424Ca31d9eeD9
-SIG_CHECKER_ADDRESS=0x6953fc47FC8b7568801f3fdc327bc0d9aD12E5b9
-```
+<AvsContracts />
 
 <Callout type="warn">
-  **Verify these before you deploy.** They are properties of a specific AVS
-  deployment, not constants of the protocol — redeploying the operator set changes
-  them, and a target wired to a superseded checker produces payloads that revert.
-  The check below takes one RPC call and is worth doing every time.
+  While Gas Killer is in early development on Sepolia, these addresses can
+  change. Every target holding an old one has to be updated, so resolve them at
+  deploy time rather than copying them into your source, and make sure your
+  contract can be [rewired afterwards](#stay-reconfigurable).
 </Callout>
 
-### Verify before you deploy
-
-A checker is only useful if it points at the registry coordinator the operators
-are actually registered in. Ask it directly:
+Read them yourself the same way, in a script or a deploy pipeline:
 
 ```bash
-cast call "$SIG_CHECKER_ADDRESS" "registryCoordinator()(address)" --rpc-url "$RPC_URL"
+curl -s https://testnet.gaskiller.xyz/avs-metadata | jq .contracts
 ```
 
-Then compare against a target that is known to be settling. Any contract that has
-successfully applied a transition proves its checker is live, so cross-check
-against one:
+The two values a target's constructor takes, resolved at the moment you deploy
+rather than copied from a page:
 
 ```bash
-# A reference target with a non-zero stateTransitionCount is proof its wiring works.
-cast call "$REFERENCE_TARGET" "blsSignatureChecker()(address)" --rpc-url "$RPC_URL"
-cast call "$REFERENCE_TARGET" "stateTransitionCount()(uint256)" --rpc-url "$RPC_URL"
+CONTRACTS=$(curl -s https://testnet.gaskiller.xyz/avs-metadata | jq .contracts)
+AVS_ADDRESS=$(jq -r .avsAddress <<<"$CONTRACTS")
+SIG_CHECKER_ADDRESS=$(jq -r .blsSignatureChecker <<<"$CONTRACTS")
 ```
 
-If your checker resolves to a different `registryCoordinator` than a currently
-settling target's, your address is stale. The task fails with
-`InvalidQuorumApkHash` (`0xe1310aed`) — the router computes the quorum's
-aggregate-key indices against the live registry, and your checker looks them up
-in a different one. See the
+The full response shape is in the
+[API reference](/docs/api/metadata/getAvsMetadata).
+
+### Verify your own wiring
+
+Once your target is deployed, confirm it agrees with the published set. A checker
+is only useful if it points at the registry coordinator the operators are
+actually registered in, so ask it directly and compare against
+`registryCoordinator` above:
+
+```bash
+# The checker your target actually uses, which is the thing being verified.
+TARGET_CHECKER=$(cast call "$TARGET" "blsSignatureChecker()(address)" --rpc-url "$RPC_URL")
+
+# Must equal registryCoordinator in the table above.
+cast call "$TARGET_CHECKER" "registryCoordinator()(address)" --rpc-url "$RPC_URL"
+```
+
+If your checker resolves to a different `registryCoordinator`, your address is
+stale. The task fails with `InvalidQuorumApkHash` (`0xe1310aed`), because the router
+computes the quorum's aggregate-key indices against the live registry, and your
+checker looks them up in a different one. See the
 [error table](/docs/solidity/reference#revert-selectors).
 
 ## Stay reconfigurable
 
 <Callout type="warn">
   **Gas Killer is not production-ready.** It is unaudited and under active
-  development, and nothing should be deployed with real value behind it yet.
-
-  Treat this section as required rather than optional while that is true. The
-  operator set and the addresses on this page are expected to change as the
-  system stabilises, and each change strands every target wired only in its
-  constructor. A contract you can reconfigure follows a migration; one you cannot
-  has to be redeployed with its state moved across.
+  development, so treat this section as required rather than optional. Because
+  [the addresses above can change](#the-two-required-addresses), a contract you
+  can reconfigure follows a migration, while one you cannot has to be redeployed
+  with its state moved across. Guard the setter like the upgrade key it is, with
+  a multisig or a timelock: whoever can change `blsSignatureChecker` can point
+  your contract at a checker they control.
 </Callout>
 
 Because the setters are `internal`, a contract that only calls them in its
-constructor can **never be rewired**. If the operator set is redeployed, or you
-got an address wrong, your only remedy is to deploy a new contract and migrate
-state.
+constructor can **never be rewired**, whether an address changed or you simply
+got one wrong.
 
 Expose a guarded setter:
 
@@ -106,17 +114,6 @@ contract Counter is GasKillerSDK, Ownable {
     }
 }
 ```
-
-<Callout>
-  This is a real trust decision, not just convenience: whoever can change
-  `blsSignatureChecker` can point your contract at a checker they control, and
-  authorise arbitrary state updates. Own it with the same care as any upgrade
-  key — a multisig, or a timelock.
-
-  Making it immutable instead is a legitimate choice, but understand what you are
-  accepting: today that means redeployment and state migration on every
-  operator-set change, which for now is the more likely outcome.
-</Callout>
 
 ## `blockStaleMeasure`
 
