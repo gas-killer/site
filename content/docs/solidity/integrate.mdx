@@ -21,7 +21,7 @@ different stage:
 
 The router proves the settlement call before handing it back, so a mis-wired
 target fails as a task with the underlying error rather than as a reverted
-transaction you paid for. Get the addresses right up front anyway —
+transaction you paid for. Get the addresses right up front anyway,
 see [Configuration](/docs/solidity/configuration).
 
 ## Requirements
@@ -61,7 +61,7 @@ import {GasKillerSDK} from "gas-killer-sdk/GasKillerSDK.sol";
 
 contract Counter is GasKillerSDK {
     /// Declared first, so `total` occupies storage slot 0 and `runs` slot 1.
-    /// The signed diff writes raw slots — see Tracked functions.
+    /// The signed diff writes raw slots, see Tracked functions.
     uint256 public total;
     uint256 public runs;
 
@@ -129,7 +129,7 @@ cast call "$TARGET" "blsSignatureChecker()(address)" --rpc-url "$RPC_URL"
 <Step>
 
 **The checker is bound to the live operator set.** This is the check that catches
-a stale address — see
+a stale address, see
 [Verify your own wiring](/docs/solidity/configuration#verify-your-own-wiring).
 
 </Step>
@@ -164,7 +164,7 @@ call_data: Array.from(
 
 The operators execute `recompute(1000)` off-chain, sign the resulting diff, and
 the payload you get back is a `verifyAndUpdate` call that writes `total`, `runs`,
-and the `Recomputed` log directly — without running the loop on-chain.
+and the `Recomputed` log directly, without running the loop on-chain.
 
 ## Where to go next
 

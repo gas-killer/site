@@ -8,7 +8,7 @@ import { source } from "@/lib/source"
  *
  * These are display-only. `findNeighbour` treats every `type: 'page'` node as a
  * navigable page, so the docs page passes its previous/next items from the
- * unmodified tree — otherwise the last page's "next" link would be GitHub.
+ * unmodified tree, otherwise the last page's "next" link would be GitHub.
  */
 const secondaryLinks: PageTree.Item[] = [
   {

@@ -7,7 +7,7 @@ Gas Killer is a verifiable off-chain compute service for EVM contracts. Smart
 contracts offload expensive computation to a network of restaked operator
 nodes. Operators run the task and sign the result with BLS keys; the router
 aggregates those signatures into a compact proof and returns a **ready-to-sign
-transaction**. You submit that transaction from your own wallet — a single
+transaction**. You submit that transaction from your own wallet: a single
 `verifyAndUpdate` call that writes back the result and verifies it against the
 aggregate signature, instead of recomputing it on-chain.
 

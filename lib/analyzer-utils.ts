@@ -87,7 +87,7 @@ export async function fetchTraceFromRpc(network: string, txHash: string): Promis
     return extractValueFromEnvelope(text, resultStart)
   }
 
-  // No "result" found — check for a JSON-RPC error response
+  // No "result" found, so check for a JSON-RPC error response
   const errorMatch = text.match(/"error"\s*:\s*/)
   if (errorMatch && errorMatch.index !== undefined) {
     try {
@@ -137,7 +137,7 @@ function extractValueFromEnvelope(text: string, valueStart: number): string {
 
   // Skip any trailing envelope fields (e.g. ,"id":1) by scanning backwards
   // for the next '}'. These fields contain only simple JSON values (numbers,
-  // short strings like "2.0") — never nested braces.
+  // short strings like "2.0"), never nested braces.
   while (i > valueStart && text[i] !== '}') i--
 
   if (i <= valueStart) {

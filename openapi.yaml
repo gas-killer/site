@@ -9,7 +9,7 @@ info:
     Clients submit compute tasks to `POST /tasks`; the router validates them,
     fans them out to restaked operator nodes, and aggregates the BLS
     signatures into a completed round. Rather than broadcasting on-chain itself,
-    the router returns a **ready-to-sign transaction** — the *payload*. The
+    the router returns a **ready-to-sign transaction**, the *payload*. The
     typical flow is:
 
 
@@ -59,7 +59,7 @@ paths:
         Queues a task for the operator network and returns a `task_id` to poll.
         The request is authenticated, load-shed against the queue capacity, then
         validated (field-level, then on-chain) before it is accepted. A `202`
-        means the task was queued — poll [`GET /tasks/{task_id}`](/docs/api/tasks/getTask)
+        means the task was queued, so poll [`GET /tasks/{task_id}`](/docs/api/tasks/getTask)
         until it is `ready`, then sign and submit the returned payload yourself.
 
 
@@ -313,7 +313,7 @@ components:
         The service is at capacity (`QUEUE_FULL`), an upstream RPC endpoint used
         for validation is unreachable (`RPC_UNAVAILABLE`), or task persistence is
         not configured (`NOT_CONFIGURED`). `QUEUE_FULL` and `RPC_UNAVAILABLE` are
-        transient — retry after a short delay. A `QUEUE_FULL` response includes a
+        transient, so retry after a short delay. A `QUEUE_FULL` response includes a
         `Retry-After` header with an estimate in seconds.
       headers:
         Retry-After:
@@ -375,7 +375,7 @@ components:
               message: Task not found
     PayloadExpired:
       description: >
-        The task's `ready` payload is no longer submittable — its
+        The task's `ready` payload is no longer submittable, since its
         `valid_until_block` has passed, or the on-chain state-transition index
         has advanced (the round was already consumed). Submit a fresh task and
         poll again.
