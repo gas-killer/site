@@ -11,6 +11,8 @@
  * `app/api/proxy/route.ts`), so a browser cannot reach it directly.
  */
 
+import { keccak_256 } from "@noble/hashes/sha3.js"
+
 /** Base URL of the router ingress; matches the default server in `openapi.yaml`. */
 const ROUTER_BASE_URL =
   process.env.NEXT_PUBLIC_ROUTER_URL ?? "https://testnet.gaskiller.xyz"
@@ -28,8 +30,37 @@ export interface AvsContracts {
   demoFactory?: string
 }
 
+/**
+ * True only for an address that is well-formed **and** carries a valid EIP-55
+ * checksum.
+ *
+ * Shape alone is not enough. The endpoint documents these as checksummed so they
+ * can be pasted into Solidity as-is, where a lowercase literal is a compile
+ * error. A router that regressed to serving a well-formed lowercase address
+ * would otherwise pass this guard and the page would publish something an
+ * integrator cannot use, which is the one outcome the validation exists to
+ * prevent.
+ *
+ * Note the check cannot be approximated by "reject all-lowercase": per EIP-55,
+ * an address whose letters all hash to a low nibble is legitimately all
+ * lowercase (`0xde709f2102306220921060314715629080e2fb77` is the spec's own
+ * example), so the real hash is required.
+ */
 function isAddress(value: unknown): value is string {
-  return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value)
+  if (typeof value !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(value)) {
+    return false
+  }
+  const body = value.slice(2)
+  const lower = body.toLowerCase()
+  const hash = keccak_256(new TextEncoder().encode(lower))
+  for (let i = 0; i < 40; i++) {
+    const c = lower[i]
+    // Digits are case-invariant; only a-f carry the checksum.
+    if (c < "a" || c > "f") continue
+    const nibble = (hash[i >> 1] >> (i % 2 === 0 ? 4 : 0)) & 0xf
+    if (body[i] !== (nibble >= 8 ? c.toUpperCase() : c)) return false
+  }
+  return true
 }
 
 /**

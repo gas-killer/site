@@ -74,9 +74,11 @@ export async function AvsContracts() {
       ) : (
         <Callout type="warn">
           <p>
-            <strong>Could not reach the router</strong>, so this is the last pair
-            verified on chain rather than a live reading. Treat it as a snapshot
-            and check it before you deploy by asking the router directly:
+            <strong>No live contract set available</strong>, so this is the last
+            pair verified on chain rather than a live reading. The router was
+            unreachable, or answered with something this page would not publish.
+            Treat it as a snapshot and check it before you deploy by asking the
+            router directly:
           </p>
           <pre>
             <code>{`curl -s ${ROUTER_BASE_URL}/avs-metadata | jq .contracts`}</code>
