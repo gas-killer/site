@@ -138,7 +138,7 @@ Reverts that come from the restaking middleware's signature checker, not the SDK
 
 | Selector | Error | What it usually means |
 | --- | --- | --- |
-| `0xe1310aed` | `InvalidQuorumApkHash` | **Your `blsSignatureChecker` is bound to a different operator set than the router signs with.** See [Configuration](/docs/solidity/configuration#verify-before-you-deploy) |
+| `0xe1310aed` | `InvalidQuorumApkHash` | **Your `blsSignatureChecker` is bound to a different operator set than the router signs with.** See [Configuration](/docs/solidity/configuration#verify-your-own-wiring) |
 | `0x4b874f45` | `InvalidReferenceBlocknumber` | Reference block outside the checker's usable range |
 | `0xaffc5edb` | `StaleStakesForbidden` | Stake snapshot too old for the checker's policy |
 | `0x43714afd` | `InputArrayLengthMismatch` | Malformed non-signer arrays — report it |

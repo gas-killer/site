@@ -43,6 +43,15 @@ Read it yourself the same way, in a script or a deploy pipeline:
 curl -s https://testnet.gaskiller.xyz/avs-metadata | jq .contracts
 ```
 
+The two values a target's constructor takes, resolved at the moment you deploy
+rather than copied from a page:
+
+```bash
+CONTRACTS=$(curl -s https://testnet.gaskiller.xyz/avs-metadata | jq .contracts)
+AVS_ADDRESS=$(jq -r .avsAddress <<<"$CONTRACTS")
+SIG_CHECKER_ADDRESS=$(jq -r .blsSignatureChecker <<<"$CONTRACTS")
+```
+
 The full response shape is in the
 [API reference](/docs/api/metadata/getAvsMetadata).
 
@@ -54,7 +63,11 @@ actually registered in, so ask it directly and compare against
 `registryCoordinator` above:
 
 ```bash
-cast call "$SIG_CHECKER_ADDRESS" "registryCoordinator()(address)" --rpc-url "$RPC_URL"
+# The checker your target actually uses, which is the thing being verified.
+TARGET_CHECKER=$(cast call "$TARGET" "blsSignatureChecker()(address)" --rpc-url "$RPC_URL")
+
+# Must equal registryCoordinator in the table above.
+cast call "$TARGET_CHECKER" "registryCoordinator()(address)" --rpc-url "$RPC_URL"
 ```
 
 If your checker resolves to a different `registryCoordinator`, your address is
