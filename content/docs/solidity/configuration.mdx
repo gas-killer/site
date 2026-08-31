@@ -31,13 +31,14 @@ For the public testnet (Sepolia, chain `11155111`):
 
 <AvsContracts />
 
-These are properties of a specific AVS deployment, not constants of the protocol:
-redeploying the operator set provisions a new signature checker, and a target
-wired to a superseded one produces payloads that revert. That is why the table
-above is read from the router rather than written down here: the router knows
-which deployment is currently signing, and no document can.
+<Callout type="warn">
+  While Gas Killer is in early development on Sepolia, these addresses can
+  change. Every target holding an old one has to be updated, so resolve them at
+  deploy time rather than copying them into your source, and make sure your
+  contract can be [rewired afterwards](#stay-reconfigurable).
+</Callout>
 
-Read it yourself the same way, in a script or a deploy pipeline:
+Read them yourself the same way, in a script or a deploy pipeline:
 
 ```bash
 curl -s https://testnet.gaskiller.xyz/avs-metadata | jq .contracts
@@ -89,17 +90,15 @@ checker looks them up in a different one. See the
   **Gas Killer is not production-ready.** It is unaudited and under active
   development, and nothing should be deployed with real value behind it yet.
 
-  Treat this section as required rather than optional while that is true. The
-  operator set and the addresses on this page are expected to change as the
-  system stabilises, and each change strands every target wired only in its
-  constructor. A contract you can reconfigure follows a migration; one you cannot
-  has to be redeployed with its state moved across.
+  Treat this section as required rather than optional while that is true.
+  Because [the addresses above can change](#the-two-required-addresses), a
+  contract you can reconfigure follows a migration; one you cannot has to be
+  redeployed with its state moved across.
 </Callout>
 
 Because the setters are `internal`, a contract that only calls them in its
-constructor can **never be rewired**. If the operator set is redeployed, or you
-got an address wrong, your only remedy is to deploy a new contract and migrate
-state.
+constructor can **never be rewired**, whether an address changed or you simply
+got one wrong.
 
 Expose a guarded setter:
 
@@ -130,8 +129,7 @@ contract Counter is GasKillerSDK, Ownable {
   key — a multisig, or a timelock.
 
   Making it immutable instead is a legitimate choice, but understand what you are
-  accepting: today that means redeployment and state migration on every
-  operator-set change, which for now is the more likely outcome.
+  accepting: today that means redeploying and migrating state on each change.
 </Callout>
 
 ## `blockStaleMeasure`
