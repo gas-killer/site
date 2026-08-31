@@ -34,7 +34,7 @@ For the public testnet (Sepolia, chain `11155111`):
 These are properties of a specific AVS deployment, not constants of the protocol:
 redeploying the operator set provisions a new signature checker, and a target
 wired to a superseded one produces payloads that revert. That is why the table
-above is read from the router rather than written down here — the router knows
+above is read from the router rather than written down here: the router knows
 which deployment is currently signing, and no document can.
 
 Read it yourself the same way, in a script or a deploy pipeline:
@@ -71,7 +71,7 @@ cast call "$TARGET_CHECKER" "registryCoordinator()(address)" --rpc-url "$RPC_URL
 ```
 
 If your checker resolves to a different `registryCoordinator`, your address is
-stale. The task fails with `InvalidQuorumApkHash` (`0xe1310aed`) — the router
+stale. The task fails with `InvalidQuorumApkHash` (`0xe1310aed`), because the router
 computes the quorum's aggregate-key indices against the live registry, and your
 checker looks them up in a different one. See the
 [error table](/docs/solidity/reference#revert-selectors).

@@ -76,7 +76,7 @@ export async function AvsContracts() {
           <p>
             <strong>Could not reach the router</strong>, so this is the last pair
             verified on chain rather than a live reading. Treat it as a snapshot
-            and check it before you deploy — ask the router directly:
+            and check it before you deploy by asking the router directly:
           </p>
           <pre>
             <code>{`curl -s ${ROUTER_BASE_URL}/avs-metadata | jq .contracts`}</code>
