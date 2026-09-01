@@ -3,14 +3,14 @@ title: Get task status
 full: true
 _openapi:
   preload:
-    - ./openapi.yaml
+    - ./openapi.json
   method: GET
   webhook: false
   toc: []
   structuredData:
     headings: []
     contents:
-      - content: >
+      - content: >-
           Returns the full state of a single task. Poll this endpoint until
           `status` is `ready`, at which point `payload` holds a ready-to-sign
           transaction request. This is the authoritative freshness check: for a
@@ -29,7 +29,7 @@ export default function Layout(props) {
   return (
     <>
       {props.children}
-      <Comp document="./openapi.yaml" operations={[{"path":"/tasks/{task_id}","method":"get"}]} showDescription />
+      <Comp document="./openapi.json" operations={[{"path":"/tasks/{task_id}","method":"get"}]} showDescription />
     </>
   );
 }

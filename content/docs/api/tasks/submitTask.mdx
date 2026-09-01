@@ -3,20 +3,27 @@ title: Submit a compute task
 full: true
 _openapi:
   preload:
-    - ./openapi.yaml
+    - ./openapi.json
   method: POST
   webhook: false
   toc: []
   structuredData:
     headings: []
     contents:
-      - content: >
+      - content: >-
           Queues a task for the operator network and returns a `task_id` to
           poll. The request is authenticated, load-shed against the queue
           capacity, then validated (field-level, then on-chain) before it is
-          accepted. A `202` means the task was queued, so poll [`GET
-          /tasks/{task_id}`](/docs/api/tasks/getTask) until it is `ready`, then
-          sign and submit the returned payload yourself.
+          accepted. A `202` means the task was queued: poll `GET
+          /tasks/{task_id}` until it is `ready`, then sign and submit the
+          returned payload yourself.
+
+
+          A repeat of a submission that is still in flight collapses onto the
+          original rather than creating a second task, and answers `200` with
+          `deduplicated: true`. Deduplication is keyed on the calling key, the
+          target, and the transition index, so it only applies to a submission
+          that named an explicit `transition_index`.
 
 
           Submission is rate limited per API key (60 requests per minute by
@@ -32,7 +39,7 @@ export default function Layout(props) {
   return (
     <>
       {props.children}
-      <Comp document="./openapi.yaml" operations={[{"path":"/tasks","method":"post"}]} showDescription />
+      <Comp document="./openapi.json" operations={[{"path":"/tasks","method":"post"}]} showDescription />
     </>
   );
 }

@@ -23,6 +23,12 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # `openapi.json` is vendored from gas-killer/service rather than authored here, so this
+      # reports a copy that has fallen behind the router. It never repairs the drift: a mismatch
+      # should reach a person, because the spec diff is the API change under review.
+      - name: Check the vendored OpenAPI document
+        run: npm run check:openapi
+
       - name: Copy WASM
         run: npm run copy:wasm
 

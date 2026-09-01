@@ -13,7 +13,7 @@
 
 import { keccak_256 } from "@noble/hashes/sha3.js"
 
-/** Base URL of the router ingress; matches the default server in `openapi.yaml`. */
+/** Base URL of the router ingress; matches the default server in `openapi.json`. */
 const ROUTER_BASE_URL =
   process.env.NEXT_PUBLIC_ROUTER_URL ?? "https://testnet.gaskiller.xyz"
 

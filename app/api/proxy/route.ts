@@ -6,7 +6,7 @@ import { openapi } from "@/lib/openapi"
  * The playground runs in the browser, so a direct request to the router
  * (a different origin) is blocked by CORS. The playground instead posts to
  * this route, which forwards to the target server-side. `allowedOrigins`
- * restricts forwarding to the hosts declared in `openapi.yaml`'s `servers`,
+ * restricts forwarding to the hosts declared in `openapi.json`'s `servers`,
  * so this is not an open proxy.
  */
 const proxy = openapi.createProxy({

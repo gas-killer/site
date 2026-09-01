@@ -3,14 +3,14 @@ title: AVS identity and contract addresses
 full: true
 _openapi:
   preload:
-    - ./openapi.yaml
+    - ./openapi.json
   method: GET
   webhook: false
   toc: []
   structuredData:
     headings: []
     contents:
-      - content: >
+      - content: >-
           Returns the AVS identity document in the exact shape the restaking
           indexer expects (the URL registered via `updateAVSMetadataURI`), plus
           a `contracts` block naming the addresses a target contract must be
@@ -18,7 +18,7 @@ _openapi:
 
 
           The `contracts` block is the authoritative source for those addresses.
-          They belong to whichever AVS deployment is currently signing, and each
+          They belong to whichever AVS deployment is currently signing, each
           redeployment provisions a new signature checker, and a target wired to
           a superseded one passes every validation here and then reverts
           `InvalidQuorumApkHash` on chain. Read them from this endpoint rather
@@ -39,7 +39,7 @@ export default function Layout(props) {
   return (
     <>
       {props.children}
-      <Comp document="./openapi.yaml" operations={[{"path":"/avs-metadata","method":"get"}]} showDescription />
+      <Comp document="./openapi.json" operations={[{"path":"/avs-metadata","method":"get"}]} showDescription />
     </>
   );
 }
