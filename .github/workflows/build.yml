@@ -29,6 +29,18 @@ jobs:
       - name: Check the vendored OpenAPI document
         run: npm run check:openapi
 
+      # The reference pages are generated from that document, so a sync landed without a
+      # regeneration would leave pages describing the previous API while the check above passes.
+      - name: Check the API reference matches the document
+        run: |
+          npm run generate:api
+          if [ -n "$(git status --porcelain content/docs/api)" ]; then
+            echo "content/docs/api is stale; run 'npm run generate:api' and commit the result"
+            git status --porcelain content/docs/api
+            git --no-pager diff -- content/docs/api
+            exit 1
+          fi
+
       - name: Copy WASM
         run: npm run copy:wasm
 

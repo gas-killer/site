@@ -13,7 +13,8 @@
  * After a sync that changes anything, re-run `npm run generate:api` and commit both.
  *
  * `--check` runs in CI. It only reports drift, never repairs it, so a mismatch always reaches a
- * human rather than being papered over by a bot commit.
+ * human rather than being papered over by a bot commit. It exits 1 on drift and 2 when the
+ * source could not be read at all.
  */
 import { readFile, writeFile } from "node:fs/promises"
 
@@ -22,17 +23,34 @@ const SOURCE =
 const LOCAL = "openapi.json"
 const check = process.argv.includes("--check")
 
-const response = await fetch(SOURCE)
+// Reaching the source and disagreeing with it are separate outcomes, and only the second one is
+// an API change under review. They exit differently so a red build says which happened.
+const UNREACHABLE = 2
+
+let response
+try {
+  response = await fetch(SOURCE)
+} catch (error) {
+  console.error(`[sync-openapi] could not reach ${SOURCE}: ${error.message}`)
+  process.exit(UNREACHABLE)
+}
 
 if (!response.ok) {
   console.error(`[sync-openapi] fetching ${SOURCE} failed: ${response.status}`)
-  process.exit(1)
+  process.exit(UNREACHABLE)
 }
 
-// Compared as parsed JSON rather than as bytes, so formatting alone is never reported as drift.
-const upstream = await response.json()
+let upstream
+try {
+  upstream = await response.json()
+} catch (error) {
+  console.error(`[sync-openapi] ${SOURCE} did not return JSON: ${error.message}`)
+  process.exit(UNREACHABLE)
+}
+
 const local = JSON.parse(await readFile(LOCAL, "utf8"))
 
+// Compared as parsed JSON rather than as bytes, so formatting alone is never reported as drift.
 if (JSON.stringify(upstream) === JSON.stringify(local)) {
   console.log(`[sync-openapi] ${LOCAL} matches service main`)
   process.exit(0)
