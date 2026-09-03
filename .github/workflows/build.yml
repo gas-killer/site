@@ -23,6 +23,24 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # `openapi.json` is vendored from gas-killer/service rather than authored here, so this
+      # reports a copy that has fallen behind the router. It never repairs the drift: a mismatch
+      # should reach a person, because the spec diff is the API change under review.
+      - name: Check the vendored OpenAPI document
+        run: npm run check:openapi
+
+      # The reference pages are generated from that document, so a sync landed without a
+      # regeneration would leave pages describing the previous API while the check above passes.
+      - name: Check the API reference matches the document
+        run: |
+          npm run generate:api
+          if [ -n "$(git status --porcelain content/docs/api)" ]; then
+            echo "content/docs/api is stale; run 'npm run generate:api' and commit the result"
+            git status --porcelain content/docs/api
+            git --no-pager diff -- content/docs/api
+            exit 1
+          fi
+
       - name: Copy WASM
         run: npm run copy:wasm
 

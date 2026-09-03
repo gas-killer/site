@@ -10,6 +10,8 @@
     "start": "next start",
     "postinstall": "fumadocs-mdx",
     "generate:api": "node scripts/generate-docs.mjs",
+    "sync:openapi": "node scripts/sync-openapi.mjs",
+    "check:openapi": "node scripts/sync-openapi.mjs --check",
     "build:wasm": "wasm-pack build ${GAS_ANALYZER_WASM_PATH:-../gas-analyzer/crates/wasm} --target web --release --out-name gas_killer_wasm && npm run copy:wasm"
   },
   "dependencies": {
