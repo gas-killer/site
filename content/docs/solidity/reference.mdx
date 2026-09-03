@@ -26,8 +26,8 @@ The threshold is checked **per quorum**, not across their union: every quorum in
 
 ## `verifyAndUpdate`
 
-The settlement entrypoint. The router builds this call for you — you never encode
-it by hand — but its parameters explain every failure mode.
+The settlement entrypoint. The router builds this call for you (you never encode
+it by hand), but its parameters explain every failure mode.
 
 ```solidity
 function verifyAndUpdate(
@@ -113,7 +113,7 @@ From `TransitionGuard`:
 | `inTransition()` | True while a transition is applying |
 
 Both use fixed hashed slots, and `TransitionGuard` uses EIP-1153 transient
-storage — so a Cancun-or-later EVM is required.
+storage, so a Cancun-or-later EVM is required.
 
 ## Revert selectors
 
@@ -151,7 +151,7 @@ Reverts that come from the restaking middleware's signature checker, not the SDK
 cast call "$TO" "$DATA" --from "$FROM" --block <n> --rpc-url "$RPC_URL"
 ```
 
-  A payload that reverts at *every* block in its window is not a timing problem —
+  A payload that reverts at *every* block in its window is not a timing problem:
   it is a configuration problem.
 </Callout>
 

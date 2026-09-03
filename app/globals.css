@@ -35,7 +35,7 @@
     font-family: var(--font-magz), sans-serif;
   }
 
-  /* Eclipse glow behind the hero logo — mirrors the pitch deck aesthetic */
+  /* Eclipse glow behind the hero logo, mirrors the pitch deck aesthetic */
   .eclipse-glow {
     background: radial-gradient(
       circle at center,

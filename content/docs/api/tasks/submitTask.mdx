@@ -14,7 +14,7 @@ _openapi:
           Queues a task for the operator network and returns a `task_id` to
           poll. The request is authenticated, load-shed against the queue
           capacity, then validated (field-level, then on-chain) before it is
-          accepted. A `202` means the task was queued — poll [`GET
+          accepted. A `202` means the task was queued, so poll [`GET
           /tasks/{task_id}`](/docs/api/tasks/getTask) until it is `ready`, then
           sign and submit the returned payload yourself.
 

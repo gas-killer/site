@@ -7,8 +7,8 @@ import { Tab, Tabs } from "fumadocs-ui/components/tabs"
 import { Callout } from "fumadocs-ui/components/callout"
 
 This guide takes you from an API key to an on-chain state update. The router does
-the expensive off-chain work — fanning your task out to the operator network and
-aggregating their signatures — and hands back a **ready-to-sign transaction**.
+the expensive off-chain work (fanning your task out to the operator network and
+aggregating their signatures) and hands back a **ready-to-sign transaction**.
 You submit that transaction from your own wallet, so the router never custodies
 your keys or funds.
 
@@ -30,7 +30,7 @@ export TARGET_ADDRESS="0x..."   # the contract to settle into (see step 1)
 
 ## 1. Choose a target contract
 
-Gas Killer settles into a contract that inherits the Gas Killer Solidity SDK —
+Gas Killer settles into a contract that inherits the Gas Killer Solidity SDK,
 that inheritance is what gives it the `verifyAndUpdate` function the payload
 calls. A contract without it cannot be a target, and the router will reject the
 task.
@@ -51,7 +51,7 @@ Its tracked function is `sum(uint256[] indexes)`, which adds up the array
 elements at the indexes you pass. The array holds 10 elements, so any index
 `0`–`9` is valid. That is the call used in the examples below.
 
-Check it is still a live target before relying on it — `true` means the router
+Check it is still a live target before relying on it. `true` means the router
 will accept tasks for it:
 
 ```bash
@@ -62,7 +62,7 @@ cast call "$TARGET_ADDRESS" "supportsInterface(bytes4)(bool)" 0x93de4531 \
 <Callout type="warn">
   This is shared scratch space, not a stable fixture. Anyone else settling
   against it advances its transition counter, which invalidates a payload you are
-  holding — submit a new task if that happens. Do not build anything on it.
+  holding, so submit a new task if that happens. Do not build anything on it.
 </Callout>
 
 </Tab>
@@ -89,7 +89,7 @@ contract Counter is GasKillerSDK {
 }
 ```
 
-The [Solidity Reference](/docs/solidity/integrate) covers this end to end — a
+The [Solidity Reference](/docs/solidity/integrate) covers this end to end: a
 complete minimal contract, the addresses to wire, and the checks to run after
 deploying. Then set `TARGET_ADDRESS` to your deployment and carry on.
 
@@ -100,7 +100,7 @@ deploying. Then set `TARGET_ADDRESS` to your deployment and carry on.
 ## 2. Get an API key
 
 Task submission and polling are authenticated with a bearer API key (it looks
-like `gk_…`). Keys are provisioned by the Gas Killer team — request one with the
+like `gk_…`). Keys are provisioned by the Gas Killer team. Request one with the
 [API key request form](https://forms.gle/35mat6TKpL7cQxhKA). Store it securely
 and pass it as a bearer token on every request.
 
@@ -109,7 +109,7 @@ and pass it as a bearer token on every request.
 Send the task to `POST /tasks` with the key as a bearer token. `call_data` is the
 ABI-encoded calldata as an array of byte values, and `value` is a 0x-prefixed hex
 uint256. `block_height` is the block the off-chain execution is anchored to and
-must be recent — within a few hundred blocks of head — so read it from the chain
+must be recent (within a few hundred blocks of head), so read it from the chain
 rather than hardcoding it. A `202` response returns a `task_id` you'll poll in
 the next step.
 
@@ -197,7 +197,7 @@ The `202` body is `{ "task_id": "…", "status": "queued" }`. See
 ### `transition_index`
 
 Omit `transition_index` (or send `null` / `"auto"`) to let the router assign the
-next available state-transition slot at dequeue time — this is what makes safe
+next available state-transition slot at dequeue time, which is what makes safe
 parallel submissions possible. Send an integer only when you need to target a
 specific slot.
 
@@ -277,7 +277,7 @@ A `ready` response looks like this:
 
 <Callout type="warn">
   The payload is only valid until `valid_until_block`. Submit before that block;
-  afterwards — or if the target's on-chain state has already advanced —
+  afterwards, or if the target's on-chain state has already advanced,
   `GET /tasks/{task_id}` returns `409 PAYLOAD_EXPIRED` and you must submit a new
   task. Always fetch the single task (not the list endpoint) immediately before
   submitting, so you get the freshness-checked payload.
@@ -286,7 +286,7 @@ A `ready` response looks like this:
 ## 5. Sign and submit the payload
 
 The `payload` is a complete transaction request. Sign it with your wallet and
-broadcast it **as-is** — `to`, `data`, and `value` are all supplied by the
+broadcast it **as-is**: `to`, `data`, and `value` are all supplied by the
 router. Use an RPC endpoint for the chain named in `payload.chain_id` (the
 testnet settles on Sepolia, `11155111`).
 
@@ -355,9 +355,9 @@ Every error uses the same envelope, with a stable `code`:
 - **`RATE_LIMITED`** (`429`) means you've exceeded your key's request rate
   (60 requests/minute by default). Wait for the `Retry-After` header value, in
   seconds, then retry.
-- **`QUEUE_FULL`, `RPC_UNAVAILABLE`** (`503`) are transient — retry after a short
+- **`QUEUE_FULL`, `RPC_UNAVAILABLE`** (`503`) are transient, so retry after a short
   delay. `QUEUE_FULL` also sends a `Retry-After` header.
-- **`PAYLOAD_EXPIRED`** (`409`) means the payload is stale — submit a fresh task
+- **`PAYLOAD_EXPIRED`** (`409`) means the payload is stale, so submit a fresh task
   and poll again.
 - **`4xx`** validation errors (`INVALID_ADDRESS`, `STALE_BLOCK`,
   `TRANSITION_MISMATCH`, …) mean the request needs fixing before it can succeed.

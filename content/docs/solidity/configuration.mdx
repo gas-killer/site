@@ -16,7 +16,7 @@ working defaults.
 | `blsSignatureChecker` | `_setBlsSignatureChecker` | Yes | none |
 | `blockStaleMeasure` | `_setBlockStaleMeasure` | No | `300` blocks |
 
-All three setters are `internal`. The SDK deliberately ships no access control —
+All three setters are `internal`. The SDK deliberately ships no access control,
 you decide who may call them and when, by exposing them or not.
 
 ## The two required addresses
@@ -125,7 +125,7 @@ referenceBlockNumber < block.number
 referenceBlockNumber + blockStaleMeasure >= block.number
 ```
 
-Unset means `300` blocks — roughly an hour on Sepolia. Below that floor a payload
+Unset means `300` blocks, roughly an hour on Sepolia. Below that floor a payload
 expires before a client can reasonably submit it; well above it, a payload stays
 applicable long after the state it was computed against.
 

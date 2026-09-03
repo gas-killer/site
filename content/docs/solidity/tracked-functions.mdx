@@ -25,8 +25,8 @@ require(transitionIndex + 1 == stateTransitionCount(), InvalidTransitionIndex())
 ```
 
 So a payload is signed against a specific counter value and applies only while
-the contract still sits at that value. Anything that advances the counter — a
-settlement, or a direct call to another tracked function — invalidates every
+the contract still sits at that value. Anything that advances the counter (a
+settlement, or a direct call to another tracked function) invalidates every
 outstanding payload.
 
 <Callout type="warn">
@@ -56,7 +56,7 @@ variables. Two consequences:
 forge inspect src/Counter.sol:Counter storage-layout
 ```
 
-SDK state is unaffected either way — the configuration namespace is ERC-7201 and
+SDK state is unaffected either way, since the configuration namespace is ERC-7201 and
 the transition counter is at a hashed slot, so neither consumes slots your
 variables could occupy.
 
@@ -74,7 +74,7 @@ That works cleanly when the tracked function:
 - **Makes no state-changing external calls.** Read-only calls (`STATICCALL`, so
   `view`/`pure` on another contract) are fine and are ignored by the analysis.
 
-Emitting logs is fully supported — they are reproduced as `LOG0`–`LOG4`
+Emitting logs is fully supported: they are reproduced as `LOG0`–`LOG4`
 operations, including indexed topics.
 
 <Callout>
@@ -84,8 +84,8 @@ operations, including indexed topics.
   loops twice.
 </Callout>
 
-If your design genuinely needs a mid-transition external call, it is supported —
-`StateChangeHandlerLib` can replay `CALL`, `CREATE` and `CREATE2` — but it is the
+If your design genuinely needs a mid-transition external call, it is supported,
+`StateChangeHandlerLib` can replay `CALL`, `CREATE` and `CREATE2`, but it is the
 expensive path and brings the reentrancy considerations below into play.
 
 ## Reading state during a transition
@@ -117,14 +117,14 @@ Contracts that never make external calls during a transition do not need this.
 updates that move ETH out of `msg.value` rather than pre-funding the contract.
 
 How much value each update moves, and to whom, is fixed inside the quorum-signed
-updates — `msg.value` only tops up the balance and cannot redirect anything. That
+updates, and `msg.value` only tops up the balance and cannot redirect anything. That
 leaves exactly two ways to get it wrong:
 
 - **Under-funding** reverts the whole transition: `RevertingContext` for a `CALL`,
   `DeploymentFailed` for a deployment.
 - **Over-funding is not refunded.** The surplus stays in your contract.
 
-If your callers might over-send, provide a recovery path — a withdrawal function,
+If your callers might over-send, provide a recovery path: a withdrawal function,
 or a refund executed as a signed `CALL` update in a later transition. The SDK
 intentionally has no balance-delta check on the entrypoint, since the signature
 already fixes every movement.
