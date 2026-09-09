@@ -53,6 +53,9 @@ AVS_ADDRESS=$(jq -r .avsAddress <<<"$CONTRACTS")
 SIG_CHECKER_ADDRESS=$(jq -r .blsSignatureChecker <<<"$CONTRACTS")
 ```
 
+`schnorrStakeRegistry` is published alongside them, for a target that settles
+under both schemes. See [Migration](/docs/solidity/migration).
+
 The full response shape is in the
 [API reference](/docs/api/metadata/getAvsMetadata).
 

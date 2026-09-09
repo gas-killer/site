@@ -1,4 +1,10 @@
 {
   "title": "Solidity Reference",
-  "pages": ["integrate", "configuration", "tracked-functions", "reference"]
+  "pages": [
+    "integrate",
+    "configuration",
+    "tracked-functions",
+    "migration",
+    "reference"
+  ]
 }

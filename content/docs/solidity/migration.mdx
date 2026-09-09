@@ -1,0 +1,102 @@
+---
+title: Migration
+description: Deploy one target that settles under both signature schemes.
+---
+
+import { Steps, Step } from "fumadocs-ui/components/steps"
+
+The service is moving from BLS signatures to aggregate Schnorr. Operators run one
+scheme at a time, and a target only settles for the scheme it implements.
+
+`DualSchemeGasKillerSDK` implements both. A target that inherits it settles before
+and after the cutover, with no transaction at the switch.
+
+## What changes
+
+| | Before | After |
+| --- | --- | --- |
+| Verifier | `IBLSSignatureChecker` | `SchnorrStakeRegistry` |
+| Entrypoint | `verifyAndUpdate` with BLS non-signer stakes | `verifyAndUpdate` with `(s, Raddr, nonSigners)` |
+| Interface ID | `0x93de4531` | `0x82b35a01` |
+
+The task digest, `stateTransitionCount`, `trackState` and the state update
+encoding are the same under both. Only signature verification differs.
+
+## Integrate
+
+<Steps>
+
+<Step>
+
+**Inherit the dual-scheme base** in place of `GasKillerSDK`, and wire both
+verifiers:
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.27;
+
+import {DualSchemeGasKillerSDK} from "gas-killer-sdk/migration/DualSchemeGasKillerSDK.sol";
+
+contract Counter is DualSchemeGasKillerSDK {
+    uint256 public total;
+
+    constructor(address avs, address blsSigChecker, address schnorrRegistry) {
+        _setAvsAddress(avs);
+        _setBlsSignatureChecker(blsSigChecker);
+        _setSchnorrRegistry(schnorrRegistry);
+    }
+
+    function recompute(uint32 rounds) external trackState {
+        uint256 acc = total;
+        for (uint32 i = 0; i < rounds; i++) {
+            acc = uint256(keccak256(abi.encode(acc, i)));
+        }
+        total = acc;
+    }
+}
+```
+
+Set both verifiers even though one fleet settles at a time. An unset verifier
+makes that scheme's entrypoint unusable.
+
+</Step>
+
+<Step>
+
+**Deploy it.** All three addresses are published on
+[`GET /avs-metadata`](/docs/api/metadata/getAvsMetadata) and listed in
+[Configuration](/docs/solidity/configuration):
+
+```bash
+CONTRACTS=$(curl -s https://testnet.gaskiller.xyz/avs-metadata | jq .contracts)
+AVS_ADDRESS=$(jq -r .avsAddress <<<"$CONTRACTS")
+SIG_CHECKER_ADDRESS=$(jq -r .blsSignatureChecker <<<"$CONTRACTS")
+SCHNORR_REGISTRY_ADDRESS=$(jq -r .schnorrStakeRegistry <<<"$CONTRACTS")
+```
+
+</Step>
+
+<Step>
+
+**Check both interface IDs.** Each must return `true`:
+
+```bash
+cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x93de4531 --rpc-url "$RPC_URL"
+cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x82b35a01 --rpc-url "$RPC_URL"
+```
+
+</Step>
+
+</Steps>
+
+Nothing else is required. When the operators restart on Schnorr, the target
+starts settling Schnorr rounds.
+
+## After the cutover
+
+Move to `SchnorrGasKillerSDK` at your convenience. It drops the BLS entrypoint
+and its config slot. The Schnorr entrypoints, including `verifyAndUpdateBatch`,
+are identical to the ones here.
+
+`DualSchemeGasKillerSDK` lives in `src/migration/` in the SDK and is removed once
+the migration completes.

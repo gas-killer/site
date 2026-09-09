@@ -53,6 +53,12 @@ export async function AvsContracts() {
           <Row label="avsAddress" value={c.avsAddress} />
           <Row label="blsSignatureChecker" value={c.blsSignatureChecker} />
           <Row label="registryCoordinator" value={c.registryCoordinator} />
+          {live && contracts.schnorrStakeRegistry ? (
+            <Row
+              label="schnorrStakeRegistry"
+              value={contracts.schnorrStakeRegistry}
+            />
+          ) : null}
           {live && contracts.demoTarget ? (
             <Row label="demoTarget" value={contracts.demoTarget} />
           ) : null}
