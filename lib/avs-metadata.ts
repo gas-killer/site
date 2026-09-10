@@ -26,6 +26,8 @@ export interface AvsContracts {
   avsAddress: string
   blsSignatureChecker: string
   registryCoordinator: string
+  /** Absent while the deployment has provisioned no Schnorr registry. */
+  schnorrStakeRegistry?: string
   demoTarget?: string
   demoFactory?: string
 }
@@ -84,6 +86,9 @@ function parseContracts(value: unknown): AvsContracts | null {
     avsAddress: c.avsAddress,
     blsSignatureChecker: c.blsSignatureChecker,
     registryCoordinator: c.registryCoordinator,
+    schnorrStakeRegistry: isAddress(c.schnorrStakeRegistry)
+      ? c.schnorrStakeRegistry
+      : undefined,
     demoTarget: isAddress(c.demoTarget) ? c.demoTarget : undefined,
     demoFactory: isAddress(c.demoFactory) ? c.demoFactory : undefined,
   }
