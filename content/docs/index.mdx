@@ -5,11 +5,11 @@ description: Verifiable off-chain compute for EVM contracts.
 
 Gas Killer is a verifiable off-chain compute service for EVM contracts. Smart
 contracts offload expensive computation to a network of restaked operator
-nodes. Operators run the task and sign the result with BLS keys; the router
-aggregates those signatures into a compact proof and returns a **ready-to-sign
-transaction**. You submit that transaction from your own wallet: a single
-`verifyAndUpdate` call that writes back the result and verifies it against the
-aggregate signature, instead of recomputing it on-chain.
+nodes. Operators run the task and jointly sign the result; the router combines
+their signatures into a single aggregate Schnorr signature and returns a
+**ready-to-sign transaction**. You submit that transaction from your own wallet:
+a single `verifyAndUpdate` call that writes back the result and verifies it
+against the aggregate signature, instead of recomputing it on-chain.
 
 ## Where to start
 
@@ -62,7 +62,7 @@ Inheriting `GasKillerSDK` is what makes a contract a valid target. It supplies:
 | `verifyAndUpdate` | Settlement entrypoint — verifies the quorum signature, then applies the diff. |
 | `trackState` | Marks a function as a tracked transition and advances the counter. |
 | `stateTransitionCount()` | Binds a payload to one specific state, so it cannot be replayed. |
-| `avsAddress` / `blsSignatureChecker` | The operator set the contract trusts. |
+| `avsAddress` / `schnorrRegistry` | The operator set the contract trusts. |
 | `inTransition()` | Lets external readers reject mid-transition state. |
 
 See the [Solidity Reference](/docs/solidity/reference) for the full surface, and

@@ -13,7 +13,7 @@ working defaults.
 | Value | Setter | Required | Default |
 | --- | --- | --- | --- |
 | `avsAddress` | `_setAvsAddress` | Yes | none |
-| `blsSignatureChecker` | `_setBlsSignatureChecker` | Yes | none |
+| `schnorrRegistry` | `_setSchnorrRegistry` | Yes | none |
 | `blockStaleMeasure` | `_setBlockStaleMeasure` | No | `300` blocks |
 
 All three setters are `internal`. The SDK deliberately ships no access control,
@@ -21,11 +21,12 @@ you decide who may call them and when, by exposing them or not.
 
 ## The two required addresses
 
-`blsSignatureChecker` is the restaking middleware's `IBLSSignatureChecker`. It
-is the contract your target trusts to verify that a quorum of operators signed
-the state update, and it must be the one bound to the **same operator set the
-router is signing with**. `avsAddress` is the AVS service manager; it scopes the
-namespace and does not participate in signature verification.
+`schnorrRegistry` is the `SchnorrStakeRegistry` holding the operator set's
+aggregate key and stake weights. It is the contract your target trusts to verify
+that a quorum of operators signed the state update, and it must be the one the
+**router is signing for**. `avsAddress` is the AVS service manager; it records which
+deployment the target belongs to and does not participate in signature
+verification.
 
 For the public testnet (Sepolia, chain `11155111`):
 
@@ -50,35 +51,29 @@ rather than copied from a page:
 ```bash
 CONTRACTS=$(curl -s https://testnet.gaskiller.xyz/avs-metadata | jq .contracts)
 AVS_ADDRESS=$(jq -r .avsAddress <<<"$CONTRACTS")
-SIG_CHECKER_ADDRESS=$(jq -r .blsSignatureChecker <<<"$CONTRACTS")
+SCHNORR_REGISTRY_ADDRESS=$(jq -r .schnorrStakeRegistry <<<"$CONTRACTS")
 ```
-
-`schnorrStakeRegistry` is published alongside them, for a target that settles
-under both schemes. See [Migration](/docs/solidity/migration).
 
 The full response shape is in the
 [API reference](/docs/api/metadata/getAvsMetadata).
 
 ### Verify your own wiring
 
-Once your target is deployed, confirm it agrees with the published set. A checker
-is only useful if it points at the registry coordinator the operators are
-actually registered in, so ask it directly and compare against
-`registryCoordinator` above:
+Once your target is deployed, confirm it agrees with the published set:
 
 ```bash
-# The checker your target actually uses, which is the thing being verified.
-TARGET_CHECKER=$(cast call "$TARGET" "blsSignatureChecker()(address)" --rpc-url "$RPC_URL")
+# Must equal schnorrStakeRegistry in the table above.
+cast call "$TARGET" "schnorrRegistry()(address)" --rpc-url "$RPC_URL"
 
-# Must equal registryCoordinator in the table above.
-cast call "$TARGET_CHECKER" "registryCoordinator()(address)" --rpc-url "$RPC_URL"
+# Non-zero: the registry actually holds an operator set.
+cast call "$SCHNORR_REGISTRY_ADDRESS" "totalWeight()(uint256)" --rpc-url "$RPC_URL"
 ```
 
-If your checker resolves to a different `registryCoordinator`, your address is
-stale. The task fails with `InvalidQuorumApkHash` (`0xe1310aed`), because the router
-computes the quorum's aggregate-key indices against the live registry, and your
-checker looks them up in a different one. See the
-[error table](/docs/solidity/reference#revert-selectors).
+If your target points at a different registry, its address is stale. Its tasks
+fail with `InvalidQuorumSignature` (`0x68477238`), because the aggregate key it
+checks against is not the one the operators signed with, or with
+`NotRegistered` (`0xbfc6c337`) when a non-signer the router lists is unknown to
+it. See the [error table](/docs/solidity/reference#revert-selectors).
 
 ## Stay reconfigurable
 
@@ -88,8 +83,8 @@ checker looks them up in a different one. See the
   [the addresses above can change](#the-two-required-addresses), a contract you
   can reconfigure follows a migration, while one you cannot has to be redeployed
   with its state moved across. Guard the setter like the upgrade key it is, with
-  a multisig or a timelock: whoever can change `blsSignatureChecker` can point
-  your contract at a checker they control.
+  a multisig or a timelock: whoever can change `schnorrRegistry` can point your
+  contract at a registry they control.
 </Callout>
 
 Because the setters are `internal`, a contract that only calls them in its
@@ -103,17 +98,17 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {GasKillerSDK} from "gas-killer-sdk/GasKillerSDK.sol";
 
 contract Counter is GasKillerSDK, Ownable {
-    constructor(address avs, address blsSigChecker)
+    constructor(address avs, address schnorrRegistry)
         Ownable(msg.sender)
     {
         _setAvsAddress(avs);
-        _setBlsSignatureChecker(blsSigChecker);
+        _setSchnorrRegistry(schnorrRegistry);
     }
 
     /// Lets the deployment follow an operator-set migration without redeploying.
-    function setGasKillerConfig(address avs, address blsSigChecker) external onlyOwner {
+    function setGasKillerConfig(address avs, address schnorrRegistry) external onlyOwner {
         _setAvsAddress(avs);
-        _setBlsSignatureChecker(blsSigChecker);
+        _setSchnorrRegistry(schnorrRegistry);
     }
 }
 ```
@@ -134,13 +129,16 @@ applicable long after the state it was computed against.
 
 Lowering it tightens the window in which a signed transition can land. Raising it
 widens the period during which an operator-set change can invalidate an
-already-assembled signature. `300` is a sensible default; change it only with a
-reason.
+already-assembled signature. The registry schedules operator changes behind a
+notice window (`600` blocks on the public testnet) sized to exceed this value
+plus a signing round, so raising it past that window loses the guarantee that a
+payload settles under the operator set that signed it. `300` is a sensible
+default; change it only with a reason.
 
 ```solidity
-constructor(address avs, address blsSigChecker) {
+constructor(address avs, address schnorrRegistry) {
     _setAvsAddress(avs);
-    _setBlsSignatureChecker(blsSigChecker);
+    _setSchnorrRegistry(schnorrRegistry);
     _setBlockStaleMeasure(150);
 }
 ```
@@ -152,12 +150,8 @@ All public, all `view`:
 | Getter | Returns |
 | --- | --- |
 | `avsAddress()` | Configured AVS service manager |
-| `blsSignatureChecker()` | Configured signature checker |
+| `schnorrRegistry()` | Configured stake registry |
 | `blockStaleMeasure()` | Effective value, including the `300` default |
-| `namespace()` | `abi.encodePacked(avsAddress, "gaskiller")`, or empty when unset |
 | `stateTransitionCount()` | Transitions applied so far |
 | `inTransition()` | True while a transition is being applied |
-| `supportsInterface(0x93de4531)` | Whether the router will accept this target |
-
-`namespace()` is derived on read rather than stored, so setting `avsAddress` is a
-single storage write.
+| `supportsInterface(0x82b35a01)` | Whether the router will accept this target |

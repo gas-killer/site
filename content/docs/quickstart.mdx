@@ -44,18 +44,18 @@ You can borrow one for this guide, or use your own.
 A deployed `ArraySummation` on Sepolia, already wired to the live operator set:
 
 ```bash
-export TARGET_ADDRESS="0xF143a9D93045474C2B573d21AC1CCe8dB2b06dbD"
+export TARGET_ADDRESS="0xCAcD6fd494cde74A84e7e5F6816ca7C87aa88aaD"
 ```
 
 Its tracked function is `sum(uint256[] indexes)`, which adds up the array
-elements at the indexes you pass. The array holds 10 elements, so any index
-`0`–`9` is valid. That is the call used in the examples below.
+elements at the indexes you pass. The array holds 16 elements, so any index
+`0`–`15` is valid. That is the call used in the examples below.
 
 Check it is still a live target before relying on it. `true` means the router
 will accept tasks for it:
 
 ```bash
-cast call "$TARGET_ADDRESS" "supportsInterface(bytes4)(bool)" 0x93de4531 \
+cast call "$TARGET_ADDRESS" "supportsInterface(bytes4)(bool)" 0x82b35a01 \
   --rpc-url "$RPC_URL"
 ```
 
@@ -78,9 +78,9 @@ import {GasKillerSDK} from "gas-killer-sdk/GasKillerSDK.sol";
 contract Counter is GasKillerSDK {
     uint256 public total;
 
-    constructor(address avs, address blsSigChecker) {
+    constructor(address avs, address schnorrRegistry) {
         _setAvsAddress(avs);
-        _setBlsSignatureChecker(blsSigChecker);
+        _setSchnorrRegistry(schnorrRegistry);
     }
 
     function recompute(uint32 rounds) external trackState {
@@ -265,8 +265,8 @@ A `ready` response looks like this:
   "updated_at": 1753180812,
   "error": null,
   "payload": {
-    "to": "0xF143a9D93045474C2B573d21AC1CCe8dB2b06dbD",
-    "data": "0x93de4531000000000000000000000000000000000000000000000000000000000000002a",
+    "to": "0xCAcD6fd494cde74A84e7e5F6816ca7C87aa88aaD",
+    "data": "0x82b35a01000000000000000000000000000000000000000000000000000000000000002a",
     "value": "0x0",
     "chain_id": 11155111,
     "estimated_gas": 257468,

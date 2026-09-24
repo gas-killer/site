@@ -16,7 +16,7 @@ different stage:
 | Requirement | Enforced by | Symptom when missing |
 | --- | --- | --- |
 | Inherits `GasKillerSDK` | Router, at submit time | Task rejected — the target does not report the interface |
-| `avsAddress` and `blsSignatureChecker` wired to the live deployment | Router, while building the payload | Task fails — the router will not return a payload that cannot settle |
+| `avsAddress` and `schnorrRegistry` wired to the live deployment | Router, while building the payload | Task fails — the router will not return a payload that cannot settle |
 | Mutating functions marked `trackState` | Nothing — it is your replay protection | Silent: stale payloads stay applicable |
 
 The router proves the settlement call before handing it back, so a mis-wired
@@ -44,8 +44,8 @@ Add the remapping to `remappings.txt` (or `foundry.toml`):
 gas-killer-sdk/=lib/solidity-sdk/src/
 ```
 
-The SDK pulls `eigenlayer-middleware` for `IBLSSignatureChecker`, and pins
-`evm_version = "cancun"` in its own `foundry.toml`. Set the same in yours.
+The SDK pins `evm_version = "cancun"` in its own `foundry.toml`. Set the same in
+yours.
 
 ## A minimal target
 
@@ -67,9 +67,9 @@ contract Counter is GasKillerSDK {
 
     event Recomputed(uint256 indexed runs, uint256 total);
 
-    constructor(address avs, address blsSigChecker) {
+    constructor(address avs, address schnorrRegistry) {
         _setAvsAddress(avs);
-        _setBlsSignatureChecker(blsSigChecker);
+        _setSchnorrRegistry(schnorrRegistry);
     }
 
     /// The expensive path. On-chain this is the reference implementation the
@@ -87,8 +87,8 @@ contract Counter is GasKillerSDK {
 ```
 
 That is the whole contract-side integration. `verifyAndUpdate`,
-`stateTransitionCount()`, `supportsInterface`, and the transition guard all come
-from the base.
+`verifyAndUpdateBatch`, `stateTransitionCount()`, `supportsInterface`, and the
+transition guard all come from the base.
 
 ## Deploy and verify
 
@@ -97,7 +97,7 @@ Pass the live addresses from [Configuration](/docs/solidity/configuration):
 ```bash
 forge create src/Counter.sol:Counter \
   --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" \
-  --constructor-args "$AVS_ADDRESS" "$SIG_CHECKER_ADDRESS"
+  --constructor-args "$AVS_ADDRESS" "$SCHNORR_REGISTRY_ADDRESS"
 ```
 
 Then check all four of these before submitting a task. Each maps to a failure you
@@ -110,7 +110,7 @@ would otherwise debug from a revert:
 **The router will accept it.** Must return `true`, or task submission is rejected:
 
 ```bash
-cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x93de4531 --rpc-url "$RPC_URL"
+cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x82b35a01 --rpc-url "$RPC_URL"
 ```
 
 </Step>
@@ -121,15 +121,15 @@ cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x93de4531 --rpc-url "$RPC
 
 ```bash
 cast call "$TARGET" "avsAddress()(address)" --rpc-url "$RPC_URL"
-cast call "$TARGET" "blsSignatureChecker()(address)" --rpc-url "$RPC_URL"
+cast call "$TARGET" "schnorrRegistry()(address)" --rpc-url "$RPC_URL"
 ```
 
 </Step>
 
 <Step>
 
-**The checker is bound to the live operator set.** This is the check that catches
-a stale address, see
+**The registry is the live operator set.** This is the check that catches a
+stale address, see
 [Verify your own wiring](/docs/solidity/configuration#verify-your-own-wiring).
 
 </Step>
@@ -166,6 +166,17 @@ The operators execute `recompute(1000)` off-chain, sign the resulting diff, and
 the payload you get back is a `verifyAndUpdate` call that writes `total`, `runs`,
 and the `Recomputed` log directly, without running the loop on-chain.
 
+## Coming from the BLS SDK
+
+Earlier SDK releases verified BLS signatures (constructor argument
+`blsSigChecker`, interface ID `0x93de4531`). The operators now sign with
+aggregate Schnorr only, so a target built on that release no longer settles. To
+move one across, update the SDK, swap `_setBlsSignatureChecker` for
+`_setSchnorrRegistry`, and redeploy against the addresses in
+[Configuration](/docs/solidity/configuration). The task digest, `trackState`
+and the state update encoding are unchanged, so the contract's own logic stays
+as it is.
+
 ## Where to go next
 
 - **[Configuration](/docs/solidity/configuration)** — the addresses to wire, how
@@ -174,8 +185,3 @@ and the `Recomputed` log directly, without running the loop on-chain.
   guarantees, storage layout rules, and what keeps a function extractable.
 - **[Reference](/docs/solidity/reference)** — full API surface, state update
   types, and a revert-selector lookup table.
-
-The SDK also ships an aggregate-Schnorr scheme (`SchnorrGasKillerSDK`) that
-verifies a single secp256k1 signature in constant gas. The public testnet runs
-the BLS scheme, which is what this section documents. The service is moving to
-Schnorr, see [Migration](/docs/solidity/migration).

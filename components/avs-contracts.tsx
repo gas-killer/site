@@ -6,8 +6,9 @@ import { ROUTER_BASE_URL, fetchAvsContracts } from "@/lib/avs-metadata"
  * `GET /avs-metadata` at render time.
  *
  * The router is the only authority on these: they belong to whichever AVS
- * deployment is currently signing, and each redeployment provisions a new
- * signature checker. Reading them here means the page cannot drift from the
+ * deployment is currently signing. The stake registry is pinned so it survives
+ * a redeployment, but a migration to a new operator set moves it, and a new AVS
+ * moves avsAddress. Reading them here means the page cannot drift from the
  * deployment the way a hand-maintained table does.
  *
  * When the router publishes no contract set the last-verified pair is shown
@@ -18,9 +19,8 @@ import { ROUTER_BASE_URL, fetchAvsContracts } from "@/lib/avs-metadata"
 /** Last pair verified on chain, for when the router publishes no contract set. */
 const FALLBACK = {
   chainId: 11155111,
-  avsAddress: "0xdCec8ce0a03848B55989Bcc711e424Ca31d9eeD9",
-  blsSignatureChecker: "0x6953fc47FC8b7568801f3fdc327bc0d9aD12E5b9",
-  registryCoordinator: "0x0a032D62dde46670Ae40Ce532C97f6CE9Af72Dc4",
+  avsAddress: "0x0eF3c25243004C0F81Dc678c3411E619D61577ef",
+  schnorrStakeRegistry: "0x8A86301675ac9617895117afFE9577f5154555F9",
 } as const
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -51,12 +51,11 @@ export async function AvsContracts() {
         <tbody>
           <Row label="Chain ID" value={String(c.chainId)} />
           <Row label="avsAddress" value={c.avsAddress} />
-          <Row label="blsSignatureChecker" value={c.blsSignatureChecker} />
-          <Row label="registryCoordinator" value={c.registryCoordinator} />
-          {live && contracts.schnorrStakeRegistry ? (
+          <Row label="schnorrStakeRegistry" value={c.schnorrStakeRegistry} />
+          {live && contracts.registryCoordinator ? (
             <Row
-              label="schnorrStakeRegistry"
-              value={contracts.schnorrStakeRegistry}
+              label="registryCoordinator"
+              value={contracts.registryCoordinator}
             />
           ) : null}
           {live && contracts.demoTarget ? (
