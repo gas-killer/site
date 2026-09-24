@@ -2,9 +2,9 @@
  * Reads the router's published contract set from `GET /avs-metadata`.
  *
  * These addresses are properties of a specific AVS deployment, not constants of
- * the protocol: redeploying the operator set changes the signature checker, and a
+ * the protocol: redeploying the operator set changes the stake registry, and a
  * target wired to a superseded one produces payloads that revert
- * `InvalidQuorumApkHash`. Documenting them by hand is how they go stale, so the
+ * `InvalidQuorumSignature`. Documenting them by hand is how they go stale, so the
  * Configuration page reads them from the router instead.
  *
  * Fetched server-side. The router sets no CORS headers (see
@@ -24,10 +24,8 @@ const REVALIDATE_SECONDS = 3600
 export interface AvsContracts {
   chainId: number
   avsAddress: string
-  blsSignatureChecker: string
-  registryCoordinator: string
-  /** Absent while the deployment has provisioned no Schnorr registry. */
-  schnorrStakeRegistry?: string
+  schnorrStakeRegistry: string
+  registryCoordinator?: string
   demoTarget?: string
   demoFactory?: string
 }
@@ -76,18 +74,16 @@ function parseContracts(value: unknown): AvsContracts | null {
   if (
     typeof c.chainId !== "number" ||
     !isAddress(c.avsAddress) ||
-    !isAddress(c.blsSignatureChecker) ||
-    !isAddress(c.registryCoordinator)
+    !isAddress(c.schnorrStakeRegistry)
   ) {
     return null
   }
   return {
     chainId: c.chainId,
     avsAddress: c.avsAddress,
-    blsSignatureChecker: c.blsSignatureChecker,
-    registryCoordinator: c.registryCoordinator,
-    schnorrStakeRegistry: isAddress(c.schnorrStakeRegistry)
-      ? c.schnorrStakeRegistry
+    schnorrStakeRegistry: c.schnorrStakeRegistry,
+    registryCoordinator: isAddress(c.registryCoordinator)
+      ? c.registryCoordinator
       : undefined,
     demoTarget: isAddress(c.demoTarget) ? c.demoTarget : undefined,
     demoFactory: isAddress(c.demoFactory) ? c.demoFactory : undefined,

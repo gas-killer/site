@@ -10,10 +10,14 @@ economic security.
 ## Components
 
 - **Operator nodes** receive a task, run the computation locally, and sign the
-  result with their BLS key.
-- **The router** (the AVS aggregator) accepts tasks over HTTP, collects operator
-  signatures, verifies the BLS threshold, and renders a ready-to-sign
-  transaction from the aggregated round.
+  result with their secp256k1 operator key.
+- **The router** (the AVS aggregator) accepts tasks over HTTP, coordinates a
+  MuSig2 signing round with the operators, combines their partial signatures
+  into one aggregate Schnorr signature, and renders a ready-to-sign transaction
+  from the aggregated round.
+- **The `SchnorrStakeRegistry`** is the on-chain record of the operator set: each
+  operator's key and stake weight, the aggregate key, and the quorum threshold.
+  Targets verify against it.
 
 ## Task lifecycle
 
@@ -24,11 +28,14 @@ economic security.
    field-level and on-chain validation before accepting the task. Rejected
    requests return a `4xx` with a specific error `code`; an overloaded router
    returns `503 QUEUE_FULL`.
-3. **Fan out** — the accepted task is dispatched to operator nodes, which each
-   execute it and return a BLS signature over the result.
-4. **Aggregate** — the router waits for a quorum threshold of signatures rather
-   than every operator, so the pipeline tolerates timeouts and partial
-   responses.
+3. **Fan out** — the router collects a fresh signing nonce from each responsive
+   operator, then dispatches the task. Each operator executes it and returns a
+   partial signature over the resulting state diff.
+4. **Aggregate** — the router sums the partial signatures into one aggregate
+   Schnorr signature once the signers hold the quorum threshold of stake. It
+   doesn't wait for every operator: one that drops out is listed as a
+   non-signer and the round is retried with the rest, so the pipeline tolerates
+   timeouts and partial responses.
 5. **Render** — once the threshold is met, the router persists the completed
    round as a structured *bundle* and renders a *payload*: a full
    `verifyAndUpdate` transaction request (`to`, `data`, `value`, `chain_id`,
@@ -37,7 +44,7 @@ economic security.
    [`GET /tasks/{task_id}`](/docs/api/tasks/getTask).
 6. **Settle** — the client signs the payload and submits it from its own wallet.
    The `verifyAndUpdate` call writes back only the essential state changes,
-   verified on-chain against the aggregate signature and a compact proof.
+   verified on-chain against the aggregate signature in constant gas.
 
 ## Who submits the transaction
 
@@ -60,7 +67,8 @@ would revert. The client submits a fresh task and polls again.
 
 ## Why it's cheaper
 
-The on-chain cost collapses from *running the full computation* to *verifying an
-aggregate signature and proof*. Security still derives from the restaked operator
+The on-chain cost collapses from *running the full computation* to *verifying one
+aggregate signature*, a single `ecrecover` plus one point subtraction per
+non-signer, whatever the size of the operator set. Security still derives from the restaked operator
 set: producing a valid update requires a quorum of operators to sign the same
 result.

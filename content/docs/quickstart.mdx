@@ -55,7 +55,7 @@ Check it is still a live target before relying on it. `true` means the router
 will accept tasks for it:
 
 ```bash
-cast call "$TARGET_ADDRESS" "supportsInterface(bytes4)(bool)" 0x93de4531 \
+cast call "$TARGET_ADDRESS" "supportsInterface(bytes4)(bool)" 0x82b35a01 \
   --rpc-url "$RPC_URL"
 ```
 
@@ -78,9 +78,9 @@ import {GasKillerSDK} from "gas-killer-sdk/GasKillerSDK.sol";
 contract Counter is GasKillerSDK {
     uint256 public total;
 
-    constructor(address avs, address blsSigChecker) {
+    constructor(address avs, address schnorrRegistry) {
         _setAvsAddress(avs);
-        _setBlsSignatureChecker(blsSigChecker);
+        _setSchnorrRegistry(schnorrRegistry);
     }
 
     function recompute(uint32 rounds) external trackState {
@@ -266,7 +266,7 @@ A `ready` response looks like this:
   "error": null,
   "payload": {
     "to": "0xF143a9D93045474C2B573d21AC1CCe8dB2b06dbD",
-    "data": "0x93de4531000000000000000000000000000000000000000000000000000000000000002a",
+    "data": "0x82b35a01000000000000000000000000000000000000000000000000000000000000002a",
     "value": "0x0",
     "chain_id": 11155111,
     "estimated_gas": 257468,

@@ -5,24 +5,25 @@ description: GasKillerSDK API surface, state update types, and revert selectors.
 
 import { Callout } from "fumadocs-ui/components/callout"
 
-API surface of `GasKillerSDK` (BLS scheme). Inheriting it gives your contract
-everything on this page.
+API surface of `GasKillerSDK`. Inheriting it gives your contract everything on
+this page.
 
 ```solidity
-abstract contract GasKillerSDK is StateTracker, TransitionGuard, IGasKillerSDK
+abstract contract GasKillerSDK is
+    StateTracker, TransitionGuard, ERC165, IGasKillerSDK, IGasKillerSDKBatch
 ```
 
 ## Constants
 
 | Constant | Value | Meaning |
 | --- | --- | --- |
-| `QUORUM_THRESHOLD` | `66` | Minimum share of each quorum's stake that must sign |
-| `THRESHOLD_DENOMINATOR` | `100` | Denominator for the above — so 66% |
 | — | `300` | Default `blockStaleMeasure`, in blocks, when unset |
-| ERC-165 id | `0x93de4531` | `type(IGasKillerSDK).interfaceId`; the router requires it |
+| ERC-165 id | `0x82b35a01` | `type(IGasKillerSDK).interfaceId`; the router requires it |
+| ERC-165 id | `0x2ea5ee1d` | `type(IGasKillerSDKBatch).interfaceId`; batching and the in-transition latch |
 
-The threshold is checked **per quorum**, not across their union: every quorum in
-`quorumNumbers` must independently clear 66%.
+The quorum threshold is not an SDK constant. It belongs to the
+`SchnorrStakeRegistry` the target is wired to, as `thresholdNum / thresholdDen`
+of the registry's total weight. The public testnet registry requires `2/3`.
 
 ## `verifyAndUpdate`
 
@@ -32,24 +33,26 @@ it by hand), but its parameters explain every failure mode.
 ```solidity
 function verifyAndUpdate(
     bytes32 msgHash,
-    bytes calldata quorumNumbers,
     uint32 referenceBlockNumber,
     bytes calldata storageUpdates,
     uint256 transitionIndex,
     bytes4 targetFunction,
-    IBLSSignatureCheckerTypes.NonSignerStakesAndSignature calldata nonSignerStakesAndSignature
-) external payable guardTransition trackState;
+    uint256 s,
+    address Raddr,
+    address[] calldata nonSigners
+) external payable;
 ```
 
 | Parameter | Purpose |
 | --- | --- |
 | `msgHash` | The signed digest; recomputed on-chain and compared |
-| `quorumNumbers` | Which quorums must clear the threshold |
-| `referenceBlockNumber` | Block the operator set was snapshotted at |
+| `referenceBlockNumber` | Block the operator set is evaluated at |
 | `storageUpdates` | ABI-encoded `(StateUpdateType[], bytes[])` — the diff to apply |
 | `transitionIndex` | Counter value this payload was computed against |
 | `targetFunction` | Selector of the tracked function that was simulated |
-| `nonSignerStakesAndSignature` | Aggregate signature plus per-non-signer stake proofs |
+| `s` | Aggregate Schnorr response scalar |
+| `Raddr` | Aggregate nonce, as `address(R)` |
+| `nonSigners` | Operators that did not sign, in strictly ascending order |
 
 It executes in this order, so an earlier check masks any later one:
 
@@ -57,8 +60,14 @@ It executes in this order, so an earlier check masks any later one:
 2. `referenceBlockNumber + blockStaleMeasure >= block.number` → else `StaleBlockNumber`
 3. `transitionIndex + 1 == stateTransitionCount()` → else `InvalidTransitionIndex`
 4. Digest matches `msgHash` → else `InvalidSignature`
-5. `checkSignatures` on the configured checker, then the 66% test per quorum
+5. `isValidSignature` on the configured registry: subtract each non-signer's key
+   and weight from the aggregate, check the threshold, verify the signature →
+   else `InvalidQuorumSignature`, or a registry revert
 6. Apply the updates
+
+Verification gas doesn't grow with the size of the operator set: one `ecrecover`
+against the registry's cached aggregate key, plus one point subtraction per
+non-signer.
 
 ### The signed digest
 
@@ -79,6 +88,37 @@ function getMessageHash(
 Binding `address(this)` means a payload cannot be replayed against a different
 contract, and binding `transitionIndex` means it cannot be replayed against a
 different state of the same one.
+
+## `verifyAndUpdateBatch`
+
+Settles several independently signed transitions in one transaction. Every
+transition after the first verifies at warm-access prices.
+
+```solidity
+struct TaskSubmission {
+    bytes32 msgHash;
+    uint32 referenceBlockNumber;
+    bytes storageUpdates;
+    uint256 transitionIndex;
+    bytes4 targetFunction;
+    uint256 s;
+    address Raddr;
+    address[] nonSigners;
+}
+
+function verifyAndUpdateBatch(TaskSubmission[] calldata submissions) external payable;
+```
+
+Each submission is checked exactly as a standalone `verifyAndUpdate` would check
+it, so the signed digest does not change when a transition is batched.
+Submissions apply in order of ascending `transitionIndex`, and the batch is
+atomic.
+
+A submission whose index has already settled is skipped rather than reverting the
+batch. Settlement is permissionless, so without the skip anyone could lift one
+submission from the mempool, settle it on its own first, and void the rest. Only
+a gap, meaning an index above the next expected one, reverts with
+`InvalidTransitionIndex`.
 
 ## State update types
 
@@ -125,23 +165,35 @@ What a failed settlement means. Reverts from the SDK:
 | `0x305c3e93` | `StaleBlockNumber` | Payload older than `blockStaleMeasure` | Submit a new task — the payload expired |
 | `0x7376e0a2` | `InvalidTransitionIndex` | Contract state advanced since signing | Submit a new task; another transition landed first |
 | `0x8baa579f` | `InvalidSignature` | Recomputed digest ≠ `msgHash` | Payload was altered, or the target's ABI differs from the router's |
-| `0x6d8605db` | `InsufficientQuorumThreshold` | Signers hold under 66% of a quorum | Transient: too many operators missed the round |
-| `0xfbbb7b2b` | `InvalidStorageUpdates` | Updates could not be decoded | Report it — malformed payload |
-| `0x398d4d32` | `InvalidOperation` | Unrecognised update type | Report it — version mismatch |
+| `0x68477238` | `InvalidQuorumSignature` | The registry rejected the signature | See [below](#invalidquorumsignature) |
+| `0xc2e5347d` | `EmptyBatch` | `verifyAndUpdateBatch` called with no submissions | Report it — malformed batch |
+| `0x83a33c51` | `BlockStaleMeasureOverflow` | `_setBlockStaleMeasure` given a value above `uint96` | Fix the value your contract passes |
 | `0x287cdced` | `ReentrantTransition` | `verifyAndUpdate` re-entered mid-transition | A `CALL` update re-entered the contract; see `inTransition()` |
 | `0x493f09c4` | `RevertingContext` | A `CALL` update reverted | Often under-funded `msg.value`; carries the inner revert data |
 | `0x30116425` | `DeploymentFailed` | A `CREATE`/`CREATE2` update failed | Usually under-funded `msg.value` |
 | `0x5f6f132c` | `InvalidArguments` | Update arguments malformed | Report it |
 | `0x25773e13` | `MalformedLogPayload` | Log update malformed | Report it |
 
-Reverts that come from the restaking middleware's signature checker, not the SDK:
+Reverts that come from the `SchnorrStakeRegistry`, not the SDK:
 
 | Selector | Error | What it usually means |
 | --- | --- | --- |
-| `0xe1310aed` | `InvalidQuorumApkHash` | **Your `blsSignatureChecker` is bound to a different operator set than the router signs with.** See [Configuration](/docs/solidity/configuration#verify-your-own-wiring) |
-| `0x4b874f45` | `InvalidReferenceBlocknumber` | Reference block outside the checker's usable range |
-| `0xaffc5edb` | `StaleStakesForbidden` | Stake snapshot too old for the checker's policy |
-| `0x43714afd` | `InputArrayLengthMismatch` | Malformed non-signer arrays — report it |
+| `0xdc897c0c` | `StaleSnapshot` | The operator set changed after the reference block. Submit a new task |
+| `0x11ea130d` | `FutureReferenceBlock` | Reference block is not yet mined. Retry |
+| `0xbfc6c337` | `NotRegistered(address)` | A listed non-signer is not in this registry. **Your target may be wired to a different registry than the router signs for**, see [Configuration](/docs/solidity/configuration#verify-your-own-wiring) |
+| `0xedb3eb6c` | `NonSignersNotSorted` | Malformed non-signer list. Report it |
+
+### `InvalidQuorumSignature`
+
+The registry returned `false`. There are two causes:
+
+- **Too few signers.** The operators who signed hold less than the threshold
+  share of the registry's weight. This is transient: too many operators missed
+  the round.
+- **The aggregate doesn't match.** The key the registry holds is not the one the
+  operators signed with. If it happens on every task, your target is wired to
+  the wrong registry. If it happens once, the operator set changed mid-round
+  and a new task will settle.
 
 <Callout>
   Decode an unknown selector with `cast 4byte <selector>`, or recover a revert
