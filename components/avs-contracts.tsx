@@ -6,8 +6,9 @@ import { ROUTER_BASE_URL, fetchAvsContracts } from "@/lib/avs-metadata"
  * `GET /avs-metadata` at render time.
  *
  * The router is the only authority on these: they belong to whichever AVS
- * deployment is currently signing, and each redeployment provisions a new
- * stake registry. Reading them here means the page cannot drift from the
+ * deployment is currently signing. The stake registry is pinned so it survives
+ * a redeployment, but a migration to a new operator set moves it, and a new AVS
+ * moves avsAddress. Reading them here means the page cannot drift from the
  * deployment the way a hand-maintained table does.
  *
  * When the router publishes no contract set the last-verified pair is shown

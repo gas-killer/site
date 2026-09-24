@@ -2,7 +2,7 @@
  * Reads the router's published contract set from `GET /avs-metadata`.
  *
  * These addresses are properties of a specific AVS deployment, not constants of
- * the protocol: redeploying the operator set changes the stake registry, and a
+ * the protocol: migrating to a new operator set moves the stake registry, and a
  * target wired to a superseded one produces payloads that revert
  * `InvalidQuorumSignature`. Documenting them by hand is how they go stale, so the
  * Configuration page reads them from the router instead.
