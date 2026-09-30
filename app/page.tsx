@@ -40,10 +40,10 @@ export default function Home() {
                 </p>
                 <div className="flex flex-col sm:flex-row items-center gap-3">
                   <Link
-                    href="mailto:contact@gaskiller.xyz"
+                    href="/signup"
                     className="inline-flex items-center gap-2 text-black bg-white px-6 py-3 rounded-full hover:bg-zinc-200 transition-colors text-sm font-medium"
                   >
-                    Get in touch
+                    Get Started
                     <span aria-hidden>→</span>
                   </Link>
                   <Link

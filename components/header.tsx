@@ -86,10 +86,10 @@ export function Header() {
             </svg>
           </Link>
           <Link
-            href="mailto:contact@gaskiller.xyz"
+            href="/signup"
             className="text-sm text-black bg-white px-4 py-1.5 rounded-full hover:bg-zinc-200 transition-colors font-medium"
           >
-            Get in touch
+            Get Started
           </Link>
         </nav>
       </div>

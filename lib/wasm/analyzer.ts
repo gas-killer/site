@@ -4,6 +4,7 @@ export interface AnalyzeTraceResult {
   is_heuristic: boolean
   state_update_count: number
   skipped_opcodes: string[]
+  reentered: boolean
 }
 
 export interface EncodeTraceResult {
@@ -17,11 +18,18 @@ export interface EstimateGasResult {
   is_heuristic: boolean
   state_update_count: number
   skipped_opcodes: string[]
+  reentered: boolean
 }
 
 type WasmModule = {
-  analyze_trace: (traceJson: string, estimatorAddress: string, estimateStateChangesBlockNumber?: bigint) => AnalyzeTraceResult
-  estimate_gas_heuristic: (traceJson: string) => EstimateGasResult
+  analyze_trace: (
+    traceJson: string,
+    estimatorAddress: string,
+    callerAddress: string,
+    estimateStateChangesBlockNumber?: bigint | null,
+    originAddress?: string | null,
+  ) => AnalyzeTraceResult
+  estimate_gas_heuristic: (traceJson: string, originAddress?: string | null) => EstimateGasResult
   encode_trace: (traceJson: string) => EncodeTraceResult
   default: (moduleOrPath?: string) => Promise<unknown>
 }

@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server"
-
-export const runtime = "edge"
+import { auth } from "@/lib/auth"
 
 const RPC_URLS: Record<string, string | undefined> = {
   ethereum: process.env.RPC_ETHEREUM,
@@ -12,6 +11,11 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ network: string }> }
 ) {
+  // Traces are fetched through paid archive RPCs, so only signed-in users may proxy.
+  if (!(await auth.api.getSession({ headers: request.headers }))) {
+    return Response.json({ error: "Sign in to use the analyzer" }, { status: 401 })
+  }
+
   const { network } = await params
   const rpcUrl = RPC_URLS[network]
 
