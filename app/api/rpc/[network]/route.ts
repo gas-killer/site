@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
+import { ANALYZER_DISABLED } from "@/lib/analyzer-status"
 
 const RPC_URLS: Record<string, string | undefined> = {
   ethereum: process.env.RPC_ETHEREUM,
@@ -11,6 +12,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ network: string }> }
 ) {
+  if (ANALYZER_DISABLED) {
+    return Response.json({ error: "The analyzer is temporarily disabled" }, { status: 503 })
+  }
+
   // Traces are fetched through paid archive RPCs, so only signed-in users may proxy.
   if (!(await auth.api.getSession({ headers: request.headers }))) {
     return Response.json({ error: "Sign in to use the analyzer" }, { status: 401 })

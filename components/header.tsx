@@ -89,7 +89,7 @@ export function Header() {
             href="/signup"
             className="text-sm text-black bg-white px-4 py-1.5 rounded-full hover:bg-zinc-200 transition-colors font-medium"
           >
-            Get Started
+            Login/Sign Up
           </Link>
         </nav>
       </div>

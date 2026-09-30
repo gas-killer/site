@@ -13,6 +13,7 @@ import { loadWasm, resetWasm } from "@/lib/wasm/analyzer"
 import type { AnalyzeTraceResult } from "@/lib/wasm/analyzer"
 import { fetchTraceFromRpc, fetchTransactionInfo, extractOriginalGas, DEFAULT_ESTIMATOR_ADDRESS } from "@/lib/analyzer-utils"
 import { NETWORKS } from "@/lib/networks"
+import { ANALYZER_DISABLED } from "@/lib/analyzer-status"
 import { AnalysisResults } from "./analysis-results"
 
 type State = {
@@ -73,6 +74,8 @@ export function AnalyzerPage() {
   const [selectedNetwork, setSelectedNetwork] = useState(NETWORKS[0]?.id ?? "")
 
   useEffect(() => {
+    if (ANALYZER_DISABLED) return
+
     loadWasm()
       .then(() => dispatch({ type: "WASM_READY" }))
       .catch((e) => dispatch({ type: "WASM_ERROR", error: (e as Error).message }))
@@ -112,7 +115,7 @@ export function AnalyzerPage() {
       .catch((e) => dispatch({ type: "WASM_ERROR", error: (e as Error).message }))
   }
 
-  const canAnalyze = state.wasmStatus === "ready" && txHash.trim() && selectedNetwork && !state.isRunning
+  const canAnalyze = !ANALYZER_DISABLED && state.wasmStatus === "ready" && txHash.trim() && selectedNetwork && !state.isRunning
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-zinc-200">
@@ -131,26 +134,54 @@ export function AnalyzerPage() {
             </p>
           </div>
 
-          <p className="text-sm text-zinc-500">
-            Ready to integrate?{" "}
-            <Link href="/signup" className="text-zinc-300 underline underline-offset-4 hover:text-white">
-              Get an API key
-            </Link>{" "}
-            or read the{" "}
-            <Link href="/docs/quickstart" className="text-zinc-300 underline underline-offset-4 hover:text-white">
-              quickstart
-            </Link>
-            .
-          </p>
+          {ANALYZER_DISABLED ? (
+            <Alert className="border-amber-500/30 bg-amber-950/40 text-amber-100">
+              <AlertTitle className="text-amber-100">Temporarily disabled</AlertTitle>
+              <AlertDescription className="space-y-4 text-amber-100/80">
+                <p>
+                  The Gas Analyzer is switched off while we work on a few things, so savings
+                  estimates are unavailable for now. To try Gas Killer itself, request an API key
+                  from your dashboard and follow the quickstart to submit your first task.
+                </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <Link
+                    href="/dashboard"
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-zinc-200"
+                  >
+                    Get an API key
+                    <span aria-hidden>→</span>
+                  </Link>
+                  <Link
+                    href="/docs/quickstart"
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 px-5 py-2.5 text-sm text-white transition-colors hover:border-white/40 hover:bg-white/10"
+                  >
+                    Read the quickstart
+                  </Link>
+                </div>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <p className="text-sm text-zinc-500">
+              Ready to integrate?{" "}
+              <Link href="/signup" className="text-zinc-300 underline underline-offset-4 hover:text-white">
+                Get an API key
+              </Link>{" "}
+              or read the{" "}
+              <Link href="/docs/quickstart" className="text-zinc-300 underline underline-offset-4 hover:text-white">
+                quickstart
+              </Link>
+              .
+            </p>
+          )}
 
           {/* WASM status */}
-          {state.wasmStatus === "loading" && (
+          {!ANALYZER_DISABLED && state.wasmStatus === "loading" && (
             <div className="flex items-center gap-2 text-zinc-400">
               <Spinner className="text-zinc-400" />
               <span className="text-sm">Loading WebAssembly module...</span>
             </div>
           )}
-          {state.wasmStatus === "error" && (
+          {!ANALYZER_DISABLED && state.wasmStatus === "error" && (
             <Alert variant="destructive" className="border-rose-500/30 bg-rose-950/40 text-rose-200">
               <AlertTitle>WASM failed to load</AlertTitle>
               <AlertDescription className="flex items-center justify-between">
@@ -179,6 +210,7 @@ export function AnalyzerPage() {
                     <Button
                       key={n.id}
                       size="sm"
+                      disabled={ANALYZER_DISABLED}
                       onClick={() => setSelectedNetwork(n.id)}
                       className={
                         selectedNetwork === n.id
@@ -197,6 +229,7 @@ export function AnalyzerPage() {
                 <Input
                   placeholder="0x..."
                   value={txHash}
+                  disabled={ANALYZER_DISABLED}
                   onChange={(e) => setTxHash(e.target.value)}
                   className="font-mono border-white/10 bg-black text-white placeholder:text-zinc-600 focus-visible:ring-white/20"
                 />
