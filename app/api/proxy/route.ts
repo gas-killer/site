@@ -39,13 +39,42 @@ function allowedOrigins(): string[] {
 }
 
 /**
+ * Matchers for the paths `openapi.json` documents, with `{param}` segments matching one segment.
+ *
+ * The router serves more than it publishes (the `/admin` surface is stripped from the spec), so
+ * an origin allowlist alone would let this route reach undocumented paths on an allowed host.
+ */
+function allowedPaths(): RegExp[] {
+  return Object.keys(spec.paths).map((template) => {
+    const pattern = template
+      .split(/\{[^/}]+\}/)
+      .map((literal) => literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("[^/]+")
+    return new RegExp(`^${pattern}$`)
+  })
+}
+
+const paths = allowedPaths()
+
+/**
  * Same-origin proxy for the OpenAPI playground's "Send" button.
  *
  * The playground runs in the browser, so a direct request to the router (a different origin) is
  * blocked by CORS. The playground posts to this route instead, which forwards to the target
- * server-side. `allowedOrigins` restricts forwarding to the hosts `openapi.json` declares, so
- * this is not an open proxy.
+ * server-side. Forwarding is restricted to the hosts and paths `openapi.json` declares, so this
+ * is not an open proxy.
  */
-const proxy = openapi.createProxy({ allowedOrigins: allowedOrigins() })
+const proxy = openapi.createProxy({
+  allowedOrigins: allowedOrigins(),
+  filterRequest: (request) => paths.some((path) => path.test(new URL(request.url).pathname)),
+  overrides: {
+    // The browser sends this site's cookies, including the session, and the router uses none.
+    request: (request) => {
+      const headers = new Headers(request.headers)
+      headers.delete("cookie")
+      return new Request(request, { headers })
+    },
+  },
+})
 
 export const { GET, POST, PUT, DELETE, PATCH, HEAD } = proxy
