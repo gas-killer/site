@@ -47,10 +47,10 @@ export default function Home() {
                     <span aria-hidden>→</span>
                   </Link>
                   <Link
-                    href="#what"
+                    href="/docs"
                     className="inline-flex items-center gap-2 text-white border border-white/20 px-6 py-3 rounded-full hover:bg-white/10 hover:border-white/40 transition-colors text-sm"
                   >
-                    How it works
+                    Documentation
                   </Link>
                 </div>
               </div>
