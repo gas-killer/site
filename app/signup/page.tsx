@@ -6,7 +6,7 @@ import { SignupForm } from "@/components/account/signup-form"
 import { auth } from "@/lib/auth"
 
 export const metadata: Metadata = {
-  title: "Get Started | Gas Killer",
+  title: "Sign Up | Gas Killer",
   description: "Create a Gas Killer account to use the gas analyzer and request an API key.",
 }
 
@@ -15,7 +15,7 @@ export default async function SignupPage() {
 
   return (
     <AccountShell
-      eyebrow="Get Started"
+      eyebrow="Sign Up"
       title="Create your account."
       intro="All we need is your email. Confirm it to request an API key, and use the gas analyzer to see how much Gas Killer would save you."
     >

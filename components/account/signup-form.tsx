@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { Controller, useForm } from "react-hook-form"
@@ -15,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
 import { authClient } from "@/lib/auth-client"
+import { AuthTabs } from "@/components/account/auth-tabs"
 
 const schema = z.object({
   email: z.email("Enter a valid email address"),
@@ -77,6 +77,9 @@ export function SignupForm() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
       <Card className="border-white/10 bg-zinc-950 text-zinc-200">
+        <div className="px-6 pt-6">
+          <AuthTabs active="signup" />
+        </div>
         <CardContent className="space-y-6 pt-6">
           <div className="space-y-2">
             <Label htmlFor="email" className={labelClass}>Email</Label>
@@ -116,14 +119,10 @@ export function SignupForm() {
           </div>
           {error && <p className="text-sm text-rose-300">{error}</p>}
         </CardContent>
-        <CardFooter className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <CardFooter>
           <Button type="submit" disabled={formState.isSubmitting} className="bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500">
             {formState.isSubmitting ? <><Spinner className="mr-2 text-black" />Creating account...</> : "Create account"}
           </Button>
-          <p className="text-sm text-zinc-500">
-            Already signed up?{" "}
-            <Link href="/login" className="text-zinc-300 underline underline-offset-4 hover:text-white">Sign in</Link>
-          </p>
         </CardFooter>
       </Card>
     </form>

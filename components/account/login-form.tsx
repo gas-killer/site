@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
 import { authClient } from "@/lib/auth-client"
+import { AuthTabs } from "@/components/account/auth-tabs"
 
 const LINK_ERRORS: Record<string, string> = {
   INVALID_TOKEN: "That sign-in link has expired or was already used. Request a new one.",
@@ -42,7 +43,9 @@ export function LoginForm({ next, linkError }: { next: string; linkError?: strin
       <Alert className="border-white/10 bg-zinc-950 text-zinc-200">
         <AlertDescription className="text-zinc-300">
           If <strong className="text-white">{sentTo}</strong> has an account, a sign-in link is on its way. It expires in
-          15 minutes.
+          15 minutes. No email?{" "}
+          <Link href="/signup" className="text-zinc-200 underline underline-offset-4 hover:text-white">Sign up</Link>{" "}
+          to create an account.
         </AlertDescription>
       </Alert>
     )
@@ -51,6 +54,9 @@ export function LoginForm({ next, linkError }: { next: string; linkError?: strin
   return (
     <form onSubmit={onSubmit}>
       <Card className="border-white/10 bg-zinc-950 text-zinc-200">
+        <div className="px-6 pt-6">
+          <AuthTabs active="signin" />
+        </div>
         <CardContent className="space-y-2 pt-6">
           <Label htmlFor="email" className="text-zinc-400 text-xs uppercase tracking-widest">Email</Label>
           <Input
@@ -65,14 +71,10 @@ export function LoginForm({ next, linkError }: { next: string; linkError?: strin
           />
           {error && <p className="pt-2 text-sm text-rose-300">{error}</p>}
         </CardContent>
-        <CardFooter className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <CardFooter>
           <Button type="submit" disabled={pending} className="bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500">
             {pending ? <><Spinner className="mr-2 text-black" />Sending...</> : "Email me a sign-in link"}
           </Button>
-          <p className="text-sm text-zinc-500">
-            New here?{" "}
-            <Link href="/signup" className="text-zinc-300 underline underline-offset-4 hover:text-white">Get started</Link>
-          </p>
         </CardFooter>
       </Card>
     </form>
