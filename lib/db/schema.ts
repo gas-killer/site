@@ -23,6 +23,8 @@ export const user = pgTable("user", {
     .notNull(),
   company: text("company"),
   useCase: text("use_case"),
+  newsletterOptIn: boolean("newsletter_opt_in").default(false).notNull(),
+  newsletterSubscribedAt: timestamp("newsletter_subscribed_at"),
 });
 
 export const session = pgTable(

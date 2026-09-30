@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { useForm } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
 import { authClient } from "@/lib/auth-client"
@@ -20,6 +21,7 @@ const schema = z.object({
   name: z.string().max(100).optional(),
   company: z.string().max(100).optional(),
   useCase: z.string().max(1000).optional(),
+  newsletter: z.boolean(),
 })
 
 type Values = z.infer<typeof schema>
@@ -31,7 +33,10 @@ export function SignupForm() {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [existingEmail, setExistingEmail] = useState<string | null>(null)
-  const { register, handleSubmit, formState } = useForm<Values>({ resolver: zodResolver(schema) })
+  const { register, control, handleSubmit, formState } = useForm<Values>({
+    resolver: zodResolver(schema),
+    defaultValues: { newsletter: false },
+  })
 
   async function onSubmit(values: Values) {
     setError(null)
@@ -91,6 +96,23 @@ export function SignupForm() {
           <div className="space-y-2">
             <Label htmlFor="useCase" className={labelClass}>What are you building? <span className="normal-case tracking-normal text-zinc-600">(optional)</span></Label>
             <Textarea id="useCase" rows={3} className={inputClass} {...register("useCase")} />
+          </div>
+          <div className="flex items-start gap-3">
+            <Controller
+              control={control}
+              name="newsletter"
+              render={({ field }) => (
+                <Checkbox
+                  id="newsletter"
+                  checked={field.value}
+                  onCheckedChange={(checked) => field.onChange(checked === true)}
+                  className="mt-0.5 border-white/30 data-[state=checked]:bg-white data-[state=checked]:text-black"
+                />
+              )}
+            />
+            <Label htmlFor="newsletter" className="text-sm font-normal leading-snug text-zinc-400">
+              Send me Gas Killer updates. You can unsubscribe from any email.
+            </Label>
           </div>
           {error && <p className="text-sm text-rose-300">{error}</p>}
         </CardContent>

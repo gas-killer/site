@@ -9,6 +9,7 @@ import * as z from "zod"
 import { db } from "@/lib/db"
 import * as schema from "@/lib/db/schema"
 import { sendSignInEmail } from "@/lib/email"
+import { subscribeAfterResponse } from "@/lib/newsletter"
 
 const optionalText = (max: number) =>
   z
@@ -23,6 +24,7 @@ export const signUpBodySchema = z.object({
   name: optionalText(100),
   company: optionalText(100),
   useCase: optionalText(1000),
+  newsletter: z.boolean().optional(),
 })
 
 /**
@@ -39,10 +41,11 @@ const emailOnlySignUp = () =>
         "/sign-up/email-only",
         { method: "POST", body: signUpBodySchema },
         async (ctx) => {
-          const { email, name, company, useCase } = ctx.body
+          const { email, name, company, useCase, newsletter } = ctx.body
           const normalized = email.toLowerCase()
 
-          // An existing account gets no session here; the caller sends a magic link instead.
+          // An existing account gets no session here, and its newsletter choice is left alone: the
+          // request proves nothing about who controls the address. The caller sends a magic link.
           const existing = await ctx.context.internalAdapter.findUserByEmail(normalized)
           if (existing) return ctx.json({ created: false })
 
@@ -52,6 +55,7 @@ const emailOnlySignUp = () =>
             name: name ?? "",
             company: company ?? null,
             useCase: useCase ?? null,
+            newsletterOptIn: newsletter ?? false,
           }, { method: "email-only" })
           if (!user) throw new APIError("INTERNAL_SERVER_ERROR", { message: "Failed to create user" })
 
@@ -79,6 +83,20 @@ export const auth = betterAuth({
     additionalFields: {
       company: { type: "string", required: false, input: false },
       useCase: { type: "string", required: false, input: false },
+      newsletterOptIn: { type: "boolean", required: false, defaultValue: false, input: false },
+      newsletterSubscribedAt: { type: "date", required: false, input: false },
+    },
+  },
+  databaseHooks: {
+    user: {
+      update: {
+        // Confirming the email is the point an opt-in becomes a real address worth subscribing.
+        after: async (updated) => {
+          if (updated.emailVerified && updated.newsletterOptIn && !updated.newsletterSubscribedAt) {
+            subscribeAfterResponse(updated.id, updated.email)
+          }
+        },
+      },
     },
   },
   session: {
