@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "npm run copy:wasm && next build",
-    "copy:wasm": "mkdir -p public/wasm && cp node_modules/@gas-killer/gas-killer-wasm/gas_killer_wasm.js public/wasm/ && cp node_modules/@gas-killer/gas-killer-wasm/gas_killer_wasm_bg.wasm public/wasm/",
+    "copy:wasm": "mkdir -p public/wasm && cp node_modules/@gas-killer/analyzer-wasm/gas_killer_wasm.js public/wasm/ && cp node_modules/@gas-killer/analyzer-wasm/gas_killer_wasm_bg.wasm public/wasm/",
     "dev": "npm run copy:wasm && next dev",
     "lint": "eslint .",
     "start": "next start",
@@ -17,7 +17,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@gas-killer/gas-killer-wasm": "^0.2.0",
+    "@gas-killer/analyzer-wasm": "^0.2.0",
     "@hookform/resolvers": "^5.9.1",
     "@noble/hashes": "^2.4.0",
     "@radix-ui/react-accordion": "1.2.2",
