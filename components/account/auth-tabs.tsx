@@ -7,17 +7,21 @@ const TABS = [
 ] as const
 
 // Separate pages rather than in-page tabs, so each has its own URL for the header and redirects.
+// The active tab shares the box's background and drops its bottom rule, so it reads as the open folder.
 export function AuthTabs({ active }: { active: (typeof TABS)[number]["id"] }) {
   return (
-    <nav aria-label="Account" className="grid grid-cols-2 gap-1 rounded-full border border-white/10 bg-black p-1">
-      {TABS.map((tab) => (
+    <nav aria-label="Account" className="grid grid-cols-2">
+      {TABS.map((tab, i) => (
         <Link
           key={tab.id}
           href={tab.href}
           aria-current={tab.id === active ? "page" : undefined}
           className={cn(
-            "rounded-full px-4 py-2 text-center text-sm font-medium transition-colors",
-            tab.id === active ? "bg-white text-black" : "text-zinc-400 hover:bg-white/10 hover:text-white",
+            "font-display px-6 py-4 text-center text-xs font-semibold uppercase tracking-[0.18em] transition-colors",
+            i === 0 && "border-r-2 border-[color:var(--poster-ink)]",
+            tab.id === active
+              ? "bg-zinc-950 text-white"
+              : "border-b-2 border-b-[color:var(--poster-ink)] bg-black text-zinc-400 hover:text-white",
           )}
         >
           {tab.label}

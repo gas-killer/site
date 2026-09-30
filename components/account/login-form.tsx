@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -53,10 +53,8 @@ export function LoginForm({ next, linkError }: { next: string; linkError?: strin
 
   return (
     <form onSubmit={onSubmit}>
-      <Card className="border-white/10 bg-zinc-950 text-zinc-200">
-        <div className="px-6 pt-6">
-          <AuthTabs active="signin" />
-        </div>
+      <div className="poster-frame bg-zinc-950 text-zinc-200">
+        <AuthTabs active="signin" />
         <CardContent className="space-y-2 pt-6">
           <Label htmlFor="email" className="text-zinc-400 text-xs uppercase tracking-widest">Email</Label>
           <Input
@@ -76,7 +74,7 @@ export function LoginForm({ next, linkError }: { next: string; linkError?: strin
             {pending ? <><Spinner className="mr-2 text-black" />Sending...</> : "Email me a sign-in link"}
           </Button>
         </CardFooter>
-      </Card>
+      </div>
     </form>
   )
 }

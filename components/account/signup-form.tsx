@@ -5,7 +5,7 @@ import { useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -76,10 +76,8 @@ export function SignupForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
-      <Card className="border-white/10 bg-zinc-950 text-zinc-200">
-        <div className="px-6 pt-6">
-          <AuthTabs active="signup" />
-        </div>
+      <div className="poster-frame bg-zinc-950 text-zinc-200">
+        <AuthTabs active="signup" />
         <CardContent className="space-y-6 pt-6">
           <div className="space-y-2">
             <Label htmlFor="email" className={labelClass}>Email</Label>
@@ -124,7 +122,7 @@ export function SignupForm() {
             {formState.isSubmitting ? <><Spinner className="mr-2 text-black" />Creating account...</> : "Create account"}
           </Button>
         </CardFooter>
-      </Card>
+      </div>
     </form>
   )
 }

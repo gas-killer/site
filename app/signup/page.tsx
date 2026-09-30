@@ -15,9 +15,8 @@ export default async function SignupPage() {
 
   return (
     <AccountShell
-      eyebrow="Sign Up"
       title="Create your account."
-      intro="All we need is your email. Confirm it to request an API key, and use the gas analyzer to see how much Gas Killer would save you."
+      intro="All we need is your email. Confirm it to request an API key and start submitting tasks."
     >
       <SignupForm />
     </AccountShell>
