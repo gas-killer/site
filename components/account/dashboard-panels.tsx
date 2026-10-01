@@ -53,22 +53,27 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
   const [error, setError] = useState<string | null>(null)
   const [issued, setIssued] = useState<(KeySummary & { key: string }) | null>(null)
   const [copied, setCopied] = useState(false)
+  const [confirmingRotate, setConfirmingRotate] = useState(false)
 
   const active = latestKey && new Date(latestKey.expiresAt) > new Date() ? latestKey : null
   const expired = latestKey && !active ? latestKey : null
 
-  async function requestKey() {
+  async function submit(endpoint: "/api/keys" | "/api/keys/rotate", fallbackError: string) {
     setPending(true)
     setError(null)
-    const resp = await fetch("/api/keys", { method: "POST" })
+    const resp = await fetch(endpoint, { method: "POST" })
     const body = await resp.json().catch(() => null)
     setPending(false)
+    setConfirmingRotate(false)
     if (!resp.ok) {
-      setError(body?.error ?? "Could not issue an API key.")
+      setError(body?.error ?? fallbackError)
       return
     }
     setIssued(body)
   }
+
+  const requestKey = () => submit("/api/keys", "Could not issue an API key.")
+  const rotateKey = () => submit("/api/keys/rotate", "Could not rotate your API key.")
 
   async function copy() {
     if (!issued) return
@@ -88,6 +93,7 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
         <CardTitle className="text-white">API key</CardTitle>
         <CardDescription className="text-zinc-400">
           Keys authenticate requests to the Gas Killer router and last 30 days. Request a new one when yours expires.
+          Rotating swaps in a new key with the same expiry date.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -121,12 +127,34 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
         ) : (
           <p className="text-sm text-zinc-400">You don't have an API key yet.</p>
         )}
+        {active && !issued && confirmingRotate && (
+          <Alert className="border-amber-500/30 bg-amber-950/40 text-amber-100">
+            <AlertTitle className="text-amber-100">Rotate this key?</AlertTitle>
+            <AlertDescription className="text-amber-100/80">
+              <span className="font-mono">{active.keyPrefix}…</span> stops working immediately. The new key expires on{" "}
+              {formatDate(active.expiresAt)}, the same date as the current one.
+            </AlertDescription>
+          </Alert>
+        )}
         {error && <p className="text-sm text-rose-300">{error}</p>}
       </CardContent>
       <CardFooter className="flex flex-wrap gap-3">
         {issued ? (
           <Button onClick={done} variant="outline" className={outlineButton}>I've stored my key</Button>
-        ) : !active && (
+        ) : active ? (
+          confirmingRotate ? (
+            <>
+              <Button onClick={rotateKey} disabled={pending} className={primaryButton}>
+                {pending ? <><Spinner className="mr-2 text-black" />Rotating...</> : "Rotate key"}
+              </Button>
+              <Button onClick={() => setConfirmingRotate(false)} disabled={pending} variant="outline" className={outlineButton}>
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => setConfirmingRotate(true)} variant="outline" className={outlineButton}>Rotate key</Button>
+          )
+        ) : (
           <Button onClick={requestKey} disabled={!emailVerified || pending} className={primaryButton}>
             {pending ? <><Spinner className="mr-2 text-black" />Requesting...</> : expired ? "Request new key" : "Request API key"}
           </Button>
