@@ -302,21 +302,11 @@ export default function Home() {
 
           {/* Footer */}
           <footer className="w-full border-t border-white/10 py-10">
-            <div className="container px-4 md:px-8 max-w-6xl flex flex-col items-end gap-3 text-right text-sm">
+            <div className="container px-4 md:px-8 max-w-6xl flex flex-col items-end gap-2 text-right text-sm">
               <Link href="mailto:contact@gaskiller.xyz" className="text-zinc-400 hover:text-white transition-colors">
                 contact@gaskiller.xyz
               </Link>
               <p className="text-zinc-600">© 2026 Gas Killer</p>
-              {/* The PNG is mostly transparent padding, so crop to the mark itself for a flush right edge. */}
-              <div className="relative mt-2 h-6 w-[58px] overflow-hidden">
-                <Image
-                  src="/brand/gk-wordmark-transparent.png"
-                  alt="Gas Killer"
-                  width={200}
-                  height={200}
-                  className="absolute max-w-none w-[97px] h-[97px] left-[-20px] top-[-35px]"
-                />
-              </div>
             </div>
           </footer>
         </main>
