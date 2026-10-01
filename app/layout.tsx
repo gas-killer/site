@@ -28,6 +28,8 @@ export const metadata: Metadata = {
   description:
     "Secure contracts shouldn't cost more. Gas Killer simulates transactions off-chain and writes back only the essential state changes, replacing expensive computation with aggregate signature verification.",
   metadataBase: new URL("https://gaskiller.xyz"),
+  // Mobile browsers otherwise turn every displayed address (a user's own email, mostly) into a mailto link.
+  formatDetection: { email: false },
   openGraph: {
     title: "Gas Killer",
     description: "Secure contracts shouldn't cost more.",
