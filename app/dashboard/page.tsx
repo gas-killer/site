@@ -22,8 +22,9 @@ export default async function DashboardPage() {
   const { user } = session
   const latestKey = await getLatestApiKey(user.id)
 
+  // Not greeted by name: anyone can set it at signup before the owner confirms the email.
   return (
-    <AccountShell eyebrow="Dashboard" title={user.name ? `Hi, ${user.name}.` : "Your account."}>
+    <AccountShell eyebrow="Dashboard" title="Your account.">
       <div className="flex items-center justify-between gap-4 text-sm text-zinc-400">
         <div className="flex min-w-0 items-center gap-3">
           <UserAvatar seed={user.id} className="size-10 shrink-0 overflow-hidden rounded-full ring-1 ring-white/20" />

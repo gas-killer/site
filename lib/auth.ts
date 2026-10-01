@@ -115,7 +115,12 @@ export const auth = betterAuth({
         // Unknown addresses get the same response but no email, so the form can't enumerate accounts.
         const found = await ctx?.context.internalAdapter.findUserByEmail(email.toLowerCase())
         if (!found) return
-        await sendSignInEmail(email, url, !found.user.emailVerified)
+        const isNewUser = !found.user.emailVerified
+        await sendSignInEmail(email, url, {
+          isNewUser,
+          // Additional fields are on the row but not in the adapter's return type.
+          subscribesOnConfirm: isNewUser && "newsletterOptIn" in found.user && found.user.newsletterOptIn === true,
+        })
       },
     }),
     nextCookies(),
