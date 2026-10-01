@@ -11,7 +11,10 @@ export const metadata: Metadata = {
 }
 
 export default async function AnalyzerRoute() {
-  if (!(await auth.api.getSession({ headers: await headers() }))) redirect("/login?next=/analyzer")
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session) redirect("/login?next=/analyzer")
+  // The RPC proxy refuses unconfirmed users; the dashboard is where they can resend the confirmation.
+  if (!session.user.emailVerified) redirect("/dashboard")
 
   return <AnalyzerLoader />
 }
