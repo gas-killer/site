@@ -204,14 +204,22 @@ async function withRunLock<T>(fn: () => Promise<T>): Promise<T> {
   const prev = localChain
   let release!: () => void
   localChain = new Promise<void>((r) => (release = r))
+  let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    let timer: ReturnType<typeof setTimeout> | undefined
     await Promise.race([
       prev,
       new Promise((_, reject) => {
         timer = setTimeout(() => reject(new LifeRunError(503, "BUSY", BUSY)), LOCK_WAIT_MS)
       }),
-    ]).finally(() => clearTimeout(timer))
+    ])
+  } catch (err) {
+    // Giving up must not free the slot early: whoever queued behind us would overlap the run still in progress.
+    prev.finally(release)
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+  try {
     return await fn()
   } finally {
     release()
