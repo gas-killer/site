@@ -3,9 +3,21 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { RotateCw } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Spinner } from "@/components/ui/spinner"
 import { authClient } from "@/lib/auth-client"
 
@@ -53,7 +65,6 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
   const [error, setError] = useState<string | null>(null)
   const [issued, setIssued] = useState<(KeySummary & { key: string }) | null>(null)
   const [copied, setCopied] = useState(false)
-  const [confirmingRotate, setConfirmingRotate] = useState(false)
 
   const active = latestKey && new Date(latestKey.expiresAt) > new Date() ? latestKey : null
   const expired = latestKey && !active ? latestKey : null
@@ -64,7 +75,6 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
     const resp = await fetch(endpoint, { method: "POST" })
     const body = await resp.json().catch(() => null)
     setPending(false)
-    setConfirmingRotate(false)
     if (!resp.ok) {
       setError(body?.error ?? fallbackError)
       return
@@ -93,7 +103,6 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
         <CardTitle className="text-white">API key</CardTitle>
         <CardDescription className="text-zinc-400">
           Keys authenticate requests to the Gas Killer router and last 30 days. Request a new one when yours expires.
-          Rotating swaps in a new key with the same expiry date.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -114,7 +123,13 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
           </div>
         ) : active ? (
           <dl className="grid grid-cols-3 gap-4 text-sm">
-            <div><dt className="text-zinc-500">Key</dt><dd className="font-mono text-white">{active.keyPrefix}…</dd></div>
+            <div>
+              <dt className="text-zinc-500">Key</dt>
+              <dd className="flex items-center gap-2 font-mono text-white">
+                {active.keyPrefix}…
+                <RotateKeyButton keyPrefix={active.keyPrefix} expiresAt={active.expiresAt} pending={pending} onConfirm={rotateKey} />
+              </dd>
+            </div>
             <div><dt className="text-zinc-500">Created</dt><dd className="text-white">{formatDate(active.createdAt)}</dd></div>
             <div><dt className="text-zinc-500">Expires</dt><dd className="text-white">{formatDate(active.expiresAt)}</dd></div>
           </dl>
@@ -127,34 +142,12 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
         ) : (
           <p className="text-sm text-zinc-400">You don't have an API key yet.</p>
         )}
-        {active && !issued && confirmingRotate && (
-          <Alert className="border-amber-500/30 bg-amber-950/40 text-amber-100">
-            <AlertTitle className="text-amber-100">Rotate this key?</AlertTitle>
-            <AlertDescription className="text-amber-100/80">
-              <span className="font-mono">{active.keyPrefix}…</span> stops working immediately. The new key expires on{" "}
-              {formatDate(active.expiresAt)}, the same date as the current one.
-            </AlertDescription>
-          </Alert>
-        )}
         {error && <p className="text-sm text-rose-300">{error}</p>}
       </CardContent>
       <CardFooter className="flex flex-wrap gap-3">
         {issued ? (
           <Button onClick={done} variant="outline" className={outlineButton}>I've stored my key</Button>
-        ) : active ? (
-          confirmingRotate ? (
-            <>
-              <Button onClick={rotateKey} disabled={pending} className={primaryButton}>
-                {pending ? <><Spinner className="mr-2 text-black" />Rotating...</> : "Rotate key"}
-              </Button>
-              <Button onClick={() => setConfirmingRotate(false)} disabled={pending} variant="outline" className={outlineButton}>
-                Cancel
-              </Button>
-            </>
-          ) : (
-            <Button onClick={() => setConfirmingRotate(true)} variant="outline" className={outlineButton}>Rotate key</Button>
-          )
-        ) : (
+        ) : !active && (
           <Button onClick={requestKey} disabled={!emailVerified || pending} className={primaryButton}>
             {pending ? <><Spinner className="mr-2 text-black" />Requesting...</> : expired ? "Request new key" : "Request API key"}
           </Button>
@@ -164,6 +157,47 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
         </Button>
       </CardFooter>
     </Card>
+  )
+}
+
+function RotateKeyButton({
+  keyPrefix,
+  expiresAt,
+  pending,
+  onConfirm,
+}: {
+  keyPrefix: string
+  expiresAt: string
+  pending: boolean
+  onConfirm: () => void
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <button
+          type="button"
+          disabled={pending}
+          aria-label="Rotate key"
+          title="Rotate key"
+          className="rounded-full p-1 text-zinc-400 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+        >
+          {pending ? <Spinner className="size-4" /> : <RotateCw className="size-4" />}
+        </button>
+      </AlertDialogTrigger>
+      <AlertDialogContent className="border-white/10 bg-zinc-950 text-zinc-200">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-white">Rotate your API key?</AlertDialogTitle>
+          <AlertDialogDescription className="text-zinc-400">
+            <span className="font-mono text-zinc-200">{keyPrefix}…</span> stops working immediately and you'll get a new
+            key. This does not extend the expiration date: the new key still expires on {formatDate(expiresAt)}.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel className={outlineButton}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm} className={primaryButton}>Yes</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
