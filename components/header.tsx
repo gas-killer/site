@@ -114,6 +114,9 @@ export function Header() {
           </Link>
           <AccountButton />
         </nav>
+        <div className="md:hidden">
+          <AccountButton />
+        </div>
       </div>
     </header>
   )
