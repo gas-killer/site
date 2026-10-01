@@ -1,6 +1,5 @@
 import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
-import { NAIVE_GAS, type Generations } from "@/lib/life/config"
 import { recordSettlement, reserveRun } from "@/lib/life/quota"
 import { LifeRunError, runGenerations } from "@/lib/life/run"
 
@@ -16,7 +15,7 @@ export async function POST(request: Request) {
   }
 
   const { generations = 1 } = ((await request.json().catch(() => ({}))) ?? {}) as { generations?: unknown }
-  if (!Object.hasOwn(NAIVE_GAS, String(generations))) {
+  if (generations !== 1 && generations !== 2) {
     return Response.json({ code: "INVALID_GENERATIONS", error: "generations must be 1 or 2." }, { status: 400 })
   }
 
@@ -28,7 +27,7 @@ export async function POST(request: Request) {
         { status: 429 },
       )
     }
-    const { txHash, taskId } = await runGenerations(generations as Generations)
+    const { txHash, taskId } = await runGenerations(generations)
     await recordSettlement(runId, txHash).catch((e) => console.error("life run record failed", e))
     return Response.json({ txHash, taskId })
   } catch (e) {
