@@ -4,8 +4,8 @@ import { NAIVE_GAS, type Generations } from "@/lib/life/config"
 import { recordSettlement, reserveRun } from "@/lib/life/quota"
 import { LifeRunError, runGenerations } from "@/lib/life/run"
 
-// Waiting for the operator quorum and the settlement receipt can take a couple of minutes.
-export const maxDuration = 180
+// The Hobby plan's ceiling; lib/life/run.ts budgets its retries to fit inside it.
+export const maxDuration = 60
 
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers(), query: { disableCookieCache: true } })

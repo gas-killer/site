@@ -23,11 +23,17 @@ const BUSY = "Lots of people are running generations. Try again in a few seconds
 
 const rpcUrl = () => process.env.RPC_SEPOLIA || "https://ethereum-sepolia-rpc.publicnode.com"
 
+// The route's maxDuration is 60s (the Hobby plan's ceiling); this leaves headroom for auth and the quota check.
+const RUN_BUDGET_MS = 50_000
+// Time a queued run may wait for this instance's previous run before giving up.
+const LOCK_WAIT_MS = 20_000
+
 export function runGenerations(generations: Generations): Promise<{ txHash: Hex; taskId: string }> {
-  return withRunLock(() => settleGenerations(generations))
+  const deadline = Date.now() + RUN_BUDGET_MS
+  return withRunLock(() => settleGenerations(generations, deadline))
 }
 
-async function settleGenerations(generations: Generations): Promise<{ txHash: Hex; taskId: string }> {
+async function settleGenerations(generations: Generations, deadline: number): Promise<{ txHash: Hex; taskId: string }> {
   const pk = process.env.LIFE_RELAYER_PRIVATE_KEY as Hex | undefined
   if (!pk) throw new Error("LIFE_RELAYER_PRIVATE_KEY is not set")
   const account = privateKeyToAccount(pk)
@@ -40,12 +46,11 @@ async function settleGenerations(generations: Generations): Promise<{ txHash: He
   // other run settles first. Function instances don't share memory, so the relayer's nonce is the
   // lock: we note nonce N while the board is settled, compute, and send with exactly nonce N. If
   // another run took N first, ours is dropped or rejected and we go again against the new board.
-  const deadline = Date.now() + 150_000
   let lastError = ""
   while (Date.now() < deadline) {
     const { height, generation, nonce } = await settledState(publicClient, account.address, deadline)
     const taskId = await submitTask(callData, account.address, Number(height))
-    const task = await waitForTask(taskId)
+    const task = await waitForTask(taskId, deadline)
     if (task.status !== "ready" || !task.payload) {
       lastError = task.error ?? task.status
       continue
@@ -78,8 +83,9 @@ async function settleGenerations(generations: Generations): Promise<{ txHash: He
       continue
     }
 
-    const outcome = await awaitOwnSettlement(publicClient, account.address, txHash, nonce)
-    if (outcome === "success") return { txHash, taskId }
+    const outcome = await awaitOwnSettlement(publicClient, account.address, txHash, nonce, deadline)
+    // Out of time with the tx still pending: the page waits for the receipt itself.
+    if (outcome === "success" || outcome === "pending") return { txHash, taskId }
     lastError = outcome === "reverted" ? "settlement reverted" : "another run took this slot"
   }
   throw new LifeRunError(503, "BUSY", `The board is busy with other runs. Try again in a few seconds. (${lastError.slice(0, 120)})`)
@@ -121,9 +127,9 @@ async function awaitOwnSettlement(
   relayer: Hex,
   hash: Hex,
   nonce: number,
-): Promise<"success" | "reverted" | "replaced"> {
-  const until = Date.now() + 45_000
-  while (Date.now() < until) {
+  deadline: number,
+): Promise<"success" | "reverted" | "replaced" | "pending"> {
+  while (Date.now() < deadline) {
     const receipt = await client.getTransactionReceipt({ hash }).catch(() => null)
     if (receipt) return receipt.status === "success" ? "success" : "reverted"
     const mined = await client.getTransactionCount({ address: relayer, blockTag: "latest" })
@@ -135,7 +141,7 @@ async function awaitOwnSettlement(
     }
     await new Promise((r) => setTimeout(r, 1500))
   }
-  return "replaced"
+  return "pending"
 }
 
 function gk(path: string, init: RequestInit = {}): Promise<Response> {
@@ -177,8 +183,8 @@ async function submitTask(callData: Hex, from: Hex, blockHeight: number): Promis
   }
 }
 
-async function waitForTask(taskId: string): Promise<TaskView> {
-  const deadline = Date.now() + 25_000
+async function waitForTask(taskId: string, runDeadline: number): Promise<TaskView> {
+  const deadline = Math.min(Date.now() + 25_000, runDeadline)
   while (Date.now() < deadline) {
     const res = await gk(`/tasks/${taskId}`)
     if (res.status === 409) return { task_id: taskId, status: "expired", error: "payload expired", payload: null }
@@ -192,7 +198,6 @@ async function waitForTask(taskId: string): Promise<TaskView> {
 
 // Runs must settle one after another, since each diff is computed against the board the previous one
 // left. This only queues runs within an instance; across instances the relayer nonce above decides.
-const LOCK_WAIT_MS = 60_000
 let localChain: Promise<unknown> = Promise.resolve()
 
 async function withRunLock<T>(fn: () => Promise<T>): Promise<T> {
