@@ -3,7 +3,7 @@ import Link from "next/link"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { AccountShell } from "@/components/account/account-shell"
-import { ApiKeyPanel, ConfirmEmailBanner } from "@/components/account/dashboard-panels"
+import { ApiKeyPanel, ConfirmEmailBanner, SignOutButton } from "@/components/account/dashboard-panels"
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { auth } from "@/lib/auth"
@@ -23,9 +23,10 @@ export default async function DashboardPage() {
 
   return (
     <AccountShell eyebrow="Dashboard" title={user.name ? `Hi, ${user.name}.` : "Your account."}>
-      <p className="text-sm text-zinc-400">
-        Signed in as <span className="text-zinc-200">{user.email}</span>
-      </p>
+      <div className="flex items-center justify-between gap-4 text-sm text-zinc-400">
+        <span>Signed in as <span className="text-zinc-200">{user.email}</span></span>
+        <SignOutButton />
+      </div>
 
       {!user.emailVerified && <ConfirmEmailBanner email={user.email} />}
 

@@ -2,37 +2,29 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
 import { authClient } from "@/lib/auth-client"
-
-const accountButton = "text-sm text-black bg-white px-4 py-1.5 rounded-full hover:bg-zinc-200 transition-colors font-medium disabled:opacity-60"
+import { UserAvatar } from "@/components/account/user-avatar"
 
 function AccountButton() {
-  const router = useRouter()
   const { data: session, isPending } = authClient.useSession()
-  const [signingOut, setSigningOut] = useState(false)
 
   if (!isPending && session) {
     return (
-      <button
-        type="button"
-        disabled={signingOut}
-        className={accountButton}
-        onClick={async () => {
-          setSigningOut(true)
-          await authClient.signOut()
-          router.push("/")
-          router.refresh()
-          setSigningOut(false)
-        }}
+      <Link
+        href="/dashboard"
+        aria-label="Dashboard"
+        title="Dashboard"
+        className="block size-8 overflow-hidden rounded-full ring-1 ring-white/20 transition hover:ring-white/60"
       >
-        Sign Out
-      </button>
+        <UserAvatar seed={session.user.id} className="size-full" />
+      </Link>
     )
   }
   return (
-    <Link href="/login" className={accountButton}>
+    <Link
+      href="/login"
+      className="text-sm text-black bg-white px-4 py-1.5 rounded-full hover:bg-zinc-200 transition-colors font-medium"
+    >
       Sign In
     </Link>
   )

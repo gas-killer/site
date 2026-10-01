@@ -214,3 +214,21 @@ function RotateKeyButton({
     </AlertDialog>
   )
 }
+
+export function SignOutButton() {
+  const router = useRouter()
+  const [pending, setPending] = useState(false)
+
+  async function signOut() {
+    setPending(true)
+    await authClient.signOut()
+    router.push("/")
+    router.refresh()
+  }
+
+  return (
+    <Button size="sm" variant="outline" onClick={signOut} disabled={pending} className={outlineButton}>
+      Sign out
+    </Button>
+  )
+}
