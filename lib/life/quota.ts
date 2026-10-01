@@ -22,6 +22,11 @@ export async function reserveRun(userId: string): Promise<string | null> {
   })
 }
 
+/** Hands back a reserved run that failed before costing anything, so transient errors don't use up the quota. */
+export async function releaseRun(runId: string): Promise<void> {
+  await db.delete(lifeRun).where(eq(lifeRun.id, runId))
+}
+
 export async function recordSettlement(runId: string, txHash: string): Promise<void> {
   await db.update(lifeRun).set({ txHash }).where(eq(lifeRun.id, runId))
 }

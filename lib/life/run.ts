@@ -36,15 +36,24 @@ const LOCK_WAIT_MS = 20_000
 const HARD_STOP_MS = 55_000
 
 type Settlement = { txHash: Hex; taskId: string }
+type Progress = { attempt: RunAttempt; sent?: Settlement }
 
-export function runGenerations(generations: Generations): Promise<Settlement> {
+/** Whether a failed run could still cost gas: a settlement tx went out, or the run was abandoned and may send one. */
+export type RunAttempt = { mayHaveSpent: boolean }
+
+export function runGenerations(generations: Generations, attempt: RunAttempt = { mayHaveSpent: false }): Promise<Settlement> {
   const deadline = Date.now() + RUN_BUDGET_MS
-  const progress: { sent?: Settlement } = {}
+  const progress: Progress = { attempt }
   let timer: ReturnType<typeof setTimeout> | undefined
   // Once a tx is out it may still land, so hand its hash to the page to watch rather than report a failure.
   const hardStop = new Promise<Settlement>((resolve, reject) => {
     timer = setTimeout(
-      () => (progress.sent ? resolve(progress.sent) : reject(new LifeRunError(504, "TIMEOUT", "Gas Killer took too long to respond. Try again."))),
+      () => {
+        if (progress.sent) return resolve(progress.sent)
+        // The abandoned run carries on in the background and could still send.
+        attempt.mayHaveSpent = true
+        reject(new LifeRunError(504, "TIMEOUT", "Gas Killer took too long to respond. Try again."))
+      },
       HARD_STOP_MS,
     )
   })
@@ -56,7 +65,7 @@ export function runGenerations(generations: Generations): Promise<Settlement> {
 async function settleGenerations(
   generations: Generations,
   deadline: number,
-  progress: { sent?: Settlement },
+  progress: Progress,
 ): Promise<Settlement> {
   const pk = process.env.LIFE_RELAYER_PRIVATE_KEY as Hex | undefined
   if (!pk) throw new Error("LIFE_RELAYER_PRIVATE_KEY is not set")
@@ -107,6 +116,7 @@ async function settleGenerations(
       continue
     }
     progress.sent = { txHash, taskId }
+    progress.attempt.mayHaveSpent = true
 
     const outcome = await awaitOwnSettlement(publicClient, account.address, txHash, nonce, deadline)
     // Out of time with the tx still pending: the page waits for the receipt itself.
