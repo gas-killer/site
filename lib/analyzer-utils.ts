@@ -29,7 +29,14 @@ export function validateTraceJson(json: string): { valid: boolean; error?: strin
   }
 }
 
-export async function fetchBlockNumber(network: string, txHash: string): Promise<bigint> {
+export type TransactionInfo = {
+  blockNumber: bigint
+  from: string
+  // The called contract, or the deployed one for a creation; used for re-entry detection.
+  to: string | null
+}
+
+export async function fetchTransactionInfo(network: string, txHash: string): Promise<TransactionInfo> {
   const resp = await fetch(`/api/rpc/${network}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -54,7 +61,11 @@ export async function fetchBlockNumber(network: string, txHash: string): Promise
     throw new Error("Transaction not found")
   }
 
-  return BigInt(json.result.blockNumber)
+  return {
+    blockNumber: BigInt(json.result.blockNumber),
+    from: json.result.from,
+    to: json.result.to ?? json.result.contractAddress ?? null,
+  }
 }
 
 export async function fetchTraceFromRpc(network: string, txHash: string): Promise<string> {

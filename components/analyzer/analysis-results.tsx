@@ -75,6 +75,14 @@ export function AnalysisResults({ result, mode, originalGas, durationMs }: Analy
                     Heuristic
                   </Badge>
                 )}
+                {hasGasEstimate(result) && result.reentered && (
+                  <Badge
+                    title="A callee called back into the target contract; the estimate counts that callback gas as external and may overshoot."
+                    className="bg-transparent border border-amber-500/40 text-amber-200 hover:bg-amber-500/10"
+                  >
+                    Re-entered
+                  </Badge>
+                )}
                 {durationMs !== null && (
                   <span className="text-sm text-zinc-500">{Math.round(durationMs)}ms</span>
                 )}

@@ -11,18 +11,10 @@ import { Spinner } from "@/components/ui/spinner"
 import { Header } from "@/components/header"
 import { loadWasm, resetWasm } from "@/lib/wasm/analyzer"
 import type { AnalyzeTraceResult } from "@/lib/wasm/analyzer"
-import { fetchTraceFromRpc, fetchBlockNumber, extractOriginalGas, DEFAULT_ESTIMATOR_ADDRESS } from "@/lib/analyzer-utils"
+import { fetchTraceFromRpc, fetchTransactionInfo, extractOriginalGas, DEFAULT_ESTIMATOR_ADDRESS } from "@/lib/analyzer-utils"
 import { NETWORKS } from "@/lib/networks"
+import { ANALYZER_DISABLED } from "@/lib/analyzer-status"
 import { AnalysisResults } from "./analysis-results"
-
-/**
- * The analyzer is switched off while the analysis path is being reworked. Flip
- * this to `false` to bring the tool back: it gates the WASM load, the form
- * inputs, and the notice, and nothing else needs touching.
- */
-const ANALYZER_DISABLED: boolean = true
-
-const API_KEY_FORM_URL = "https://forms.gle/35mat6TKpL7cQxhKA"
 
 type State = {
   wasmStatus: "loading" | "ready" | "error"
@@ -92,10 +84,10 @@ export function AnalyzerPage() {
   async function handleAnalyze() {
     if (!txHash.trim() || !selectedNetwork) return
 
-    dispatch({ type: "RUN_START", statusMessage: "Fetching block number..." })
+    dispatch({ type: "RUN_START", statusMessage: "Fetching transaction..." })
 
     try {
-      const blockNumber = await fetchBlockNumber(selectedNetwork, txHash)
+      const { blockNumber, from, to } = await fetchTransactionInfo(selectedNetwork, txHash)
 
       dispatch({ type: "RUN_STATUS", statusMessage: "Fetching transaction trace..." })
       const traceJson = await fetchTraceFromRpc(selectedNetwork, txHash)
@@ -105,7 +97,7 @@ export function AnalyzerPage() {
 
       const wasm = await loadWasm()
       const start = performance.now()
-      const result = wasm.analyze_trace(traceJson, DEFAULT_ESTIMATOR_ADDRESS, blockNumber) as AnalyzeTraceResult
+      const result = wasm.analyze_trace(traceJson, DEFAULT_ESTIMATOR_ADDRESS, from, blockNumber, to) as AnalyzeTraceResult
       const durationMs = performance.now() - start
       const originalGas = extractOriginalGas(traceJson)
 
@@ -142,25 +134,23 @@ export function AnalyzerPage() {
             </p>
           </div>
 
-          {ANALYZER_DISABLED && (
+          {ANALYZER_DISABLED ? (
             <Alert className="border-amber-500/30 bg-amber-950/40 text-amber-100">
               <AlertTitle className="text-amber-100">Temporarily disabled</AlertTitle>
               <AlertDescription className="space-y-4 text-amber-100/80">
                 <p>
                   The Gas Analyzer is switched off while we work on a few things, so savings
                   estimates are unavailable for now. To try Gas Killer itself, request an API key
-                  and follow the quickstart to submit your first task.
+                  from your dashboard and follow the quickstart to submit your first task.
                 </p>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <a
-                    href={API_KEY_FORM_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <Link
+                    href="/dashboard"
                     className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-zinc-200"
                   >
-                    Request an API key
+                    Get an API key
                     <span aria-hidden>→</span>
-                  </a>
+                  </Link>
                   <Link
                     href="/docs/quickstart"
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 px-5 py-2.5 text-sm text-white transition-colors hover:border-white/40 hover:bg-white/10"
@@ -170,6 +160,18 @@ export function AnalyzerPage() {
                 </div>
               </AlertDescription>
             </Alert>
+          ) : (
+            <p className="text-sm text-zinc-500">
+              Ready to integrate?{" "}
+              <Link href="/signup" className="text-zinc-300 underline underline-offset-4 hover:text-white">
+                Get an API key
+              </Link>{" "}
+              or read the{" "}
+              <Link href="/docs/quickstart" className="text-zinc-300 underline underline-offset-4 hover:text-white">
+                quickstart
+              </Link>
+              .
+            </p>
           )}
 
           {/* WASM status */}
