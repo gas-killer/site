@@ -5,8 +5,6 @@ import { redirect } from "next/navigation"
 import { AccountShell } from "@/components/account/account-shell"
 import { ApiKeyPanel, ConfirmEmailBanner, SignOutButton } from "@/components/account/dashboard-panels"
 import { UserAvatar } from "@/components/account/user-avatar"
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { auth } from "@/lib/auth"
 import { getLatestApiKey } from "@/lib/api-keys"
 import { ANALYZER_DISABLED } from "@/lib/analyzer-status"
@@ -44,25 +42,57 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         }
       />
 
-      {!ANALYZER_DISABLED && (
-        <Card className="border-white/10 bg-zinc-950 text-zinc-200">
-          <CardHeader>
-            <CardTitle className="text-white">Gas analyzer</CardTitle>
-            <CardDescription className="text-zinc-400">
-              Replay a historical transaction to see how much gas Gas Killer would save you.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button asChild className="bg-white text-black hover:bg-zinc-200">
-              <Link href="/analyzer">Open the analyzer</Link>
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
+      <section className="space-y-4">
+        <h2 className="text-xl font-semibold text-white">Try It Out</h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <TryItCard
+            href="/docs/quickstart"
+            title="Quickstart"
+            description="Send your first task to the router with your API key."
+            action="Read the guide"
+          />
+          <TryItCard
+            href="/life"
+            title="Turetzky's Game of Life"
+            description="Run a generation that costs 16.6M gas on-chain for about 115k with Gas Killer."
+            action="Run a generation"
+          />
+          <TryItCard
+            href={ANALYZER_DISABLED ? undefined : "/analyzer"}
+            title="Gas analyzer"
+            description="Replay a past transaction to see how much gas Gas Killer would save."
+            action={ANALYZER_DISABLED ? "Coming soon" : "Open the analyzer"}
+          />
+        </div>
+      </section>
 
       <div className="flex justify-end border-t border-white/10 pt-6">
         <SignOutButton />
       </div>
     </AccountShell>
+  )
+}
+
+function TryItCard({ href, title, description, action }: {
+  href?: string
+  title: string
+  description: string
+  action: string
+}) {
+  const body = (
+    <>
+      <h3 className="font-medium text-white">{title}</h3>
+      <p className="mt-2 flex-1 text-sm text-zinc-400">{description}</p>
+      <span className={href ? "mt-4 text-sm text-white" : "mt-4 text-sm text-zinc-500"}>
+        {action} {href && <span aria-hidden>→</span>}
+      </span>
+    </>
+  )
+  const box = "flex flex-col rounded-lg border border-white/10 bg-zinc-950 p-5"
+  if (!href) return <div aria-disabled="true" className={`${box} opacity-60`}>{body}</div>
+  return (
+    <Link href={href} className={`${box} transition-colors hover:border-white/30 hover:bg-zinc-900`}>
+      {body}
+    </Link>
   )
 }

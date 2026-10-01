@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { Check, Copy, RotateCw } from "lucide-react"
@@ -171,24 +170,17 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
         )}
         {error && <p className="text-sm text-rose-300">{error}</p>}
       </CardContent>
-      <CardFooter className="flex flex-wrap justify-end gap-3">
-        {issued ? (
-          <Button onClick={done} variant="outline" className={outlineButton}>I've stored my key</Button>
-        ) : (
-          <>
-            {!active && (
-              <Button onClick={requestKey} disabled={!emailVerified || pending} className={primaryButton}>
-                {pending ? <><Spinner className="mr-2 text-black" />Requesting...</> : expired ? "Request new key" : "Request API key"}
-              </Button>
-            )}
-            <Button asChild variant="outline" className={outlineButton}>
-              <Link href="/docs/quickstart">
-                Read the quickstart <span aria-hidden>→</span>
-              </Link>
+      {(issued || !active) && (
+        <CardFooter className="flex flex-wrap justify-end gap-3">
+          {issued ? (
+            <Button onClick={done} variant="outline" className={outlineButton}>I've stored my key</Button>
+          ) : (
+            <Button onClick={requestKey} disabled={!emailVerified || pending} className={primaryButton}>
+              {pending ? <><Spinner className="mr-2 text-black" />Requesting...</> : expired ? "Request new key" : "Request API key"}
             </Button>
-          </>
-        )}
-      </CardFooter>
+          )}
+        </CardFooter>
+      )}
     </Card>
   )
 }

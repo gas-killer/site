@@ -1,0 +1,265 @@
+import "server-only"
+import { createPublicClient, createWalletClient, encodeFunctionData, http, type Hex } from "viem"
+import { privateKeyToAccount } from "viem/accounts"
+import { sepolia } from "viem/chains"
+import { LIFE_ABI, LIFE_ADDRESS, type Generations } from "@/lib/life/config"
+
+type TaskStatus = "queued" | "processing" | "ready" | "failed" | "expired"
+interface TaskView {
+  task_id: string
+  status: TaskStatus
+  error: string | null
+  payload: { to: Hex; data: Hex; value: Hex; estimated_gas: number; valid_until_block: number } | null
+}
+
+/** A failure the page can show as-is. */
+export class LifeRunError extends Error {
+  constructor(readonly status: number, readonly code: string, message: string) {
+    super(message)
+  }
+}
+
+const BUSY = "Lots of people are running generations. Try again in a few seconds."
+
+const rpcUrl = () => process.env.RPC_SEPOLIA || "https://ethereum-sepolia-rpc.publicnode.com"
+
+// The route's maxDuration is 60s (the Hobby plan's ceiling). No new step starts after this budget, and each
+// request is capped below, so one begun just before it still finishes in time, with room for auth and the quota.
+const RUN_BUDGET_MS = 45_000
+const ROUTER_TIMEOUT_MS = 8_000
+// viem's defaults (10s timeout, 3 retries) could spend most of the function's lifetime on one call.
+const RPC_TRANSPORT = { timeout: 5_000, retryCount: 1 }
+// Time a queued run may wait for this instance's previous run before giving up.
+const LOCK_WAIT_MS = 20_000
+
+// Backstop for a step that overruns the budget anyway, such as sendTransaction's several RPC calls in a row.
+const HARD_STOP_MS = 55_000
+
+type Settlement = { txHash: Hex; taskId: string }
+type Progress = { attempt: RunAttempt; sent?: Settlement }
+
+/** Whether a failed run could still cost gas: a settlement tx went out, or the run was abandoned and may send one. */
+export type RunAttempt = { mayHaveSpent: boolean }
+
+export function runGenerations(generations: Generations, attempt: RunAttempt = { mayHaveSpent: false }): Promise<Settlement> {
+  const deadline = Date.now() + RUN_BUDGET_MS
+  const progress: Progress = { attempt }
+  let timer: ReturnType<typeof setTimeout> | undefined
+  // Once a tx is out it may still land, so hand its hash to the page to watch rather than report a failure.
+  const hardStop = new Promise<Settlement>((resolve, reject) => {
+    timer = setTimeout(
+      () => {
+        if (progress.sent) return resolve(progress.sent)
+        // The abandoned run carries on in the background and could still send.
+        attempt.mayHaveSpent = true
+        reject(new LifeRunError(504, "TIMEOUT", "Gas Killer took too long to respond. Try again."))
+      },
+      HARD_STOP_MS,
+    )
+  })
+  return Promise.race([withRunLock(() => settleGenerations(generations, deadline, progress)), hardStop]).finally(() =>
+    clearTimeout(timer),
+  )
+}
+
+async function settleGenerations(
+  generations: Generations,
+  deadline: number,
+  progress: Progress,
+): Promise<Settlement> {
+  const pk = process.env.LIFE_RELAYER_PRIVATE_KEY as Hex | undefined
+  if (!pk) throw new Error("LIFE_RELAYER_PRIVATE_KEY is not set")
+  const account = privateKeyToAccount(pk)
+  const publicClient = createPublicClient({ chain: sepolia, transport: http(rpcUrl(), RPC_TRANSPORT) })
+  const wallet = createWalletClient({ account, chain: sepolia, transport: http(rpcUrl(), RPC_TRANSPORT) })
+
+  const callData = encodeFunctionData({ abi: LIFE_ABI, functionName: "step", args: [generations] })
+
+  // The operators compute against the board at `block_height`, and the payload only lands if no
+  // other run settles first. Function instances don't share memory, so the relayer's nonce is the
+  // lock: we note nonce N while the board is settled, compute, and send with exactly nonce N. If
+  // another run took N first, ours is dropped or rejected and we go again against the new board.
+  let lastError = ""
+  while (Date.now() < deadline) {
+    const { height, generation, nonce } = await settledState(publicClient, account.address, deadline)
+    const taskId = await submitTask(callData, account.address, Number(height), deadline)
+    const task = await waitForTask(taskId, deadline)
+    if (task.status !== "ready" || !task.payload) {
+      lastError = task.error ?? task.status
+      continue
+    }
+
+    const [pendingNow, generationNow] = await Promise.all([
+      publicClient.getTransactionCount({ address: account.address, blockTag: "pending" }),
+      currentGeneration(publicClient),
+    ])
+    if (pendingNow !== nonce || generationNow !== generation) {
+      lastError = "another run settled first"
+      continue
+    }
+
+    const tx = { account, to: task.payload.to, data: task.payload.data, value: BigInt(task.payload.value) }
+    // A stale payload reverts in simulation, so it never costs gas.
+    try {
+      await publicClient.call(tx)
+    } catch (err) {
+      lastError = `payload no longer valid: ${err instanceof Error ? err.message.split("\n")[0] : err}`
+      continue
+    }
+
+    let txHash: Hex
+    try {
+      txHash = await wallet.sendTransaction({ ...tx, nonce, gas: BigInt(Math.ceil(task.payload.estimated_gas * 1.3)) })
+    } catch (err) {
+      // Nonce already used / replacement underpriced: another run won the race.
+      lastError = err instanceof Error ? err.message.split("\n")[0] : String(err)
+      continue
+    }
+    progress.sent = { txHash, taskId }
+    progress.attempt.mayHaveSpent = true
+
+    const outcome = await awaitOwnSettlement(publicClient, account.address, txHash, nonce, deadline)
+    // Out of time with the tx still pending: the page waits for the receipt itself.
+    if (outcome === "success" || outcome === "pending") return { txHash, taskId }
+    progress.sent = undefined
+    lastError = outcome === "reverted" ? "settlement reverted" : "another run took this slot"
+  }
+  throw new LifeRunError(503, "BUSY", `The board is busy with other runs. Try again in a few seconds. (${lastError.slice(0, 120)})`)
+}
+
+type Client = ReturnType<typeof createPublicClient>
+
+const currentGeneration = (client: Client, blockNumber?: bigint) =>
+  client.readContract({ address: LIFE_ADDRESS, abi: LIFE_ABI, functionName: "generation", blockNumber })
+
+/**
+ * Wait until the relayer has nothing in flight, then pin the latest block: it already contains the
+ * previous settlement, so the next run can start right away. The generation check guards against a
+ * load-balanced RPC node answering from a block that's behind.
+ */
+async function settledState(
+  client: Client,
+  relayer: Hex,
+  deadline: number,
+): Promise<{ height: bigint; generation: bigint; nonce: number }> {
+  while (Date.now() < deadline) {
+    const [pending, mined, height] = await Promise.all([
+      client.getTransactionCount({ address: relayer, blockTag: "pending" }),
+      client.getTransactionCount({ address: relayer, blockTag: "latest" }),
+      client.getBlockNumber(),
+    ])
+    if (pending === mined) {
+      const [then, now] = await Promise.all([currentGeneration(client, height), currentGeneration(client)])
+      if (then === now) return { height, generation: now, nonce: mined }
+    }
+    await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1000)) // jitter spreads out racing instances
+  }
+  throw new LifeRunError(503, "BUSY", BUSY)
+}
+
+/** Wait for our tx, or notice that another tx with the same nonce was mined instead. */
+async function awaitOwnSettlement(
+  client: Client,
+  relayer: Hex,
+  hash: Hex,
+  nonce: number,
+  deadline: number,
+): Promise<"success" | "reverted" | "replaced" | "pending"> {
+  while (Date.now() < deadline) {
+    const receipt = await client.getTransactionReceipt({ hash }).catch(() => null)
+    if (receipt) return receipt.status === "success" ? "success" : "reverted"
+    // The tx is already out, so a failed check means try again rather than abandon a settlement that may land.
+    const mined = await client.getTransactionCount({ address: relayer, blockTag: "latest" }).catch(() => null)
+    if (mined !== null && mined > nonce) {
+      // Nonce consumed; one last look in case the receipt lagged behind on this RPC node.
+      const late = await client.getTransactionReceipt({ hash }).catch(() => null)
+      if (late) return late.status === "success" ? "success" : "reverted"
+      return "replaced"
+    }
+    await new Promise((r) => setTimeout(r, 1500))
+  }
+  return "pending"
+}
+
+function gk(path: string, init: RequestInit = {}): Promise<Response> {
+  const routerUrl = process.env.ROUTER_URL
+  const key = process.env.LIFE_GK_API_KEY
+  if (!routerUrl || !key) throw new Error("ROUTER_URL and LIFE_GK_API_KEY must be set")
+  return fetch(new URL(path, routerUrl), {
+    ...init,
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(ROUTER_TIMEOUT_MS),
+  })
+}
+
+async function submitTask(callData: Hex, from: Hex, blockHeight: number, deadline: number): Promise<string> {
+  const body = JSON.stringify({
+    body: {
+      target_address: LIFE_ADDRESS,
+      call_data: Array.from(Buffer.from(callData.slice(2), "hex")),
+      transition_index: "auto",
+      from_address: from,
+      value: "0x0",
+      block_height: blockHeight,
+    },
+  })
+  // The router's node can be a moment behind ours and reject the block as "ahead of current chain
+  // height". Wait for it to catch up rather than pinning an older block that predates the last run.
+  for (let attempt = 0; ; attempt++) {
+    const res = await gk("/tasks", { method: "POST", body })
+    if (res.status === 429 || res.status === 503) {
+      throw new LifeRunError(503, "BUSY", "Gas Killer's queue is full right now. Try again in a minute.")
+    }
+    if (res.ok) return ((await res.json()) as { task_id: string }).task_id
+    const text = await res.text()
+    if (res.status === 400 && /ahead of current chain height/i.test(text) && attempt < 8 && Date.now() + 1500 < deadline) {
+      await new Promise((r) => setTimeout(r, 1500))
+      continue
+    }
+    throw new Error(`POST /tasks ${res.status}: ${text.slice(0, 300)}`)
+  }
+}
+
+async function waitForTask(taskId: string, runDeadline: number): Promise<TaskView> {
+  const deadline = Math.min(Date.now() + 25_000, runDeadline)
+  while (Date.now() < deadline) {
+    const res = await gk(`/tasks/${taskId}`)
+    if (res.status === 409) return { task_id: taskId, status: "expired", error: "payload expired", payload: null }
+    if (!res.ok) throw new Error(`GET /tasks/${taskId} ${res.status}: ${(await res.text()).slice(0, 300)}`)
+    const task = (await res.json()) as TaskView
+    if (task.status === "ready" || task.status === "failed" || task.status === "expired") return task
+    await new Promise((r) => setTimeout(r, 1500))
+  }
+  throw new LifeRunError(504, "TIMEOUT", "Operators took too long to sign. Try again.")
+}
+
+// Runs must settle one after another, since each diff is computed against the board the previous one
+// left. This only queues runs within an instance; across instances the relayer nonce above decides.
+let localChain: Promise<unknown> = Promise.resolve()
+
+async function withRunLock<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = localChain
+  let release!: () => void
+  localChain = new Promise<void>((r) => (release = r))
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      prev,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new LifeRunError(503, "BUSY", BUSY)), LOCK_WAIT_MS)
+      }),
+    ])
+  } catch (err) {
+    // Giving up must not free the slot early: whoever queued behind us would overlap the run still in progress.
+    prev.finally(release)
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+  try {
+    return await fn()
+  } finally {
+    release()
+  }
+}

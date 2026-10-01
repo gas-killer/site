@@ -135,3 +135,17 @@ export const apiKeyRelations = relations(apiKey, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+// One row per /life demo run, so the per-user hourly limit holds across serverless instances.
+export const lifeRun = pgTable(
+  "life_run",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    txHash: text("tx_hash"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [index("life_run_userId_createdAt_idx").on(table.userId, table.createdAt)],
+);
