@@ -15,6 +15,13 @@
       "when": 1790788420303,
       "tag": "0001_newsletter_opt_in",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790873438590,
+      "tag": "0002_life_runs",
+      "breakpoints": true
     }
   ]
 }

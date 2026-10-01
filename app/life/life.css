@@ -1,0 +1,227 @@
+/* Scoped to .life so the demo keeps its own look without leaking into the rest of the site. */
+
+.life {
+  --bg: #09090b;
+  --panel: #111114;
+  --panel-2: #16161b;
+  --border: #26262c;
+  --border-hi: #34343c;
+  --shadow: #1b1b21;
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
+  --dim: #71717a;
+  --accent: #34d399;
+  --accent-ink: #052e1f;
+  --danger: #f87171;
+  --naive: #f97316;
+  --life-sans: var(--font-sans), system-ui, sans-serif;
+  --life-display: var(--font-display), var(--font-sans), sans-serif;
+  --life-mono: var(--font-life-mono), ui-monospace, monospace;
+
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--life-sans);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.life a { color: inherit; }
+.life code, .life .mono { font-family: var(--life-mono); font-size: 0.88em; }
+.life code { background: var(--panel-2); border: 1px solid var(--border); padding: 0.05em 0.35em; border-radius: 4px; }
+
+.life .life-inner { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+
+.life .chip {
+  display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+  font-family: var(--life-mono); font-size: 12px; color: var(--muted);
+  border: 1px solid var(--border-hi); background: var(--bg); padding: 4px 10px; border-radius: 999px;
+}
+.life .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+.life .card {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  box-shadow: 4px 4px 0 var(--shadow);
+  border-radius: 10px;
+}
+
+/* hero */
+.life .hero { padding: 40px 0 28px; max-width: 780px; }
+.life .hero-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 12px; }
+.life .eyebrow { font-family: var(--life-mono); font-size: 13px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
+.life h1, .life h2, .life h3 { font-family: var(--life-display); font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+.life h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.08; }
+.life .lede { color: var(--muted); font-size: 18px; margin: 18px 0 0; }
+.life .lede strong { color: var(--text); }
+
+/* stage */
+.life .stage { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.life .board-card { padding: 16px; }
+.life .board-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.life .label { font-family: var(--life-mono); font-size: 12px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; }
+.life .gen { font-family: var(--life-display); font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.life .live { margin-left: auto; font-family: var(--life-mono); font-size: 12px; color: var(--muted); }
+.life canvas { width: 100%; height: auto; aspect-ratio: 1; display: block; border-radius: 6px; image-rendering: pixelated; }
+
+.life .legend { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 0; margin: 12px 0 0; font-size: 13px; color: var(--muted); }
+.life .legend li { display: inline-flex; align-items: center; gap: 6px; }
+.life .legend .sw { width: 12px; height: 12px; border-radius: 2px; border: 1px solid var(--border-hi); }
+.life .sw.alive { background: #34d399; }
+.life .sw.born { background: #a7f3d0; }
+.life .sw.died { background: #3f1d24; }
+.life .sw.dead { background: #0d0d10; }
+.life .legend-note { margin-left: auto; font-size: 12px; color: var(--dim); }
+.life .side { display: flex; flex-direction: column; gap: 20px; }
+.life .run-card, .life .result-card { padding: 20px; }
+
+.life .run-btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+  font: 700 18px var(--life-display);
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 2px solid #6ee7b7;
+  border-radius: 8px;
+  padding: 16px 18px;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 #065f46;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.life .run-btn:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 #065f46; }
+.life .run-btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #065f46; }
+.life .run-btn:disabled { opacity: 0.6; cursor: progress; }
+.life .run-btn + .run-btn { margin-top: 12px; }
+.life .run-btn.small { display: inline-block; width: auto; font-size: 15px; padding: 10px 16px; }
+.life .hint { color: var(--dim); font-size: 13px; margin: 10px 0 0; }
+.life .hint a { color: var(--accent); }
+
+.life .steps { list-style: none; padding: 0; margin: 18px 0 0; display: flex; flex-direction: column; gap: 10px; }
+.life .steps li { position: relative; padding-left: 26px; color: var(--dim); font-size: 14px; }
+.life .steps li::before {
+  content: ""; position: absolute; left: 2px; top: 5px; width: 12px; height: 12px;
+  border-radius: 50%; border: 2px solid var(--border-hi);
+}
+.life .steps li.active { color: var(--text); }
+.life .steps li.active::before { border-color: var(--accent); border-top-color: transparent; animation: life-spin 0.8s linear infinite; }
+.life .steps li.done { color: var(--muted); }
+.life .steps li.done::before { background: var(--accent); border-color: var(--accent); }
+@keyframes life-spin { to { transform: rotate(360deg); } }
+.life .error { color: var(--danger); font-size: 14px; margin: 14px 0 0; }
+
+.life .result-card { border-color: #1f5b45; }
+.life .result-gas { font-family: var(--life-display); font-size: 34px; font-weight: 700; color: var(--accent); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.life .result-gas small { font-size: 15px; color: var(--muted); font-weight: 500; }
+.life .result-note { color: var(--muted); font-size: 14px; margin: 6px 0 12px; }
+.life .link { color: var(--accent); text-decoration: none; font-weight: 500; }
+.life .link:hover { text-decoration: underline; }
+
+/* compare */
+.life .compare { margin-top: 28px; padding: 24px; }
+.life .compare h2, .life .how h2, .life .recent h2 { font-size: 24px; }
+.life .compare-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.life .seg { display: inline-flex; border: 1px solid var(--border-hi); border-radius: 8px; overflow: hidden; }
+.life .seg button { font: 500 13px var(--life-sans); color: var(--muted); background: transparent; border: 0; padding: 7px 12px; cursor: pointer; }
+.life .seg button[aria-pressed="true"] { color: var(--accent-ink); background: var(--accent); }
+.life .sub { color: var(--dim); font-size: 14px; margin: 4px 0 20px; }
+.life .bar-row { margin-bottom: 20px; }
+.life .bar-label { display: flex; justify-content: space-between; gap: 12px; font-weight: 500; margin-bottom: 8px; }
+.life .num { font-family: var(--life-mono); font-variant-numeric: tabular-nums; }
+.life .bar { position: relative; height: 22px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+.life .fill { height: 100%; width: 0; transition: width 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.life .fill.naive { background: repeating-linear-gradient(-45deg, var(--naive), var(--naive) 8px, #ea580c 8px, #ea580c 16px); }
+.life .fill.naive.over { background: repeating-linear-gradient(-45deg, var(--danger), var(--danger) 8px, #b91c1c 8px, #b91c1c 16px); }
+.life .fill.gk { background: var(--accent); }
+.life .cap-mark { position: absolute; right: 0; top: 0; bottom: 0; width: 3px; background: var(--danger); }
+.life .bar-note { color: var(--dim); font-size: 13px; margin: 6px 0 0; }
+.life .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; border-top: 1px solid var(--border); padding-top: 18px; margin-top: 4px; }
+.life .stat { display: block; font-family: var(--life-display); font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.life .stat-label { color: var(--dim); font-size: 13px; }
+
+/* how */
+.life .how { margin-top: 36px; }
+.life .how-grid { list-style: none; padding: 0; margin: 16px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.life .how-grid li { padding: 18px; }
+.life .how-grid .n { font-family: var(--life-mono); color: var(--accent); font-size: 13px; }
+.life .how-grid h3 { font-size: 18px; margin: 6px 0 8px; }
+.life .how-grid p { color: var(--muted); font-size: 14px; margin: 0; }
+.life .how-grid a { color: var(--accent); }
+
+/* recent */
+.life .recent { margin-top: 36px; padding: 24px; overflow-x: auto; }
+.life table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 14px; }
+.life th { text-align: left; font-family: var(--life-mono); font-size: 12px; font-weight: 500; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; padding: 0 12px 8px 0; }
+.life td { padding: 10px 12px 10px 0; border-top: 1px solid var(--border); white-space: nowrap; }
+.life .muted { color: var(--dim); }
+
+.life .life-footer { padding-top: 36px; padding-bottom: 48px; color: var(--dim); font-size: 14px; }
+.life .life-footer a { color: var(--muted); }
+
+/* dialogs: Tailwind's reset zeroes the margin that centres a modal dialog and the paragraph spacing inside it. */
+.life dialog {
+  margin: auto;
+  background: var(--panel); color: var(--text);
+  border: 2px solid var(--border-hi); border-radius: 12px; box-shadow: 6px 6px 0 var(--shadow);
+  width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0;
+}
+.life dialog.wide { width: min(760px, calc(100vw - 32px)); }
+.life dialog:focus { outline: none; }
+.life dialog::backdrop { background: rgba(0, 0, 0, 0.7); }
+.life .about-body { padding: 24px; }
+.life dialog h2 { font-size: 22px; }
+.life dialog h3 { font-size: 17px; margin: 22px 0 6px; color: var(--accent); }
+.life dialog p { color: var(--muted); font-size: 15px; margin: 12px 0; }
+.life dialog strong { color: var(--text); }
+.life dialog ul { list-style: disc; color: var(--muted); font-size: 15px; padding-left: 20px; margin: 8px 0; }
+.life dialog li { margin-bottom: 4px; }
+.life .props li { margin-bottom: 8px; }
+.life .uses { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+.life .uses div { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.life .uses strong { display: block; font-family: var(--life-display); color: var(--accent); }
+.life .uses span { color: var(--muted); font-size: 14px; }
+.life .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+.life .dialog-actions.spread { justify-content: space-between; align-items: center; }
+.life .dialog-links { display: inline-flex; flex-wrap: wrap; gap: 14px; }
+.life .about-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.life .about-btn {
+  font: 600 15px var(--life-sans);
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid #1f5b45;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.life .about-btn:hover { background: rgba(52, 211, 153, 0.08); border-color: var(--accent); }
+.life dialog pre {
+  position: relative;
+  margin: 8px 0;
+  padding: 14px 16px;
+  background: var(--bg);
+  border: 1px solid var(--border-hi);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.life dialog pre code { background: none; border: 0; padding: 0; color: #d4d4d8; font-size: inherit; white-space: pre; }
+.life dialog p.small { font-size: 14px; color: var(--dim); margin-top: 6px; }
+.life .copy-btn {
+  position: absolute; top: 8px; right: 8px;
+  font: 500 12px var(--life-sans); color: var(--muted);
+  background: var(--panel-2); border: 1px solid var(--border-hi); border-radius: 6px;
+  padding: 3px 8px; cursor: pointer;
+}
+.life .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+@media (max-width: 900px) {
+  .life .stage { grid-template-columns: 1fr; }
+  .life .how-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .life .hero { padding-top: 24px; }
+  .life .lede { font-size: 16px; }
+  .life .how-grid, .life .stats, .life .uses { grid-template-columns: 1fr; }
+  .life .gen { font-size: 24px; }
+}
