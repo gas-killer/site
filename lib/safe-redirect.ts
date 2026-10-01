@@ -6,7 +6,10 @@ export function safeNextPath(next: string | null | undefined, fallback = "/dashb
     const url = new URL(next, "http://n")
     if (url.origin !== "http://n") return fallback
     // Rebuilt from the parsed URL so stripped control characters never reach a Location header.
-    return url.pathname + url.search + url.hash
+    const path = url.pathname + url.search + url.hash
+    // Dot segments keep the dummy origin but can normalize to "//host" ("/..//evil.com"), which a browser reads as protocol-relative.
+    if (path.startsWith("//") || path.startsWith("/\\")) return fallback
+    return path
   } catch {
     return fallback
   }
