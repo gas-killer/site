@@ -121,8 +121,8 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
                 This is the only time it will be shown. Store it somewhere safe. It expires on {formatDate(issued.expiresAt)}.
               </AlertDescription>
             </Alert>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 overflow-x-auto rounded-md border border-white/10 bg-black px-3 py-2 font-mono text-sm text-white">
+            <div className="flex items-start gap-2">
+              <code className="min-w-0 flex-1 break-all rounded-md border border-white/10 bg-black px-3 py-2 font-mono text-sm text-white">
                 {issued.key}
               </code>
               <Button
@@ -130,23 +130,24 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
                 onClick={copy}
                 aria-label={copied ? "Copied" : "Copy key"}
                 title={copied ? "Copied" : "Copy key"}
-                className={primaryButton}
+                className={`shrink-0 ${primaryButton}`}
               >
                 {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
               </Button>
             </div>
           </div>
         ) : active ? (
-          <dl className="grid grid-cols-3 gap-4 text-sm">
-            <div>
+          // On phones the key gets its own row: three columns squeeze it into the dates and bury the rotate button.
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm sm:grid-cols-3">
+            <div className="col-span-2 min-w-0 sm:col-span-1">
               <dt className="text-zinc-500">Key</dt>
-              <dd className="flex items-center gap-2 font-mono text-white">
-                {active.keyPrefix}…
+              <dd className="flex min-w-0 items-center gap-1 font-mono text-white">
+                <span className="truncate">{active.keyPrefix}…</span>
                 <RotateKeyButton keyPrefix={active.keyPrefix} expiresAt={active.expiresAt} pending={pending} onConfirm={rotateKey} />
               </dd>
             </div>
-            <div><dt className="text-zinc-500">Created</dt><dd className="text-white">{formatDate(active.createdAt)}</dd></div>
-            <div><dt className="text-zinc-500">Expires</dt><dd className="text-white">{formatDate(active.expiresAt)}</dd></div>
+            <div><dt className="text-zinc-500">Created</dt><dd className="whitespace-nowrap text-white">{formatDate(active.createdAt)}</dd></div>
+            <div><dt className="text-zinc-500">Expires</dt><dd className="whitespace-nowrap text-white">{formatDate(active.expiresAt)}</dd></div>
           </dl>
         ) : expired ? (
           <p className="text-sm text-zinc-400">
@@ -200,12 +201,12 @@ function RotateKeyButton({
           disabled={pending}
           aria-label="Rotate key"
           title="Rotate key"
-          className="rounded-full p-1 text-zinc-400 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+          className="-my-1.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
         >
           {pending ? <Spinner className="size-4" /> : <RotateCw className="size-4" />}
         </button>
       </AlertDialogTrigger>
-      <AlertDialogContent className="border-white/10 bg-zinc-950 text-zinc-200">
+      <AlertDialogContent className="w-[calc(100%-2rem)] border-white/10 bg-zinc-950 text-zinc-200">
         <AlertDialogHeader>
           <AlertDialogTitle className="text-white">Rotate your API key?</AlertDialogTitle>
           <AlertDialogDescription className="text-zinc-400">
