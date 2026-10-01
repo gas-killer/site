@@ -113,7 +113,17 @@ export function Header() {
     <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-black/70 backdrop-blur-xl">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center group">
+          <Link
+            href="/"
+            className="flex items-center group"
+            onClick={(e) => {
+              // Next treats a link to the current URL as a no-op, so on the landing page scroll up by hand.
+              if (!isLanding) return
+              e.preventDefault()
+              window.scrollTo({ top: 0, behavior: "smooth" })
+              if (window.location.hash) window.history.replaceState(null, "", "/")
+            }}
+          >
             <Image
               src="/brand/gk-wordmark-transparent.png"
               alt="Gas Killer"
