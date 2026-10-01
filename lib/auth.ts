@@ -32,6 +32,8 @@ export const signUpBodySchema = z.object({
  * land on the dashboard straight away. The magic link sent afterwards is what proves the
  * email: verifying it flips `emailVerified` and revokes any session created before then,
  * so signing up with someone else's address grants nothing that survives their sign-in.
+ * That revocation is Better Auth's own (`revokeUnprovenAccountAccess`, called from magic-link
+ * verify), not code here, so re-check it when upgrading `better-auth`.
  */
 const emailOnlySignUp = () =>
   ({

@@ -54,13 +54,26 @@ async function recordKey(tx: Tx, userId: string, created: { id: string; key: str
 }
 
 export async function issueApiKey(userId: string): Promise<{ key: string; summary: ApiKeySummary }> {
-  return db.transaction(async (tx) => {
-    if (await lockUserKeys(tx, userId)) throw new ActiveKeyExistsError("An active API key already exists")
+  let mintedKeyId: string | undefined
+  try {
+    return await db.transaction(async (tx) => {
+      if (await lockUserKeys(tx, userId)) throw new ActiveKeyExistsError("An active API key already exists")
 
-    const expiresAt = new Date(Date.now() + API_KEY_LIFETIME_DAYS * 24 * 60 * 60 * 1000)
-    const created = await mintRouterApiKey(`user:${userId}`, expiresAt)
-    return { key: created.key, summary: await recordKey(tx, userId, created, expiresAt) }
-  })
+      const expiresAt = new Date(Date.now() + API_KEY_LIFETIME_DAYS * 24 * 60 * 60 * 1000)
+      const created = await mintRouterApiKey(`user:${userId}`, expiresAt)
+      mintedKeyId = created.id
+      return { key: created.key, summary: await recordKey(tx, userId, created, expiresAt) }
+    })
+  } catch (e) {
+    await revokeOrphanedKey(mintedKeyId)
+    throw e
+  }
+}
+
+// A minted key whose row rolled back was never shown to the user, so it must not stay live on the router.
+async function revokeOrphanedKey(id: string | undefined) {
+  if (!id) return
+  await revokeRouterApiKey(id).catch((err) => console.error("orphaned router key", id, err))
 }
 
 /**
@@ -94,11 +107,7 @@ export async function rotateApiKey(userId: string): Promise<{ key: string; summa
     })
   } catch (e) {
     if (e instanceof NoActiveKeyError) throw e
-    // The new key's row rolled back and the user never saw its plaintext, so it must not stay live.
-    if (mintedKeyId) {
-      const id = mintedKeyId
-      await revokeRouterApiKey(id).catch((err) => console.error("orphaned router key", id, err))
-    }
+    await revokeOrphanedKey(mintedKeyId)
     throw new RotationFailedError(oldKey, { cause: e })
   }
 }
