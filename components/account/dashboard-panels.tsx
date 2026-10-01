@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { RotateCw } from "lucide-react"
+import { Check, Copy, RotateCw } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -118,7 +118,15 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
               <code className="flex-1 overflow-x-auto rounded-md border border-white/10 bg-black px-3 py-2 font-mono text-sm text-white">
                 {issued.key}
               </code>
-              <Button size="sm" onClick={copy} className={primaryButton}>{copied ? "Copied" : "Copy"}</Button>
+              <Button
+                size="icon"
+                onClick={copy}
+                aria-label={copied ? "Copied" : "Copy key"}
+                title={copied ? "Copied" : "Copy key"}
+                className={primaryButton}
+              >
+                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+              </Button>
             </div>
           </div>
         ) : active ? (
@@ -144,17 +152,23 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
         )}
         {error && <p className="text-sm text-rose-300">{error}</p>}
       </CardContent>
-      <CardFooter className="flex flex-wrap gap-3">
+      <CardFooter className="flex flex-wrap justify-end gap-3">
         {issued ? (
           <Button onClick={done} variant="outline" className={outlineButton}>I've stored my key</Button>
-        ) : !active && (
-          <Button onClick={requestKey} disabled={!emailVerified || pending} className={primaryButton}>
-            {pending ? <><Spinner className="mr-2 text-black" />Requesting...</> : expired ? "Request new key" : "Request API key"}
-          </Button>
+        ) : (
+          <>
+            {!active && (
+              <Button onClick={requestKey} disabled={!emailVerified || pending} className={primaryButton}>
+                {pending ? <><Spinner className="mr-2 text-black" />Requesting...</> : expired ? "Request new key" : "Request API key"}
+              </Button>
+            )}
+            <Button asChild variant="outline" className={outlineButton}>
+              <Link href="/docs/quickstart">
+                Read the quickstart <span aria-hidden>→</span>
+              </Link>
+            </Button>
+          </>
         )}
-        <Button asChild variant="outline" className={outlineButton}>
-          <Link href="/docs/quickstart">Read the quickstart</Link>
-        </Button>
       </CardFooter>
     </Card>
   )
@@ -198,23 +212,5 @@ function RotateKeyButton({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  )
-}
-
-export function SignOutButton() {
-  const router = useRouter()
-  const [pending, setPending] = useState(false)
-
-  async function signOut() {
-    setPending(true)
-    await authClient.signOut()
-    router.push("/")
-    router.refresh()
-  }
-
-  return (
-    <Button size="sm" variant="outline" onClick={signOut} disabled={pending} className={outlineButton}>
-      Sign out
-    </Button>
   )
 }

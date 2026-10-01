@@ -2,6 +2,41 @@
 
 import Link from "next/link"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
+import { authClient } from "@/lib/auth-client"
+
+const accountButton = "text-sm text-black bg-white px-4 py-1.5 rounded-full hover:bg-zinc-200 transition-colors font-medium disabled:opacity-60"
+
+function AccountButton() {
+  const router = useRouter()
+  const { data: session, isPending } = authClient.useSession()
+  const [signingOut, setSigningOut] = useState(false)
+
+  if (!isPending && session) {
+    return (
+      <button
+        type="button"
+        disabled={signingOut}
+        className={accountButton}
+        onClick={async () => {
+          setSigningOut(true)
+          await authClient.signOut()
+          router.push("/")
+          router.refresh()
+          setSigningOut(false)
+        }}
+      >
+        Sign Out
+      </button>
+    )
+  }
+  return (
+    <Link href="/login" className={accountButton}>
+      Sign In
+    </Link>
+  )
+}
 
 export function Header() {
   return (
@@ -85,12 +120,7 @@ export function Header() {
               <path d="M12 0a12 12 0 1 0 0 24 12 12 0 0 0 0-24zm5.56 8.24-1.86 8.77c-.14.62-.51.77-1.03.48l-2.85-2.1-1.37 1.32c-.15.15-.28.28-.57.28l.2-2.9 5.28-4.77c.23-.2-.05-.32-.36-.11l-6.52 4.1-2.81-.88c-.61-.19-.62-.61.13-.9l10.99-4.24c.51-.19.96.12.79.95z" />
             </svg>
           </Link>
-          <Link
-            href="/login"
-            className="text-sm text-black bg-white px-4 py-1.5 rounded-full hover:bg-zinc-200 transition-colors font-medium"
-          >
-            Sign In
-          </Link>
+          <AccountButton />
         </nav>
       </div>
     </header>
