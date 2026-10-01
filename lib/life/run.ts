@@ -23,22 +23,46 @@ const BUSY = "Lots of people are running generations. Try again in a few seconds
 
 const rpcUrl = () => process.env.RPC_SEPOLIA || "https://ethereum-sepolia-rpc.publicnode.com"
 
-// The route's maxDuration is 60s (the Hobby plan's ceiling); this leaves headroom for auth and the quota check.
-const RUN_BUDGET_MS = 50_000
+// The route's maxDuration is 60s (the Hobby plan's ceiling). No new step starts after this budget, and each
+// request is capped below, so one begun just before it still finishes in time, with room for auth and the quota.
+const RUN_BUDGET_MS = 45_000
+const ROUTER_TIMEOUT_MS = 8_000
+// viem's defaults (10s timeout, 3 retries) could spend most of the function's lifetime on one call.
+const RPC_TRANSPORT = { timeout: 5_000, retryCount: 1 }
 // Time a queued run may wait for this instance's previous run before giving up.
 const LOCK_WAIT_MS = 20_000
 
-export function runGenerations(generations: Generations): Promise<{ txHash: Hex; taskId: string }> {
+// Backstop for a step that overruns the budget anyway, such as sendTransaction's several RPC calls in a row.
+const HARD_STOP_MS = 55_000
+
+type Settlement = { txHash: Hex; taskId: string }
+
+export function runGenerations(generations: Generations): Promise<Settlement> {
   const deadline = Date.now() + RUN_BUDGET_MS
-  return withRunLock(() => settleGenerations(generations, deadline))
+  const progress: { sent?: Settlement } = {}
+  let timer: ReturnType<typeof setTimeout> | undefined
+  // Once a tx is out it may still land, so hand its hash to the page to watch rather than report a failure.
+  const hardStop = new Promise<Settlement>((resolve, reject) => {
+    timer = setTimeout(
+      () => (progress.sent ? resolve(progress.sent) : reject(new LifeRunError(504, "TIMEOUT", "Gas Killer took too long to respond. Try again."))),
+      HARD_STOP_MS,
+    )
+  })
+  return Promise.race([withRunLock(() => settleGenerations(generations, deadline, progress)), hardStop]).finally(() =>
+    clearTimeout(timer),
+  )
 }
 
-async function settleGenerations(generations: Generations, deadline: number): Promise<{ txHash: Hex; taskId: string }> {
+async function settleGenerations(
+  generations: Generations,
+  deadline: number,
+  progress: { sent?: Settlement },
+): Promise<Settlement> {
   const pk = process.env.LIFE_RELAYER_PRIVATE_KEY as Hex | undefined
   if (!pk) throw new Error("LIFE_RELAYER_PRIVATE_KEY is not set")
   const account = privateKeyToAccount(pk)
-  const publicClient = createPublicClient({ chain: sepolia, transport: http(rpcUrl()) })
-  const wallet = createWalletClient({ account, chain: sepolia, transport: http(rpcUrl()) })
+  const publicClient = createPublicClient({ chain: sepolia, transport: http(rpcUrl(), RPC_TRANSPORT) })
+  const wallet = createWalletClient({ account, chain: sepolia, transport: http(rpcUrl(), RPC_TRANSPORT) })
 
   const callData = encodeFunctionData({ abi: LIFE_ABI, functionName: "step", args: [generations] })
 
@@ -49,7 +73,7 @@ async function settleGenerations(generations: Generations, deadline: number): Pr
   let lastError = ""
   while (Date.now() < deadline) {
     const { height, generation, nonce } = await settledState(publicClient, account.address, deadline)
-    const taskId = await submitTask(callData, account.address, Number(height))
+    const taskId = await submitTask(callData, account.address, Number(height), deadline)
     const task = await waitForTask(taskId, deadline)
     if (task.status !== "ready" || !task.payload) {
       lastError = task.error ?? task.status
@@ -82,10 +106,12 @@ async function settleGenerations(generations: Generations, deadline: number): Pr
       lastError = err instanceof Error ? err.message.split("\n")[0] : String(err)
       continue
     }
+    progress.sent = { txHash, taskId }
 
     const outcome = await awaitOwnSettlement(publicClient, account.address, txHash, nonce, deadline)
     // Out of time with the tx still pending: the page waits for the receipt itself.
     if (outcome === "success" || outcome === "pending") return { txHash, taskId }
+    progress.sent = undefined
     lastError = outcome === "reverted" ? "settlement reverted" : "another run took this slot"
   }
   throw new LifeRunError(503, "BUSY", `The board is busy with other runs. Try again in a few seconds. (${lastError.slice(0, 120)})`)
@@ -132,8 +158,9 @@ async function awaitOwnSettlement(
   while (Date.now() < deadline) {
     const receipt = await client.getTransactionReceipt({ hash }).catch(() => null)
     if (receipt) return receipt.status === "success" ? "success" : "reverted"
-    const mined = await client.getTransactionCount({ address: relayer, blockTag: "latest" })
-    if (mined > nonce) {
+    // The tx is already out, so a failed check means try again rather than abandon a settlement that may land.
+    const mined = await client.getTransactionCount({ address: relayer, blockTag: "latest" }).catch(() => null)
+    if (mined !== null && mined > nonce) {
       // Nonce consumed; one last look in case the receipt lagged behind on this RPC node.
       const late = await client.getTransactionReceipt({ hash }).catch(() => null)
       if (late) return late.status === "success" ? "success" : "reverted"
@@ -152,10 +179,11 @@ function gk(path: string, init: RequestInit = {}): Promise<Response> {
     ...init,
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     cache: "no-store",
+    signal: AbortSignal.timeout(ROUTER_TIMEOUT_MS),
   })
 }
 
-async function submitTask(callData: Hex, from: Hex, blockHeight: number): Promise<string> {
+async function submitTask(callData: Hex, from: Hex, blockHeight: number, deadline: number): Promise<string> {
   const body = JSON.stringify({
     body: {
       target_address: LIFE_ADDRESS,
@@ -175,7 +203,7 @@ async function submitTask(callData: Hex, from: Hex, blockHeight: number): Promis
     }
     if (res.ok) return ((await res.json()) as { task_id: string }).task_id
     const text = await res.text()
-    if (res.status === 400 && /ahead of current chain height/i.test(text) && attempt < 8) {
+    if (res.status === 400 && /ahead of current chain height/i.test(text) && attempt < 8 && Date.now() + 1500 < deadline) {
       await new Promise((r) => setTimeout(r, 1500))
       continue
     }

@@ -33,6 +33,9 @@ export async function POST(request: Request) {
     return Response.json({ txHash, taskId })
   } catch (e) {
     if (e instanceof LifeRunError) return Response.json({ code: e.code, error: e.message }, { status: e.status })
+    if (e instanceof Error && e.name === "TimeoutError") {
+      return Response.json({ code: "TIMEOUT", error: "Gas Killer took too long to respond. Try again." }, { status: 504 })
+    }
     console.error("life run failed", e)
     return Response.json({ code: "INTERNAL", error: "Something went wrong running the generation. Try again." }, { status: 500 })
   }
