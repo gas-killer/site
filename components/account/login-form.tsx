@@ -69,10 +69,14 @@ export function LoginForm({ next, linkError }: { next: string; linkError?: strin
           />
           {error && <p className="pt-2 text-sm text-rose-300">{error}</p>}
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
           <Button type="submit" disabled={pending} className="bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500">
             {pending ? <><Spinner className="mr-2 text-black" />Sending...</> : "Email me a sign-in link"}
           </Button>
+          <p className="text-sm text-zinc-400">
+            Don't have an account?{" "}
+            <Link href="/signup" className="text-zinc-200 underline underline-offset-4 hover:text-white">Sign up</Link>
+          </p>
         </CardFooter>
       </div>
     </form>
