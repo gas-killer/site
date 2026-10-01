@@ -79,14 +79,25 @@ export function ApiKeyPanel({ emailVerified, latestKey }: { emailVerified: boole
   async function submit(endpoint: "/api/keys" | "/api/keys/rotate", fallbackError: string) {
     setPending(true)
     setError(null)
-    const resp = await fetch(endpoint, { method: "POST" })
-    const body = await resp.json().catch(() => null)
-    setPending(false)
-    if (!resp.ok) {
-      setError(body?.error ?? fallbackError)
-      return
+    try {
+      const resp = await fetch(endpoint, { method: "POST" })
+      const body = await resp.json().catch(() => null)
+      if (!resp.ok) {
+        setError(body?.error ?? fallbackError)
+        return
+      }
+      setIssued(body)
+    } catch {
+      // The request may have reached the server, so a rotation could already have revoked the old key.
+      setError(
+        endpoint === "/api/keys/rotate"
+          ? "We lost the connection while rotating, so we can't tell whether it went through. If the key above changed, rotate again to get one you can copy."
+          : "We lost the connection while requesting a key. If a key now shows above, rotate it to get one you can copy; otherwise try again.",
+      )
+      router.refresh()
+    } finally {
+      setPending(false)
     }
-    setIssued(body)
   }
 
   const requestKey = () => submit("/api/keys", "Could not issue an API key.")
