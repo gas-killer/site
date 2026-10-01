@@ -26,12 +26,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // Not greeted by name: anyone can set it at signup before the owner confirms the email.
   return (
     <AccountShell eyebrow="Dashboard" title="Your account.">
-      <div className="flex items-center justify-between gap-4 text-sm text-zinc-400">
-        <div className="flex min-w-0 items-center gap-3">
-          <UserAvatar seed={user.id} className="size-10 shrink-0 overflow-hidden rounded-full ring-1 ring-white/20" />
-          <span className="truncate">Signed in as <span className="text-zinc-200">{user.email}</span></span>
-        </div>
-        <SignOutButton />
+      <div className="flex min-w-0 items-center gap-3 text-sm text-zinc-400">
+        <UserAvatar seed={user.id} className="size-10 shrink-0 overflow-hidden rounded-full ring-1 ring-white/20" />
+        <span className="truncate">Signed in as <span className="text-zinc-200">&ldquo;{user.email}&rdquo;</span></span>
       </div>
 
       {!user.emailVerified && <ConfirmEmailBanner email={user.email} sendFailed={confirm === "failed"} />}
@@ -62,6 +59,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </CardFooter>
         </Card>
       )}
+
+      <div className="flex justify-end border-t border-white/10 pt-6">
+        <SignOutButton />
+      </div>
     </AccountShell>
   )
 }
