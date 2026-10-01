@@ -40,7 +40,7 @@ function AccountButton() {
 
 // Anchors into the landing page, so they're only shown there.
 const SECTION_LINKS = [
-  { href: "#what", label: "What" },
+  { href: "#why", label: "Why" },
   { href: "#how", label: "How" },
   { href: "#services", label: "Services" },
   { href: "#case-study", label: "Case study" },

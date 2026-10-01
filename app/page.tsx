@@ -3,12 +3,6 @@ import { ArchitectureDiagram } from "@/components/architecture-diagram"
 import Image from "next/image"
 import Link from "next/link"
 
-const FOOTER_SOCIALS = [
-  { href: "https://github.com/gas-killer", label: "GitHub", path: "M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1.1-.8.1-.8.1-.8 1.2.1 1.9 1.3 1.9 1.3 1.1 1.9 2.9 1.3 3.6 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.3.5-2.4 1.3-3.3-.1-.3-.6-1.6.1-3.3 0 0 1-.3 3.3 1.3a11.5 11.5 0 0 1 6 0c2.3-1.6 3.3-1.3 3.3-1.3.7 1.7.2 3 .1 3.3.8.9 1.3 2 1.3 3.3 0 4.7-2.8 5.7-5.5 6 .4.3.8 1 .8 2.1v3c0 .3.2.7.8.6A12 12 0 0 0 12 .3" },
-  { href: "https://x.com/gaskiller_", label: "X / Twitter", path: "M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" },
-  { href: "https://t.me/gaskillerfriends", label: "Telegram", path: "M12 0a12 12 0 1 0 0 24 12 12 0 0 0 0-24zm5.56 8.24-1.86 8.77c-.14.62-.51.77-1.03.48l-2.85-2.1-1.37 1.32c-.15.15-.28.28-.57.28l.2-2.9 5.28-4.77c.23-.2-.05-.32-.36-.11l-6.52 4.1-2.81-.88c-.61-.19-.62-.61.13-.9l10.99-4.24c.51-.19.96.12.79.95z" },
-]
-
 export default function Home() {
   return (
     <>
@@ -64,9 +58,9 @@ export default function Home() {
           </section>
 
           {/* Benefits */}
-          <section id="what" className="w-full py-20 md:py-28 border-t border-white/10">
+          <section id="why" className="w-full py-20 md:py-28 border-t border-white/10">
             <div className="container px-4 md:px-8 max-w-6xl">
-              <p className="mb-8"><span className="eyebrow-chip">Why Gas Killer</span></p>
+              <p className="mb-8"><span className="eyebrow-chip">Why</span></p>
               <div className="grid gap-5 md:grid-cols-3">
                 <div className="card-poster">
                   <h3 className="text-2xl md:text-3xl font-semibold text-white mb-3">Cheaper execution</h3>
@@ -308,33 +302,21 @@ export default function Home() {
 
           {/* Footer */}
           <footer className="w-full border-t border-white/10 py-10">
-            <div className="container px-4 md:px-8 max-w-6xl grid items-center gap-6 text-center md:grid-cols-3 md:text-left">
-              <Image
-                src="/brand/gk-wordmark-transparent.png"
-                alt="Gas Killer"
-                width={200}
-                height={200}
-                className="h-8 w-auto justify-self-center md:justify-self-start"
-              />
-              <div className="flex items-center justify-center gap-6 text-sm text-zinc-500">
-                {FOOTER_SOCIALS.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    target="_blank"
-                    aria-label={link.label}
-                    className="hover:text-white transition-colors"
-                  >
-                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                      <path d={link.path} />
-                    </svg>
-                  </Link>
-                ))}
-                <Link href="mailto:contact@gaskiller.xyz" className="hover:text-white transition-colors">
-                  contact@gaskiller.xyz
-                </Link>
+            <div className="container px-4 md:px-8 max-w-6xl flex flex-col items-end gap-3 text-right text-sm">
+              <Link href="mailto:contact@gaskiller.xyz" className="text-zinc-400 hover:text-white transition-colors">
+                contact@gaskiller.xyz
+              </Link>
+              <p className="text-zinc-600">© 2026 Gas Killer</p>
+              {/* The PNG is mostly transparent padding, so crop to the mark itself for a flush right edge. */}
+              <div className="relative mt-2 h-6 w-[58px] overflow-hidden">
+                <Image
+                  src="/brand/gk-wordmark-transparent.png"
+                  alt="Gas Killer"
+                  width={200}
+                  height={200}
+                  className="absolute max-w-none w-[97px] h-[97px] left-[-20px] top-[-35px]"
+                />
               </div>
-              <p className="text-zinc-600 text-sm md:text-right">© 2026 Gas Killer</p>
             </div>
           </footer>
         </main>
