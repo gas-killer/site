@@ -40,7 +40,7 @@ function AccountButton() {
 
 // Anchors into the landing page, so they're only shown there.
 const SECTION_LINKS = [
-  { href: "#what", label: "What" },
+  { href: "#why", label: "Why" },
   { href: "#how", label: "How" },
   { href: "#services", label: "Services" },
   { href: "#case-study", label: "Case study" },
@@ -111,7 +111,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-black/70 backdrop-blur-xl">
-      <div className="container flex h-16 items-center justify-between">
+      <div className="container px-4 md:px-8 flex h-16 items-center justify-between">
         <div className="flex items-center gap-8">
           <Link
             href="/"
