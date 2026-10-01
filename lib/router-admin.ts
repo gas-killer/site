@@ -9,6 +9,11 @@ type CreatedApiKey = {
   rpm_limit: number | null
 }
 
+/** The router answered and said no, as opposed to a timeout or network failure where the outcome is unknown. */
+export class RouterRefusedError extends Error {}
+
+const ADMIN_REQUEST_TIMEOUT_MS = 10_000
+
 function adminRequest(path: string, init: RequestInit) {
   const routerUrl = process.env.ROUTER_URL
   const adminKey = process.env.ADMIN_KEY
@@ -18,6 +23,8 @@ function adminRequest(path: string, init: RequestInit) {
     ...init,
     headers: { Authorization: `Bearer ${adminKey}`, "Content-Type": "application/json" },
     cache: "no-store",
+    // Callers hold a pooled connection and the per-user key lock while waiting on this.
+    signal: AbortSignal.timeout(ADMIN_REQUEST_TIMEOUT_MS),
   })
 }
 
@@ -28,7 +35,7 @@ export async function mintRouterApiKey(label: string, invalidAt: Date): Promise<
   })
   if (resp.status !== 201) {
     const body = await resp.text().catch(() => "")
-    throw new Error(`Router refused to mint a key (HTTP ${resp.status}): ${body.slice(0, 200)}`)
+    throw new RouterRefusedError(`Router refused to mint a key (HTTP ${resp.status}): ${body.slice(0, 200)}`)
   }
   return resp.json()
 }
@@ -38,6 +45,6 @@ export async function revokeRouterApiKey(id: string): Promise<void> {
   // 404 means the router no longer treats the key as active, which is the outcome we want.
   if (resp.status !== 204 && resp.status !== 404) {
     const body = await resp.text().catch(() => "")
-    throw new Error(`Router refused to revoke a key (HTTP ${resp.status}): ${body.slice(0, 200)}`)
+    throw new RouterRefusedError(`Router refused to revoke a key (HTTP ${resp.status}): ${body.slice(0, 200)}`)
   }
 }

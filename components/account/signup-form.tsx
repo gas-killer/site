@@ -55,11 +55,15 @@ export function SignupForm() {
 
     const sent = await authClient.signIn.magicLink({ email, callbackURL: "/dashboard", errorCallbackURL: "/login" })
     if (!created) {
+      if (sent.error) {
+        setError(sent.error.status === 429 ? "Too many attempts. Wait a minute and try again." : "Couldn't send a sign-in link. Try again.")
+        return
+      }
       setExistingEmail(email)
       return
     }
-    if (sent.error) setError("Your account was created, but the confirmation email failed to send. Resend it from the dashboard.")
-    router.push("/dashboard")
+    // The form unmounts on navigation, so the dashboard banner reports the failure instead.
+    router.push(sent.error ? "/dashboard?confirm=failed" : "/dashboard")
     router.refresh()
   }
 

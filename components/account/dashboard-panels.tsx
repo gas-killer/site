@@ -28,7 +28,7 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
 }
 
-export function ConfirmEmailBanner({ email }: { email: string }) {
+export function ConfirmEmailBanner({ email, sendFailed = false }: { email: string; sendFailed?: boolean }) {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle")
 
   async function resend() {
@@ -41,10 +41,17 @@ export function ConfirmEmailBanner({ email }: { email: string }) {
     <Alert className="border-amber-500/30 bg-amber-950/40 text-amber-100">
       <AlertTitle className="text-amber-100">Confirm your email</AlertTitle>
       <AlertDescription className="space-y-4 text-amber-100/80">
-        <p>
-          We sent a confirmation link to <strong className="text-amber-50">{email}</strong>. Click it to unlock API keys.
-          The link expires in 15 minutes.
-        </p>
+        {sendFailed && state === "idle" ? (
+          <p>
+            We couldn't send a confirmation link to <strong className="text-amber-50">{email}</strong>. Resend it to
+            unlock API keys.
+          </p>
+        ) : (
+          <p>
+            We sent a confirmation link to <strong className="text-amber-50">{email}</strong>. Click it to unlock API
+            keys. The link expires in 15 minutes.
+          </p>
+        )}
         <div className="flex items-center gap-3">
           <Button size="sm" variant="outline" onClick={resend} disabled={state === "sending"} className={outlineButton}>
             {state === "sending" ? <><Spinner className="mr-2" />Sending...</> : "Resend confirmation"}

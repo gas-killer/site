@@ -112,7 +112,8 @@ export const auth = betterAuth({
       storeToken: "hashed",
       disableSignUp: true,
       sendMagicLink: async ({ email, url }, ctx) => {
-        // Unknown addresses get the same response but no email, so the form can't enumerate accounts.
+        // Unknown addresses get no email, so the form can't mail strangers. This isn't enumeration
+        // resistance: signup deliberately reports which addresses already have accounts.
         const found = await ctx?.context.internalAdapter.findUserByEmail(email.toLowerCase())
         if (!found) return
         const isNewUser = !found.user.emailVerified

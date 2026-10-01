@@ -15,12 +15,13 @@ export const metadata: Metadata = {
   title: "Dashboard | Gas Killer",
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ confirm?: string }> }) {
   const session = await auth.api.getSession({ headers: await headers(), query: { disableCookieCache: true } })
   if (!session) redirect("/login?next=/dashboard")
 
   const { user } = session
   const latestKey = await getLatestApiKey(user.id)
+  const { confirm } = await searchParams
 
   // Not greeted by name: anyone can set it at signup before the owner confirms the email.
   return (
@@ -33,7 +34,7 @@ export default async function DashboardPage() {
         <SignOutButton />
       </div>
 
-      {!user.emailVerified && <ConfirmEmailBanner email={user.email} />}
+      {!user.emailVerified && <ConfirmEmailBanner email={user.email} sendFailed={confirm === "failed"} />}
 
       <ApiKeyPanel
         emailVerified={user.emailVerified}
