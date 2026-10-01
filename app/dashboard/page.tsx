@@ -4,6 +4,7 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { AccountShell } from "@/components/account/account-shell"
 import { ApiKeyPanel, ConfirmEmailBanner, SignOutButton } from "@/components/account/dashboard-panels"
+import { UserAvatar } from "@/components/account/user-avatar"
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { auth } from "@/lib/auth"
@@ -24,7 +25,10 @@ export default async function DashboardPage() {
   return (
     <AccountShell eyebrow="Dashboard" title={user.name ? `Hi, ${user.name}.` : "Your account."}>
       <div className="flex items-center justify-between gap-4 text-sm text-zinc-400">
-        <span>Signed in as <span className="text-zinc-200">{user.email}</span></span>
+        <div className="flex min-w-0 items-center gap-3">
+          <UserAvatar seed={user.id} className="size-10 shrink-0 overflow-hidden rounded-full ring-1 ring-white/20" />
+          <span className="truncate">Signed in as <span className="text-zinc-200">{user.email}</span></span>
+        </div>
         <SignOutButton />
       </div>
 

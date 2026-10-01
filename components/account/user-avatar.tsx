@@ -1,5 +1,3 @@
-import { useMemo } from "react"
-
 const GRID = 5
 
 // Seeded from the user id so each person keeps the same avatar on every device without storing one.
@@ -15,21 +13,18 @@ function seededRandom(seed: string) {
 }
 
 export function UserAvatar({ seed, className }: { seed: string; className?: string }) {
-  const { hue, cells } = useMemo(() => {
-    const next = seededRandom(seed)
-    const hue = Math.floor(next() * 360)
-    const cells: [number, number][] = []
-    // Mirrored so the pattern reads as a deliberate glyph rather than noise.
-    for (let y = 0; y < GRID; y++) {
-      for (let x = 0; x < Math.ceil(GRID / 2); x++) {
-        if (next() < 0.5) {
-          cells.push([x, y])
-          if (x !== GRID - 1 - x) cells.push([GRID - 1 - x, y])
-        }
+  const next = seededRandom(seed)
+  const hue = Math.floor(next() * 360)
+  const cells: [number, number][] = []
+  // Mirrored so the pattern reads as a deliberate glyph rather than noise.
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < Math.ceil(GRID / 2); x++) {
+      if (next() < 0.5) {
+        cells.push([x, y])
+        if (x !== GRID - 1 - x) cells.push([GRID - 1 - x, y])
       }
     }
-    return { hue, cells }
-  }, [seed])
+  }
 
   return (
     <svg viewBox="-1 -1 7 7" className={className} aria-hidden="true">
