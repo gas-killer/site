@@ -129,60 +129,68 @@ export function AnalyzerPage() {
             </p>
           )}
 
-          <Card className="border-white/10 bg-zinc-950 text-zinc-200">
-            <CardHeader>
-              <CardTitle className="text-white">Transaction</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label className="text-zinc-400 text-xs uppercase tracking-widest">Network</Label>
-                <div className="flex flex-wrap gap-2">
-                  {NETWORKS.map((n) => (
-                    <Button
-                      key={n.id}
-                      size="sm"
-                      disabled={ANALYZER_DISABLED}
-                      onClick={() => setSelectedNetwork(n.id)}
-                      className={
-                        selectedNetwork === n.id
-                          ? "bg-white text-black hover:bg-zinc-200"
-                          : "bg-transparent border border-white/15 text-zinc-300 hover:bg-white/10 hover:border-white/30"
-                      }
-                    >
-                      {n.name}
-                    </Button>
-                  ))}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (canAnalyze) handleAnalyze()
+            }}
+          >
+            <Card className="border-white/10 bg-zinc-950 text-zinc-200">
+              <CardHeader>
+                <CardTitle className="text-white">Transaction</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label className="text-zinc-400 text-xs uppercase tracking-widest">Network</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {NETWORKS.map((n) => (
+                      <Button
+                        key={n.id}
+                        type="button"
+                        size="sm"
+                        disabled={ANALYZER_DISABLED}
+                        onClick={() => setSelectedNetwork(n.id)}
+                        className={
+                          selectedNetwork === n.id
+                            ? "bg-white text-black hover:bg-zinc-200"
+                            : "bg-transparent border border-white/15 text-zinc-300 hover:bg-white/10 hover:border-white/30"
+                        }
+                      >
+                        {n.name}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label className="text-zinc-400 text-xs uppercase tracking-widest">Transaction hash</Label>
-                <Input
-                  placeholder="0x..."
-                  value={txHash}
-                  disabled={ANALYZER_DISABLED}
-                  onChange={(e) => setTxHash(e.target.value)}
-                  className="font-mono border-white/10 bg-black text-white placeholder:text-zinc-600 focus-visible:ring-white/20"
-                />
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button
-                onClick={handleAnalyze}
-                disabled={!canAnalyze}
-                className="bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500"
-              >
-                {state.isRunning ? (
-                  <>
-                    <Spinner className="mr-2 text-black" />
-                    {state.statusMessage}
-                  </>
-                ) : (
-                  "Analyze"
-                )}
-              </Button>
-            </CardFooter>
-          </Card>
+                <div className="space-y-2">
+                  <Label className="text-zinc-400 text-xs uppercase tracking-widest">Transaction hash</Label>
+                  <Input
+                    placeholder="0x..."
+                    value={txHash}
+                    disabled={ANALYZER_DISABLED}
+                    onChange={(e) => setTxHash(e.target.value)}
+                    className="font-mono border-white/10 bg-black text-white placeholder:text-zinc-600 focus-visible:ring-white/20"
+                  />
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button
+                  type="submit"
+                  disabled={!canAnalyze}
+                  className="bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500"
+                >
+                  {state.isRunning ? (
+                    <>
+                      <Spinner className="mr-2 text-black" />
+                      {state.statusMessage}
+                    </>
+                  ) : (
+                    "Analyze"
+                  )}
+                </Button>
+              </CardFooter>
+            </Card>
+          </form>
 
           {state.error && (
             <Alert variant="destructive" className="border-rose-500/30 bg-rose-950/40 text-rose-200">
