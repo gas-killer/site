@@ -8,10 +8,13 @@ const RPC_URLS: Record<string, string | undefined> = {
   sepolia: process.env.RPC_SEPOLIA,
 }
 
-// The route has 60s in all: these leave about 15s for the analysis itself.
-const RECEIPT_TIMEOUT_MS = 10_000
-const TRACE_TIMEOUT_MS = 35_000
-// Analysis peaks at about 6x the trace's size in memory, and a Hobby function has 2GB.
+// The route has 60s in all. With the analyze route's 10s wait for its turn, these leave about 12s
+// for the analysis itself.
+const RECEIPT_TIMEOUT_MS = 8_000
+const TRACE_TIMEOUT_MS = 30_000
+// The wasm's memory grows to about 2.5x the largest trace it has seen and never shrinks, and reading
+// a trace briefly holds it twice. With one trace in flight per instance, a 200MB trace peaks near
+// 900MB, within a Hobby function's 2GB.
 const MAX_TRACE_BYTES = 200_000_000
 
 /** A failure the page can show as-is. */
@@ -98,7 +101,9 @@ async function readCapped(resp: Response, maxBytes: number): Promise<string> {
   }
   if (!resp.body) return ""
   const reader = resp.body.getReader()
-  const chunks: Uint8Array[] = []
+  // Decoding as chunks arrive keeps the raw bytes from being held alongside the text.
+  const decoder = new TextDecoder()
+  const parts: string[] = []
   let size = 0
   try {
     for (;;) {
@@ -109,7 +114,7 @@ async function readCapped(resp: Response, maxBytes: number): Promise<string> {
         await reader.cancel()
         throw tooLarge()
       }
-      chunks.push(value)
+      parts.push(decoder.decode(value, { stream: true }))
     }
   } catch (e) {
     if (e instanceof AnalyzerError) throw e
@@ -118,7 +123,8 @@ async function readCapped(resp: Response, maxBytes: number): Promise<string> {
     }
     throw new AnalyzerError(502, "Upstream RPC request failed")
   }
-  return Buffer.concat(chunks, size).toString("utf8")
+  parts.push(decoder.decode())
+  return parts.join("")
 }
 
 /**

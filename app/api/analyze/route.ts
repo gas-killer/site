@@ -9,6 +9,7 @@ import {
   fetchTransactionInfo,
   rpcUrlFor,
 } from "@/lib/analyzer/trace"
+import { oneAtATime } from "@/lib/analyzer/serial"
 import { analyzeTrace } from "@/lib/wasm/analyzer"
 
 // Hobby's ceiling. Traces are analyzed here rather than in the browser because they routinely run
@@ -16,6 +17,7 @@ import { analyzeTrace } from "@/lib/wasm/analyzer"
 export const maxDuration = 60
 
 const TX_HASH = /^0x[0-9a-fA-F]{64}$/
+const TURN_WAIT_MS = 10_000
 
 export async function POST(request: NextRequest) {
   if (ANALYZER_DISABLED) {
@@ -42,18 +44,18 @@ export async function POST(request: NextRequest) {
   try {
     const url = rpcUrlFor(network)
     const { blockNumber, from, to } = await fetchTransactionInfo(url, txHash)
-    const trace = await fetchTrace(url, txHash)
+    const { result, originalGas, durationMs } = await oneAtATime(TURN_WAIT_MS, async () => {
+      const trace = await fetchTrace(url, txHash)
+      const start = performance.now()
+      try {
+        const result = analyzeTrace(trace, DEFAULT_ESTIMATOR_ADDRESS, from, blockNumber, to)
+        return { result, originalGas: extractOriginalGas(trace), durationMs: performance.now() - start }
+      } catch (e) {
+        throw new AnalyzerError(422, e instanceof Error ? e.message : String(e))
+      }
+    })
 
-    const start = performance.now()
-    let result
-    try {
-      result = analyzeTrace(trace, DEFAULT_ESTIMATOR_ADDRESS, from, blockNumber, to)
-    } catch (e) {
-      throw new AnalyzerError(422, e instanceof Error ? e.message : String(e))
-    }
-    const durationMs = performance.now() - start
-
-    return Response.json({ result, originalGas: extractOriginalGas(trace), durationMs })
+    return Response.json({ result, originalGas, durationMs })
   } catch (e) {
     if (e instanceof AnalyzerError) return Response.json({ error: e.message }, { status: e.status })
     console.error("analyze failed", e)
