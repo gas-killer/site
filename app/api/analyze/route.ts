@@ -4,12 +4,12 @@ import { ANALYZER_DISABLED } from "@/lib/analyzer-status"
 import {
   AnalyzerError,
   DEFAULT_ESTIMATOR_ADDRESS,
-  extractOriginalGas,
   fetchTrace,
   fetchTransactionInfo,
   rpcUrlFor,
 } from "@/lib/analyzer/trace"
-import { analyzeTrace } from "@/lib/wasm/analyzer"
+import { usdPrice } from "@/lib/analyzer/price"
+import { analyzeTrace, type AnalyzeResponse } from "@/lib/wasm/analyzer"
 
 // Hobby's ceiling. Traces are analyzed here rather than in the browser because they routinely run
 // to tens of MB, far past the 4.5MB a function may return.
@@ -41,19 +41,30 @@ export async function POST(request: NextRequest) {
 
   try {
     const url = rpcUrlFor(network)
-    const { blockNumber, from, to } = await fetchTransactionInfo(url, txHash)
-    const trace = await fetchTrace(url, txHash)
+    const info = await fetchTransactionInfo(url, txHash)
+    const [trace, price] = await Promise.all([fetchTrace(url, txHash), usdPrice(network)])
 
-    const start = performance.now()
     let result
     try {
-      result = analyzeTrace(trace, DEFAULT_ESTIMATOR_ADDRESS, from, blockNumber, to)
+      result = analyzeTrace(trace, DEFAULT_ESTIMATOR_ADDRESS, info.from, info.blockNumber, info.to)
     } catch (e) {
       throw new AnalyzerError(422, e instanceof Error ? e.message : String(e))
     }
-    const durationMs = performance.now() - start
 
-    return Response.json({ result, originalGas: extractOriginalGas(trace), durationMs })
+    const response: AnalyzeResponse = {
+      result,
+      tx: {
+        hash: txHash,
+        network,
+        blockNumber: info.blockNumber.toString(),
+        from: info.from,
+        to: info.to,
+        gasUsed: info.gasUsed,
+        effectiveGasPrice: info.effectiveGasPrice.toString(),
+      },
+      usdPrice: price,
+    }
+    return Response.json(response)
   } catch (e) {
     if (e instanceof AnalyzerError) return Response.json({ error: e.message }, { status: e.status })
     console.error("analyze failed", e)

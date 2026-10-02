@@ -49,6 +49,8 @@ export type TransactionInfo = {
   from: string
   // The called contract, or the deployed one for a creation; used for re-entry detection.
   to: string | null
+  gasUsed: number
+  effectiveGasPrice: bigint
 }
 
 export async function fetchTransactionInfo(url: string, txHash: string): Promise<TransactionInfo> {
@@ -59,6 +61,8 @@ export async function fetchTransactionInfo(url: string, txHash: string): Promise
     blockNumber: BigInt(json.result.blockNumber),
     from: json.result.from,
     to: json.result.to ?? json.result.contractAddress ?? null,
+    gasUsed: Number(json.result.gasUsed),
+    effectiveGasPrice: BigInt(json.result.effectiveGasPrice ?? 0),
   }
 }
 
@@ -128,15 +132,3 @@ function extractValueFromEnvelope(text: string, valueStart: number): string {
   // text[i] is the '}' that closes the result/error value
   return text.slice(valueStart, i + 1)
 }
-
-export function extractOriginalGas(json: string): number | null {
-  // Extract the top-level "gas" field via regex instead of JSON.parse,
-  // since the trace string can be 100MB+.
-  // The top-level gas field appears in the first few hundred bytes,
-  // before structLogs, so we limit the search to avoid matching
-  // per-opcode gas fields deep in the trace.
-  const prefix = json.slice(0, 500)
-  const match = prefix.match(/"gas"\s*:\s*(\d+)/)
-  return match ? Number(match[1]) : null
-}
-

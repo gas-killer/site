@@ -12,18 +12,22 @@ export interface AnalyzeTraceResult {
   reentered: boolean
 }
 
-export interface EncodeTraceResult {
-  encoded_updates: string
-  state_update_count: number
-  skipped_opcodes: string[]
+export interface AnalyzedTransaction {
+  hash: string
+  network: string
+  blockNumber: string
+  from: string
+  to: string | null
+  gasUsed: number
+  // Wei, as a decimal string.
+  effectiveGasPrice: string
 }
 
-export interface EstimateGasResult {
-  gas_estimate: number
-  is_heuristic: boolean
-  state_update_count: number
-  skipped_opcodes: string[]
-  reentered: boolean
+export interface AnalyzeResponse {
+  result: AnalyzeTraceResult
+  tx: AnalyzedTransaction
+  // The native token's USD price today, or null on a testnet or when it couldn't be fetched.
+  usdPrice: number | null
 }
 
 // Traced into the function by outputFileTracingIncludes in next.config.mjs.

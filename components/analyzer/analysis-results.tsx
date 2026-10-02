@@ -1,200 +1,247 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ArrowRight, ExternalLink, Info, TriangleAlert } from "lucide-react"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { formatGas } from "@/lib/analyzer-utils"
-import type { AnalyzeTraceResult, EncodeTraceResult, EstimateGasResult } from "@/lib/wasm/analyzer"
-import type { AnalysisMode } from "./analysis-config"
+import { NETWORKS } from "@/lib/networks"
+import type { AnalyzeResponse } from "@/lib/wasm/analyzer"
 
-interface AnalysisResultsProps {
-  result: AnalyzeTraceResult | EstimateGasResult | EncodeTraceResult
-  mode: AnalysisMode
-  originalGas: number | null
-  durationMs: number | null
-}
-
-function hasGasEstimate(
-  result: AnalyzeTraceResult | EstimateGasResult | EncodeTraceResult
-): result is AnalyzeTraceResult | EstimateGasResult {
-  return "gas_estimate" in result
-}
-
-function hasEncodedUpdates(
-  result: AnalyzeTraceResult | EstimateGasResult | EncodeTraceResult
-): result is AnalyzeTraceResult | EncodeTraceResult {
-  return "encoded_updates" in result
-}
-
-const MODE_LABELS: Record<AnalysisMode, string> = {
-  full: "Full analysis",
-  heuristic: "Quick estimate",
-  encode: "Encode only",
-}
-
-export function AnalysisResults({ result, mode, originalGas, durationMs }: AnalysisResultsProps) {
-  const [copied, setCopied] = useState(false)
-
-  const gasKillerGas = hasGasEstimate(result) ? result.gas_estimate : null
-  const savings =
-    originalGas && gasKillerGas && originalGas > 0
-      ? ((originalGas - gasKillerGas) / originalGas) * 100
-      : null
-
-  async function copyEncoded() {
-    if (hasEncodedUpdates(result)) {
-      await navigator.clipboard.writeText(result.encoded_updates)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
+export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
+  const { result, tx, usdPrice } = response
+  const network = NETWORKS.find((n) => n.id === tx.network)
+  const original = tx.gasUsed
+  const estimate = result.gas_estimate
+  const saved = original - estimate
+  const percent = original > 0 ? (saved / original) * 100 : 0
+  const scale = Math.max(original, estimate)
 
   return (
     <div className="space-y-5">
-      {/* Gas Savings hero */}
-      {gasKillerGas !== null && (
-        <Card className="border-white/10 bg-zinc-950 text-zinc-200 overflow-hidden">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-white">Gas savings</CardTitle>
-              <div className="flex items-center gap-2">
-                <Badge className="bg-white/10 text-zinc-300 border border-white/10 hover:bg-white/10">
-                  {MODE_LABELS[mode]}
-                </Badge>
-                {hasGasEstimate(result) && result.is_heuristic && (
-                  <Badge className="bg-transparent border border-white/20 text-zinc-300 hover:bg-white/5">
-                    Heuristic
-                  </Badge>
-                )}
-                {hasGasEstimate(result) && result.reentered && (
-                  <Badge
-                    title="A callee called back into the target contract; the estimate counts that callback gas as external and may overshoot."
-                    className="bg-transparent border border-amber-500/40 text-amber-200 hover:bg-amber-500/10"
-                  >
-                    Re-entered
-                  </Badge>
-                )}
-                {durationMs !== null && (
-                  <span className="text-sm text-zinc-500">{Math.round(durationMs)}ms</span>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-8">
-            {/* Savings percentage hero */}
-            {savings !== null && (
-              <div className="text-center py-6">
-                <div className="text-6xl md:text-7xl font-display font-bold text-white">
-                  {savings > 0 ? `${Math.round(savings)}%` : "0%"}
-                </div>
-                <div className="text-sm uppercase tracking-widest text-zinc-500 mt-3">
-                  Gas reduction
-                </div>
-              </div>
-            )}
-
-            {/* Side by side comparison */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl border border-rose-500/30 bg-rose-950/40 p-5 text-center">
-                <div className="text-xs uppercase tracking-widest text-rose-300/80 mb-2">Original</div>
-                <div className="text-2xl font-display font-bold text-white">
-                  {originalGas !== null ? formatGas(originalGas) : "N/A"}
-                </div>
-                <div className="text-xs text-rose-300/70 mt-1">gas used</div>
-              </div>
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/40 p-5 text-center">
-                <div className="text-xs uppercase tracking-widest text-emerald-300/80 mb-2">With Gas Killer</div>
-                <div className="text-2xl font-display font-bold text-white">
-                  {formatGas(gasKillerGas)}
-                </div>
-                <div className="text-xs text-emerald-300/70 mt-1">estimated gas</div>
-              </div>
-            </div>
-
-            {savings !== null && savings > 0 && (
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
-                <span className="text-sm text-zinc-300">
-                  Saving <span className="font-semibold text-white">{formatGas(originalGas! - gasKillerGas)}</span> gas per transaction
+      <Card className="border-white/10 bg-zinc-950 text-zinc-200 overflow-hidden">
+        <CardHeader className="pb-2">
+          <TransactionSummary response={response} />
+        </CardHeader>
+        <CardContent className="space-y-8">
+          {saved > 0 ? (
+            <div className="space-y-2 pt-4">
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <span className="text-5xl md:text-6xl font-display font-bold text-white">{formatGas(saved)}</span>
+                <span className="text-lg text-zinc-400">
+                  gas saved · <span className="text-emerald-300">{Math.round(percent)}% less</span>
                 </span>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Details */}
-      <Card className="border-white/10 bg-zinc-950 text-zinc-200">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-white text-base">Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-white/10 bg-black/40 p-4 text-center">
-              <div className="text-2xl font-display font-bold text-white">{result.state_update_count}</div>
-              <div className="text-xs uppercase tracking-widest text-zinc-500 mt-1">State updates</div>
+              <p className="text-sm text-zinc-400">
+                <CostLine gas={saved} gasPrice={tx.effectiveGasPrice} usdPrice={usdPrice} symbol={network?.nativeSymbol} />{" "}
+                saved on this transaction.
+              </p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/40 p-4 text-center">
-              <div className="text-2xl font-display font-bold text-white">{result.skipped_opcodes.length}</div>
-              <div className="text-xs uppercase tracking-widest text-zinc-500 mt-1">Skipped opcodes</div>
+          ) : (
+            <div className="space-y-2 pt-4">
+              <p className="text-3xl font-display font-bold text-white">No savings on this transaction</p>
+              <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">
+                {saved < 0 ? `Gas Killer would add ${formatGas(-saved)} gas here: v` : "V"}erifying its result costs at
+                least as much as the transaction spends on computation. Gas Killer pays off on transactions that do
+                heavy onchain computation relative to the state they change.
+              </p>
             </div>
-          </div>
-
-          {hasEncodedUpdates(result) && result.encoded_updates && (
-            <>
-              <Separator className="bg-white/10" />
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold text-white text-sm">Encoded state updates</h4>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-zinc-300 hover:bg-white/10 hover:text-white"
-                    onClick={copyEncoded}
-                  >
-                    {copied ? "Copied" : "Copy"}
-                  </Button>
-                </div>
-                <ScrollArea className="h-32 rounded-lg border border-white/10 bg-black p-3">
-                  <pre className="text-xs text-zinc-300 font-mono break-all whitespace-pre-wrap">
-                    {result.encoded_updates}
-                  </pre>
-                </ScrollArea>
-              </div>
-            </>
           )}
 
-          {result.skipped_opcodes.length > 0 && (
-            <Accordion type="single" collapsible>
-              <AccordionItem value="skipped" className="border-white/10">
-                <AccordionTrigger className="text-zinc-300 hover:text-white text-sm">
-                  Skipped opcodes ({result.skipped_opcodes.length})
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="flex flex-wrap gap-2">
-                    {result.skipped_opcodes.map((op) => (
-                      <Badge
-                        key={op}
-                        className="bg-transparent border border-white/15 text-zinc-300 hover:bg-white/5 font-mono"
-                      >
-                        {op}
-                      </Badge>
-                    ))}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+          <div className="space-y-4">
+            <GasBar label="Original" gas={original} scale={scale} className="bg-zinc-500" />
+            <GasBar
+              label="With Gas Killer"
+              gas={estimate}
+              scale={scale}
+              className={saved > 0 ? "bg-emerald-400" : "bg-rose-400"}
+              estimated
+            />
+          </div>
+
+          {(result.is_heuristic || result.reentered) && (
+            <ul className="space-y-2 border-t border-white/10 pt-5 text-sm text-zinc-400">
+              {result.is_heuristic && (
+                <li className="flex gap-2">
+                  <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
+                  The full EVM simulation couldn&apos;t run on this transaction, so the Gas Killer figure comes from a
+                  heuristic and may be less accurate.
+                </li>
+              )}
+              {result.reentered && (
+                <li className="flex gap-2">
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden />
+                  A contract called by this transaction calls back into it. That callback&apos;s gas is counted
+                  as external, so the Gas Killer figure may be on the high side.
+                </li>
+              )}
+            </ul>
           )}
         </CardContent>
       </Card>
+
+      <DeveloperDetails response={response} />
     </div>
   )
+}
+
+function TransactionSummary({ response: { tx } }: { response: AnalyzeResponse }) {
+  const network = NETWORKS.find((n) => n.id === tx.network)
+  const explorer = network?.explorer
+  return (
+    <div className="space-y-2 text-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-zinc-400">
+        <span className="text-white font-medium">{network?.name ?? tx.network}</span>
+        <span aria-hidden>·</span>
+        <span>Block {BigInt(tx.blockNumber).toLocaleString()}</span>
+        <span aria-hidden>·</span>
+        <ExplorerLink href={explorer && `${explorer}/tx/${tx.hash}`} label={shorten(tx.hash)} title={tx.hash} />
+      </div>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-zinc-500">
+        <span>From</span>
+        <ExplorerLink href={explorer && `${explorer}/address/${tx.from}`} label={shorten(tx.from)} title={tx.from} />
+        {tx.to && (
+          <>
+            <ArrowRight className="size-3.5" aria-label="to" />
+            <ExplorerLink href={explorer && `${explorer}/address/${tx.to}`} label={shorten(tx.to)} title={tx.to} />
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ExplorerLink({ href, label, title }: { href?: string; label: string; title: string }) {
+  if (!href) return <span className="font-mono text-zinc-300" title={title}>{label}</span>
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      title={title}
+      className="inline-flex items-center gap-1 font-mono text-zinc-300 underline-offset-4 hover:text-white hover:underline"
+    >
+      {label}
+      <ExternalLink className="size-3" aria-hidden />
+    </a>
+  )
+}
+
+function GasBar({
+  label,
+  gas,
+  scale,
+  className,
+  estimated,
+}: {
+  label: string
+  gas: number
+  scale: number
+  className: string
+  estimated?: boolean
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between gap-4 text-sm">
+        <span className="text-zinc-400">{label}</span>
+        <span className="font-mono text-white">
+          {formatGas(gas)} <span className="font-sans text-zinc-500">{estimated ? "gas (estimated)" : "gas"}</span>
+        </span>
+      </div>
+      <div className="h-3 rounded-full bg-white/5">
+        <div className={`h-full rounded-full ${className}`} style={{ width: `${scale > 0 ? (gas / scale) * 100 : 0}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function CostLine({
+  gas,
+  gasPrice,
+  usdPrice,
+  symbol,
+}: {
+  gas: number
+  gasPrice: string
+  usdPrice: number | null
+  symbol?: string
+}) {
+  const native = Number(BigInt(gas) * BigInt(gasPrice)) / 1e18
+  const nativeText = `${native.toLocaleString(undefined, { maximumSignificantDigits: 3 })} ${symbol ?? ""}`.trim()
+  if (usdPrice === null) return <span className="text-white">{nativeText}</span>
+  const usd = native * usdPrice
+  const usdText = usd < 0.01 ? "under $0.01" : usd.toLocaleString(undefined, { style: "currency", currency: "USD" })
+  return (
+    <>
+      <span className="text-white">{nativeText}</span> {`(${usdText} at today's price)`}
+    </>
+  )
+}
+
+function DeveloperDetails({ response: { result } }: { response: AnalyzeResponse }) {
+  const [copied, setCopied] = useState(false)
+
+  async function copyEncoded() {
+    await navigator.clipboard.writeText(result.encoded_updates)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <Accordion type="single" collapsible className="rounded-xl border border-white/10 bg-zinc-950 px-6">
+      <AccordionItem value="dev" className="border-none">
+        <AccordionTrigger className="text-sm text-zinc-300 hover:text-white hover:no-underline">
+          Developer details
+        </AccordionTrigger>
+        <AccordionContent className="space-y-5">
+          <dl className="grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-lg border border-white/10 bg-black/40 p-3">
+              <dt className="text-xs uppercase tracking-widest text-zinc-500">State updates</dt>
+              <dd className="mt-1 font-mono text-white">{result.state_update_count}</dd>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-black/40 p-3">
+              <dt className="text-xs uppercase tracking-widest text-zinc-500">Skipped opcodes</dt>
+              <dd className="mt-1 font-mono text-white">{result.skipped_opcodes.length}</dd>
+            </div>
+          </dl>
+
+          {result.skipped_opcodes.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {result.skipped_opcodes.map((op) => (
+                <Badge key={op} className="bg-transparent border border-white/15 text-zinc-300 hover:bg-white/5 font-mono">
+                  {op}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          {result.encoded_updates && (
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-white">Encoded state updates</h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-zinc-300 hover:bg-white/10 hover:text-white"
+                  onClick={copyEncoded}
+                >
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+              <ScrollArea className="h-32 rounded-lg border border-white/10 bg-black p-3">
+                <pre className="text-xs text-zinc-300 font-mono break-all whitespace-pre-wrap">{result.encoded_updates}</pre>
+              </ScrollArea>
+            </div>
+          )}
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  )
+}
+
+function shorten(hex: string): string {
+  return hex.length > 12 ? `${hex.slice(0, 6)}…${hex.slice(-4)}` : hex
 }
