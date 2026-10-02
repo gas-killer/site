@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useReducer, useState } from "react"
+import { useReducer, useState } from "react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,16 +9,12 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
 import { Header } from "@/components/header"
-import { loadWasm, resetWasm } from "@/lib/wasm/analyzer"
 import type { AnalyzeTraceResult } from "@/lib/wasm/analyzer"
-import { fetchTraceFromRpc, fetchTransactionInfo, extractOriginalGas, DEFAULT_ESTIMATOR_ADDRESS } from "@/lib/analyzer-utils"
 import { NETWORKS } from "@/lib/networks"
 import { ANALYZER_DISABLED } from "@/lib/analyzer-status"
 import { AnalysisResults } from "./analysis-results"
 
 type State = {
-  wasmStatus: "loading" | "ready" | "error"
-  wasmError: string | null
   isRunning: boolean
   statusMessage: string | null
   result: AnalyzeTraceResult | null
@@ -28,17 +24,11 @@ type State = {
 }
 
 type Action =
-  | { type: "WASM_LOADING" }
-  | { type: "WASM_READY" }
-  | { type: "WASM_ERROR"; error: string }
   | { type: "RUN_START"; statusMessage: string }
-  | { type: "RUN_STATUS"; statusMessage: string }
   | { type: "RUN_SUCCESS"; result: AnalyzeTraceResult; originalGas: number | null; durationMs: number }
   | { type: "RUN_ERROR"; error: string }
 
 const initialState: State = {
-  wasmStatus: "loading",
-  wasmError: null,
   isRunning: false,
   statusMessage: null,
   result: null,
@@ -49,16 +39,8 @@ const initialState: State = {
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
-    case "WASM_LOADING":
-      return { ...state, wasmStatus: "loading", wasmError: null }
-    case "WASM_READY":
-      return { ...state, wasmStatus: "ready", wasmError: null }
-    case "WASM_ERROR":
-      return { ...state, wasmStatus: "error", wasmError: action.error }
     case "RUN_START":
       return { ...state, isRunning: true, statusMessage: action.statusMessage, result: null, originalGas: null, error: null, durationMs: null }
-    case "RUN_STATUS":
-      return { ...state, statusMessage: action.statusMessage }
     case "RUN_SUCCESS":
       return { ...state, isRunning: false, statusMessage: null, result: action.result, originalGas: action.originalGas, durationMs: action.durationMs, error: null }
     case "RUN_ERROR":
@@ -73,49 +55,26 @@ export function AnalyzerPage() {
   const [txHash, setTxHash] = useState("")
   const [selectedNetwork, setSelectedNetwork] = useState(NETWORKS[0]?.id ?? "")
 
-  useEffect(() => {
-    if (ANALYZER_DISABLED) return
-
-    loadWasm()
-      .then(() => dispatch({ type: "WASM_READY" }))
-      .catch((e) => dispatch({ type: "WASM_ERROR", error: (e as Error).message }))
-  }, [])
-
   async function handleAnalyze() {
     if (!txHash.trim() || !selectedNetwork) return
 
-    dispatch({ type: "RUN_START", statusMessage: "Fetching transaction..." })
+    dispatch({ type: "RUN_START", statusMessage: "Analyzing..." })
 
     try {
-      const { blockNumber, from, to } = await fetchTransactionInfo(selectedNetwork, txHash)
-
-      dispatch({ type: "RUN_STATUS", statusMessage: "Fetching transaction trace..." })
-      const traceJson = await fetchTraceFromRpc(selectedNetwork, txHash)
-
-      dispatch({ type: "RUN_STATUS", statusMessage: "Analyzing trace..." })
-      await new Promise((r) => setTimeout(r, 0))
-
-      const wasm = await loadWasm()
-      const start = performance.now()
-      const result = wasm.analyze_trace(traceJson, DEFAULT_ESTIMATOR_ADDRESS, from, blockNumber, to) as AnalyzeTraceResult
-      const durationMs = performance.now() - start
-      const originalGas = extractOriginalGas(traceJson)
-
-      dispatch({ type: "RUN_SUCCESS", result, originalGas, durationMs })
+      const resp = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ network: selectedNetwork, txHash: txHash.trim() }),
+      })
+      const body = await resp.json().catch(() => null)
+      if (!resp.ok) throw new Error(errorMessage(body, resp))
+      dispatch({ type: "RUN_SUCCESS", result: body.result, originalGas: body.originalGas, durationMs: body.durationMs })
     } catch (e) {
-      dispatch({ type: "RUN_ERROR", error: (e as Error).message || String(e) })
+      dispatch({ type: "RUN_ERROR", error: e instanceof Error ? e.message : String(e) })
     }
   }
 
-  function handleRetryWasm() {
-    resetWasm()
-    dispatch({ type: "WASM_LOADING" })
-    loadWasm()
-      .then(() => dispatch({ type: "WASM_READY" }))
-      .catch((e) => dispatch({ type: "WASM_ERROR", error: (e as Error).message }))
-  }
-
-  const canAnalyze = !ANALYZER_DISABLED && state.wasmStatus === "ready" && txHash.trim() && selectedNetwork && !state.isRunning
+  const canAnalyze = !ANALYZER_DISABLED && txHash.trim() && selectedNetwork && !state.isRunning
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-zinc-200">
@@ -130,7 +89,7 @@ export function AnalyzerPage() {
               Estimate your savings.
             </h1>
             <p className="text-zinc-400 text-lg max-w-2xl leading-relaxed">
-              Paste an Ethereum transaction hash. Gas Killer replays the trace in your browser and estimates how much gas it would save.
+              Paste an Ethereum transaction hash. Gas Killer replays its trace and estimates how much gas it would save.
             </p>
           </div>
 
@@ -172,30 +131,6 @@ export function AnalyzerPage() {
               </Link>
               .
             </p>
-          )}
-
-          {/* WASM status */}
-          {!ANALYZER_DISABLED && state.wasmStatus === "loading" && (
-            <div className="flex items-center gap-2 text-zinc-400">
-              <Spinner className="text-zinc-400" />
-              <span className="text-sm">Loading WebAssembly module...</span>
-            </div>
-          )}
-          {!ANALYZER_DISABLED && state.wasmStatus === "error" && (
-            <Alert variant="destructive" className="border-rose-500/30 bg-rose-950/40 text-rose-200">
-              <AlertTitle>WASM failed to load</AlertTitle>
-              <AlertDescription className="flex items-center justify-between">
-                <span>{state.wasmError}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRetryWasm}
-                  className="border-white/20 bg-transparent text-white hover:bg-white/10"
-                >
-                  Retry
-                </Button>
-              </AlertDescription>
-            </Alert>
           )}
 
           <Card className="border-white/10 bg-zinc-950 text-zinc-200">
@@ -274,4 +209,13 @@ export function AnalyzerPage() {
       </main>
     </div>
   )
+}
+
+// Platform errors (Vercel's own, say) arrive as `{ error: { code, message } }` rather than a string.
+function errorMessage(body: unknown, resp: Response): string {
+  const error = (body as { error?: unknown } | null)?.error
+  if (typeof error === "string") return error
+  const message = (error as { message?: unknown } | undefined)?.message
+  if (typeof message === "string") return message
+  return `HTTP ${resp.status}${resp.statusText ? `: ${resp.statusText}` : ""}`
 }

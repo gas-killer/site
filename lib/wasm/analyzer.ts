@@ -1,3 +1,8 @@
+import "server-only"
+import { readFileSync } from "node:fs"
+import path from "node:path"
+import { analyze_trace, initSync } from "@gas-killer/analyzer-wasm"
+
 export interface AnalyzeTraceResult {
   encoded_updates: string
   gas_estimate: number
@@ -21,38 +26,21 @@ export interface EstimateGasResult {
   reentered: boolean
 }
 
-type WasmModule = {
-  analyze_trace: (
-    traceJson: string,
-    estimatorAddress: string,
-    callerAddress: string,
-    estimateStateChangesBlockNumber?: bigint | null,
-    originAddress?: string | null,
-  ) => AnalyzeTraceResult
-  estimate_gas_heuristic: (traceJson: string, originAddress?: string | null) => EstimateGasResult
-  encode_trace: (traceJson: string) => EncodeTraceResult
-  default: (moduleOrPath?: string) => Promise<unknown>
-}
+// Traced into the function by outputFileTracingIncludes in next.config.mjs.
+const WASM_PATH = path.join(process.cwd(), "node_modules/@gas-killer/analyzer-wasm/gas_killer_wasm_bg.wasm")
 
-// Use Function constructor to create a dynamic import that webpack cannot
-// statically analyze or bundle. This is necessary because Next.js/webpack
-// intercepts import() calls even with webpackIgnore comments.
-const dynamicImport = new Function("url", "return import(url)") as (url: string) => Promise<WasmModule>
+let initialized = false
 
-let initPromise: Promise<WasmModule> | null = null
-
-export async function loadWasm(): Promise<WasmModule> {
-  if (initPromise) return initPromise
-
-  initPromise = (async () => {
-    const mod = await dynamicImport("/wasm/gas_killer_wasm.js")
-    await mod.default("/wasm/gas_killer_wasm_bg.wasm")
-    return mod
-  })()
-
-  return initPromise
-}
-
-export function resetWasm() {
-  initPromise = null
+export function analyzeTrace(
+  traceJson: string,
+  estimatorAddress: string,
+  callerAddress: string,
+  blockNumber: bigint,
+  originAddress: string | null,
+): AnalyzeTraceResult {
+  if (!initialized) {
+    initSync({ module: readFileSync(WASM_PATH) })
+    initialized = true
+  }
+  return analyze_trace(traceJson, estimatorAddress, callerAddress, blockNumber, originAddress)
 }
