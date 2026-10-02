@@ -17,7 +17,12 @@ import { analyzeTrace, type AnalyzeResponse } from "@/lib/wasm/analyzer"
 export const maxDuration = 60
 
 const TX_HASH = /^0x[0-9a-fA-F]{64}$/
+// With the receipt's 8s and the trace's 25s (lib/analyzer/trace.ts), this stays under 60s with room
+// for auth.
 const TURN_WAIT_MS = 10_000
+const ANALYSIS_TIMEOUT_MS = 12_000
+
+const OUTCOME_STATUS = { rpc: 502, analysis: 422, timeout: 504, crashed: 500 } as const
 
 export async function POST(request: NextRequest) {
   if (ANALYZER_DISABLED) {
@@ -47,11 +52,18 @@ export async function POST(request: NextRequest) {
     const [result, price] = await Promise.all([
       oneAtATime(TURN_WAIT_MS, async () => {
         const trace = await fetchTrace(url, txHash)
-        try {
-          return analyzeTrace(trace, DEFAULT_ESTIMATOR_ADDRESS, info.from, info.blockNumber, info.to)
-        } catch (e) {
-          throw new AnalyzerError(422, e instanceof Error ? e.message : String(e))
-        }
+        const outcome = await analyzeTrace(
+          trace,
+          DEFAULT_ESTIMATOR_ADDRESS,
+          info.from,
+          info.blockNumber,
+          info.to,
+          ANALYSIS_TIMEOUT_MS,
+        )
+        if (outcome.ok) return outcome.result
+        if (outcome.kind === "crashed") console.error("analyzer worker crashed", outcome.message)
+        const message = outcome.kind === "crashed" ? "Analysis failed unexpectedly" : outcome.message
+        throw new AnalyzerError(OUTCOME_STATUS[outcome.kind], message)
       }),
       usdPrice(network),
     ])

@@ -1,7 +1,7 @@
 import "server-only"
-import { readFileSync } from "node:fs"
+import { readFile } from "node:fs/promises"
 import path from "node:path"
-import { analyze_trace, initSync } from "@gas-killer/analyzer-wasm"
+import { Worker } from "node:worker_threads"
 
 export interface AnalyzeTraceResult {
   encoded_updates: string
@@ -30,21 +30,53 @@ export interface AnalyzeResponse {
   usdPrice: number | null
 }
 
-// Traced into the function by outputFileTracingIncludes in next.config.mjs.
+// Read by path at runtime, so outputFileTracingIncludes in next.config.mjs ships it.
 const WASM_PATH = path.join(process.cwd(), "node_modules/@gas-killer/analyzer-wasm/gas_killer_wasm_bg.wasm")
+// Turbopack resolves this at build time and points it at the bundled worker.
+const WORKER_PATH = path.join(process.cwd(), "lib/wasm/analyze-worker.mjs")
 
-let initialized = false
+let compiled: Promise<WebAssembly.Module> | undefined
 
-export function analyzeTrace(
-  traceJson: string,
+export type AnalysisOutcome =
+  | { ok: true; result: AnalyzeTraceResult }
+  | { ok: false; kind: "rpc" | "analysis" | "timeout" | "crashed"; message: string }
+
+/**
+ * Analyze a raw debug_traceTransaction response in a fresh worker. The main thread stays free for
+ * other requests on the instance, a wasm trap can't poison the next run, and the wasm's memory,
+ * which never shrinks, goes back with the worker.
+ */
+export async function analyzeTrace(
+  bytes: Uint8Array,
   estimatorAddress: string,
   callerAddress: string,
   blockNumber: bigint,
   originAddress: string | null,
-): AnalyzeTraceResult {
-  if (!initialized) {
-    initSync({ module: readFileSync(WASM_PATH) })
-    initialized = true
-  }
-  return analyze_trace(traceJson, estimatorAddress, callerAddress, blockNumber, originAddress)
+  timeoutMs: number,
+): Promise<AnalysisOutcome> {
+  compiled ??= readFile(WASM_PATH).then((buf) => WebAssembly.compile(buf))
+  const module = await compiled.catch((e) => {
+    compiled = undefined
+    throw e
+  })
+
+  const worker = new Worker(WORKER_PATH, {
+    workerData: { module, bytes, estimatorAddress, callerAddress, blockNumber, originAddress },
+    // Hands the trace over without a copy; `bytes` is unusable here afterwards.
+    transferList: [bytes.buffer as ArrayBuffer],
+  })
+  return new Promise<AnalysisOutcome>((resolve) => {
+    const timer = setTimeout(() => {
+      resolve({ ok: false, kind: "timeout", message: "Analyzing this transaction took too long." })
+      void worker.terminate()
+    }, timeoutMs)
+    const settle = (outcome: AnalysisOutcome) => {
+      clearTimeout(timer)
+      resolve(outcome)
+      void worker.terminate()
+    }
+    worker.once("message", settle)
+    worker.once("error", (e) => settle({ ok: false, kind: "crashed", message: e.message }))
+    worker.once("exit", (code) => settle({ ok: false, kind: "crashed", message: `Analyzer exited with code ${code}` }))
+  })
 }
