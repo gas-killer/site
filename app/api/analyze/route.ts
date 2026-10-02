@@ -4,20 +4,25 @@ import { ANALYZER_DISABLED } from "@/lib/analyzer-status"
 import {
   AnalyzerError,
   DEFAULT_ESTIMATOR_ADDRESS,
-  extractOriginalGas,
   fetchTrace,
   fetchTransactionInfo,
   rpcUrlFor,
 } from "@/lib/analyzer/trace"
+import { usdPrice } from "@/lib/analyzer/price"
 import { oneAtATime } from "@/lib/analyzer/serial"
-import { analyzeTrace } from "@/lib/wasm/analyzer"
+import { analyzeTrace, type AnalyzeResponse } from "@/lib/wasm/analyzer"
 
 // Hobby's ceiling. Traces are analyzed here rather than in the browser because they routinely run
 // to tens of MB, far past the 4.5MB a function may return.
 export const maxDuration = 60
 
 const TX_HASH = /^0x[0-9a-fA-F]{64}$/
+// With the receipt's 8s and the trace's 25s (lib/analyzer/trace.ts), this stays under 60s with room
+// for auth.
 const TURN_WAIT_MS = 10_000
+const ANALYSIS_TIMEOUT_MS = 12_000
+
+const OUTCOME_STATUS = { rpc: 502, analysis: 422, timeout: 504, crashed: 500 } as const
 
 export async function POST(request: NextRequest) {
   if (ANALYZER_DISABLED) {
@@ -43,19 +48,40 @@ export async function POST(request: NextRequest) {
 
   try {
     const url = rpcUrlFor(network)
-    const { blockNumber, from, to } = await fetchTransactionInfo(url, txHash)
-    const { result, originalGas, durationMs } = await oneAtATime(TURN_WAIT_MS, async () => {
-      const trace = await fetchTrace(url, txHash)
-      const start = performance.now()
-      try {
-        const result = analyzeTrace(trace, DEFAULT_ESTIMATOR_ADDRESS, from, blockNumber, to)
-        return { result, originalGas: extractOriginalGas(trace), durationMs: performance.now() - start }
-      } catch (e) {
-        throw new AnalyzerError(422, e instanceof Error ? e.message : String(e))
-      }
-    })
+    const info = await fetchTransactionInfo(url, txHash)
+    const [result, price] = await Promise.all([
+      oneAtATime(TURN_WAIT_MS, async () => {
+        const trace = await fetchTrace(url, txHash)
+        const outcome = await analyzeTrace(
+          trace,
+          DEFAULT_ESTIMATOR_ADDRESS,
+          info.from,
+          info.blockNumber,
+          info.to,
+          ANALYSIS_TIMEOUT_MS,
+        )
+        if (outcome.ok) return outcome.result
+        if (outcome.kind === "crashed") console.error("analyzer worker crashed", outcome.message)
+        const message = outcome.kind === "crashed" ? "Analysis failed unexpectedly" : outcome.message
+        throw new AnalyzerError(OUTCOME_STATUS[outcome.kind], message)
+      }),
+      usdPrice(network),
+    ])
 
-    return Response.json({ result, originalGas, durationMs })
+    const response: AnalyzeResponse = {
+      result,
+      tx: {
+        hash: txHash,
+        network,
+        blockNumber: info.blockNumber.toString(),
+        from: info.from,
+        to: info.to,
+        gasUsed: info.gasUsed,
+        effectiveGasPrice: info.effectiveGasPrice.toString(),
+      },
+      usdPrice: price,
+    }
+    return Response.json(response)
   } catch (e) {
     if (e instanceof AnalyzerError) return Response.json({ error: e.message }, { status: e.status })
     console.error("analyze failed", e)

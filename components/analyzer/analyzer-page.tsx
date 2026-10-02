@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
 import { Header } from "@/components/header"
-import type { AnalyzeTraceResult } from "@/lib/wasm/analyzer"
+import type { AnalyzeResponse } from "@/lib/wasm/analyzer"
 import { NETWORKS } from "@/lib/networks"
 import { ANALYZER_DISABLED } from "@/lib/analyzer-status"
 import { AnalysisResults } from "./analysis-results"
@@ -17,32 +17,28 @@ import { AnalysisResults } from "./analysis-results"
 type State = {
   isRunning: boolean
   statusMessage: string | null
-  result: AnalyzeTraceResult | null
-  originalGas: number | null
+  response: AnalyzeResponse | null
   error: string | null
-  durationMs: number | null
 }
 
 type Action =
   | { type: "RUN_START"; statusMessage: string }
-  | { type: "RUN_SUCCESS"; result: AnalyzeTraceResult; originalGas: number | null; durationMs: number }
+  | { type: "RUN_SUCCESS"; response: AnalyzeResponse }
   | { type: "RUN_ERROR"; error: string }
 
 const initialState: State = {
   isRunning: false,
   statusMessage: null,
-  result: null,
-  originalGas: null,
+  response: null,
   error: null,
-  durationMs: null,
 }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "RUN_START":
-      return { ...state, isRunning: true, statusMessage: action.statusMessage, result: null, originalGas: null, error: null, durationMs: null }
+      return { ...state, isRunning: true, statusMessage: action.statusMessage, response: null, error: null }
     case "RUN_SUCCESS":
-      return { ...state, isRunning: false, statusMessage: null, result: action.result, originalGas: action.originalGas, durationMs: action.durationMs, error: null }
+      return { ...state, isRunning: false, statusMessage: null, response: action.response, error: null }
     case "RUN_ERROR":
       return { ...state, isRunning: false, statusMessage: null, error: action.error }
     default:
@@ -68,7 +64,7 @@ export function AnalyzerPage() {
       })
       const body = await resp.json().catch(() => null)
       if (!resp.ok) throw new Error(errorMessage(body, resp))
-      dispatch({ type: "RUN_SUCCESS", result: body.result, originalGas: body.originalGas, durationMs: body.durationMs })
+      dispatch({ type: "RUN_SUCCESS", response: body })
     } catch (e) {
       dispatch({ type: "RUN_ERROR", error: e instanceof Error ? e.message : String(e) })
     }
@@ -197,13 +193,8 @@ export function AnalyzerPage() {
             </Alert>
           )}
 
-          {state.result && (
-            <AnalysisResults
-              result={state.result}
-              mode="full"
-              originalGas={state.originalGas}
-              durationMs={state.durationMs}
-            />
+          {state.response && (
+            <AnalysisResults response={state.response} />
           )}
         </div>
       </main>
