@@ -8,6 +8,11 @@ const nextConfig = {
   images: {
     unoptimized: true, // TODO: remove if using Vercel Image Optimization
   },
+  // Loaded from node_modules at runtime; the .wasm is read by path, so tracing can't find it alone.
+  serverExternalPackages: ["@gas-killer/analyzer-wasm"],
+  outputFileTracingIncludes: {
+    "/api/analyze": ["./node_modules/@gas-killer/analyzer-wasm/gas_killer_wasm_bg.wasm"],
+  },
   // `curl -fsSL https://gaskiller.xyz/bash | sh` — the gkvm toolchain installer (gk-run,
   // gk-anvil, the `gk` command, the guest toolchain image). The script lives in
   // gas-killer/gas-analyzer (install-gk.sh); this is only its short name. 307, so the

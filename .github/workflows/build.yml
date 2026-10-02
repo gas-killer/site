@@ -39,8 +39,5 @@ jobs:
             exit 1
           fi
 
-      - name: Copy WASM
-        run: npm run copy:wasm
-
       - name: Build
         run: npm run build
