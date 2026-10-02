@@ -89,7 +89,7 @@ export function AnalyzerPage() {
               Estimate your savings.
             </h1>
             <p className="text-zinc-400 text-lg max-w-2xl leading-relaxed">
-              Paste an Ethereum transaction hash. Gas Killer replays its trace and estimates how much gas it would save.
+              Select a network and paste in a transaction hash. Gas Killer replays its trace and estimates how much gas it would save.
             </p>
           </div>
 
@@ -122,12 +122,12 @@ export function AnalyzerPage() {
           ) : (
             <p className="text-sm text-zinc-500">
               Ready to integrate?{" "}
-              <Link href="/signup" className="text-zinc-300 underline underline-offset-4 hover:text-white">
+              <Link href="/dashboard" className="text-zinc-300 underline underline-offset-4 hover:text-white">
                 Get an API key
               </Link>{" "}
-              or read the{" "}
+              and head to the{" "}
               <Link href="/docs/quickstart" className="text-zinc-300 underline underline-offset-4 hover:text-white">
-                quickstart
+                quickstart guide
               </Link>
               .
             </p>
