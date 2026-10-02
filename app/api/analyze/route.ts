@@ -9,6 +9,7 @@ import {
   rpcUrlFor,
 } from "@/lib/analyzer/trace"
 import { usdPrice } from "@/lib/analyzer/price"
+import { oneAtATime } from "@/lib/analyzer/serial"
 import { analyzeTrace, type AnalyzeResponse } from "@/lib/wasm/analyzer"
 
 // Hobby's ceiling. Traces are analyzed here rather than in the browser because they routinely run
@@ -16,6 +17,7 @@ import { analyzeTrace, type AnalyzeResponse } from "@/lib/wasm/analyzer"
 export const maxDuration = 60
 
 const TX_HASH = /^0x[0-9a-fA-F]{64}$/
+const TURN_WAIT_MS = 10_000
 
 export async function POST(request: NextRequest) {
   if (ANALYZER_DISABLED) {
@@ -24,7 +26,7 @@ export async function POST(request: NextRequest) {
 
   // Traces are fetched through paid archive RPCs, and signup hands out a session before the email
   // is proven, so only confirmed users may analyze.
-  const session = await auth.api.getSession({ headers: request.headers })
+  const session = await auth.api.getSession({ headers: request.headers, query: { disableCookieCache: true } })
   if (!session) {
     return Response.json({ error: "Sign in to use the analyzer" }, { status: 401 })
   }
@@ -42,14 +44,17 @@ export async function POST(request: NextRequest) {
   try {
     const url = rpcUrlFor(network)
     const info = await fetchTransactionInfo(url, txHash)
-    const [trace, price] = await Promise.all([fetchTrace(url, txHash), usdPrice(network)])
-
-    let result
-    try {
-      result = analyzeTrace(trace, DEFAULT_ESTIMATOR_ADDRESS, info.from, info.blockNumber, info.to)
-    } catch (e) {
-      throw new AnalyzerError(422, e instanceof Error ? e.message : String(e))
-    }
+    const [result, price] = await Promise.all([
+      oneAtATime(TURN_WAIT_MS, async () => {
+        const trace = await fetchTrace(url, txHash)
+        try {
+          return analyzeTrace(trace, DEFAULT_ESTIMATOR_ADDRESS, info.from, info.blockNumber, info.to)
+        } catch (e) {
+          throw new AnalyzerError(422, e instanceof Error ? e.message : String(e))
+        }
+      }),
+      usdPrice(network),
+    ])
 
     const response: AnalyzeResponse = {
       result,
