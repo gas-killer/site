@@ -11,7 +11,6 @@
     "generate:api": "node scripts/generate-docs.mjs",
     "sync:openapi": "node scripts/sync-openapi.mjs",
     "check:openapi": "node scripts/sync-openapi.mjs --check",
-    "build:wasm": "wasm-pack build ${GAS_ANALYZER_WASM_PATH:-../gas-analyzer/crates/wasm} --target web --release --out-name gas_killer_wasm --out-dir \"$PWD/node_modules/@gas-killer/analyzer-wasm\"",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },

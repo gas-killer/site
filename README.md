@@ -48,16 +48,15 @@ RPC URLs are used server-side only and are never exposed to the browser: `/api/a
 |---|---|
 | `npm run dev` | Start the dev server |
 | `npm run build` | Build for production |
-| `npm run build:wasm` | Compile WASM from source (requires Rust + wasm-pack) into `node_modules`; `npm install` restores the published build |
 
 ## Building WASM from Source
 
-If you're making changes to the Rust analyzer, you can recompile the WASM locally instead of using the published package. By default this expects `gas-analyzer` to be a sibling of this repo:
+The analyzer runs the published `@gas-killer/analyzer-wasm`. To try unreleased Rust changes, build a local `gas-analyzer` checkout and install it in place of the published package:
 
 ```bash
 # Requires: rustup, wasm-pack
-npm run build:wasm
-
-# Or point to a custom path
-GAS_ANALYZER_WASM_PATH=/path/to/gas-analyzer/crates/wasm npm run build:wasm
+wasm-pack build ../gas-analyzer/crates/wasm --target web --release --out-name gas_killer_wasm
+npm install --no-save @gas-killer/analyzer-wasm@file:../gas-analyzer/crates/wasm/pkg
 ```
+
+`--no-save` leaves `package.json` and the lockfile on the published version, and a plain `npm install` switches back to it.
