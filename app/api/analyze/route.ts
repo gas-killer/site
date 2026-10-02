@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   // Traces are fetched through paid archive RPCs, and signup hands out a session before the email
   // is proven, so only confirmed users may analyze.
-  const session = await auth.api.getSession({ headers: request.headers })
+  const session = await auth.api.getSession({ headers: request.headers, query: { disableCookieCache: true } })
   if (!session) {
     return Response.json({ error: "Sign in to use the analyzer" }, { status: 401 })
   }

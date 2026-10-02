@@ -8,8 +8,11 @@ const RPC_URLS: Record<string, string | undefined> = {
   sepolia: process.env.RPC_SEPOLIA,
 }
 
-// Archive nodes can take a while to replay a large transaction, but the route has 60s in all.
-const RPC_TIMEOUT_MS = 40_000
+// The route has 60s in all: these leave about 15s for the analysis itself.
+const RECEIPT_TIMEOUT_MS = 10_000
+const TRACE_TIMEOUT_MS = 35_000
+// Analysis peaks at about 6x the trace's size in memory, and a Hobby function has 2GB.
+const MAX_TRACE_BYTES = 200_000_000
 
 /** A failure the page can show as-is. */
 export class AnalyzerError extends Error {
@@ -24,7 +27,7 @@ export function rpcUrlFor(network: string): string {
   return url
 }
 
-async function rpc(url: string, method: string, params: unknown[]): Promise<Response> {
+async function rpc(url: string, method: string, params: unknown[], timeoutMs: number): Promise<Response> {
   let resp: Response
   try {
     resp = await fetch(url, {
@@ -32,7 +35,7 @@ async function rpc(url: string, method: string, params: unknown[]): Promise<Resp
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
       cache: "no-store",
-      signal: AbortSignal.timeout(RPC_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     })
   } catch (e) {
     if (e instanceof Error && e.name === "TimeoutError") {
@@ -52,7 +55,7 @@ export type TransactionInfo = {
 }
 
 export async function fetchTransactionInfo(url: string, txHash: string): Promise<TransactionInfo> {
-  const json = await (await rpc(url, "eth_getTransactionReceipt", [txHash])).json()
+  const json = await (await rpc(url, "eth_getTransactionReceipt", [txHash], RECEIPT_TIMEOUT_MS)).json()
   if (json.error) throw new AnalyzerError(502, `RPC error: ${json.error.message || JSON.stringify(json.error)}`)
   if (!json.result) throw new AnalyzerError(404, "Transaction not found")
   return {
@@ -64,7 +67,8 @@ export async function fetchTransactionInfo(url: string, txHash: string): Promise
 
 /** The trace's JSON text, left unparsed: it can run past 100MB. */
 export async function fetchTrace(url: string, txHash: string): Promise<string> {
-  const text = await (await rpc(url, "debug_traceTransaction", [txHash, { enableMemory: true }])).text()
+  const resp = await rpc(url, "debug_traceTransaction", [txHash, { enableMemory: true }], TRACE_TIMEOUT_MS)
+  const text = await readCapped(resp, MAX_TRACE_BYTES)
 
   // Check for "result" first because "error" can appear as a key inside trace data (e.g. revert reasons).
   const resultMatch = text.match(/"result"\s*:\s*/)
@@ -83,6 +87,38 @@ export async function fetchTrace(url: string, txHash: string): Promise<string> {
   }
 
   throw new AnalyzerError(502, "Unexpected RPC response format")
+}
+
+async function readCapped(resp: Response, maxBytes: number): Promise<string> {
+  const tooLarge = () =>
+    new AnalyzerError(413, `This transaction's trace is over ${maxBytes / 1e6} MB, too large to analyze here.`)
+  if (Number(resp.headers.get("content-length")) > maxBytes) {
+    await resp.body?.cancel()
+    throw tooLarge()
+  }
+  if (!resp.body) return ""
+  const reader = resp.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > maxBytes) {
+        await reader.cancel()
+        throw tooLarge()
+      }
+      chunks.push(value)
+    }
+  } catch (e) {
+    if (e instanceof AnalyzerError) throw e
+    if (e instanceof Error && e.name === "TimeoutError") {
+      throw new AnalyzerError(504, "The RPC node took too long to respond. Try again.")
+    }
+    throw new AnalyzerError(502, "Upstream RPC request failed")
+  }
+  return Buffer.concat(chunks, size).toString("utf8")
 }
 
 /**
