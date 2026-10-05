@@ -20,15 +20,21 @@ import { analyzePrestate, analyzeTrace, type AnalyzeResponse, type AnalyzeTraceR
 export const maxDuration = 60
 
 const TX_HASH = /^0x[0-9a-fA-F]{64}$/
-// The receipt (8s) and prestate tracers (6s) run together, so with the trace's 22s
-// (lib/analyzer/trace.ts) the worst case is 8 + 3 + 10 + 22 + 12 = 55s, under 60s with room for auth.
+// Every step after auth fits inside this, leaving maxDuration's last 5s to respond. The receipt (8s)
+// and prestate tracers (6s) run together, then the prestate analysis (3s); the struct-log path gets
+// whatever is left, rather than fixed slices that would cut a big trace off with time to spare.
+const BUDGET_MS = 55_000
 const PRESTATE_ANALYSIS_TIMEOUT_MS = 3_000
-const TURN_WAIT_MS = 10_000
-const ANALYSIS_TIMEOUT_MS = 12_000
+const MAX_TURN_WAIT_MS = 10_000
+// The least time worth starting a struct-log download and analysis with.
+const MIN_TRACE_WORK_MS = 10_000
+// Held back from the download so a trace that arrives late can still be analyzed.
+const MIN_ANALYSIS_MS = 5_000
 
 const OUTCOME_STATUS = { rpc: 502, analysis: 422, timeout: 504, crashed: 500 } as const
 
 export async function POST(request: NextRequest) {
+  const deadline = Date.now() + BUDGET_MS
   if (ANALYZER_DISABLED) {
     return Response.json({ error: "The analyzer is temporarily disabled" }, { status: 503 })
   }
@@ -61,7 +67,7 @@ export async function POST(request: NextRequest) {
       fromPrestate(prestate, info).then(async (pre) =>
         pre.result
           ? { result: pre.result, method: "prestate" as const, prestateSkipped: null }
-          : { result: await fromTrace(url, txHash, info), method: "trace" as const, prestateSkipped: pre.skipped },
+          : { result: await fromTrace(url, network, txHash, info, deadline), method: "trace" as const, prestateSkipped: pre.skipped },
       ),
       usdPrice(network),
     ])
@@ -114,17 +120,42 @@ async function fromPrestate(
   return outcome.eligible ? { result: outcome.result } : { skipped: outcome.reason }
 }
 
-/** The analysis from the full struct-log trace, one per instance at a time since traces can be huge. */
-function fromTrace(url: string, txHash: string, info: Info): Promise<AnalyzeTraceResult> {
-  return oneAtATime(TURN_WAIT_MS, async () => {
-    const trace = await fetchTrace(url, txHash)
+/**
+ * The analysis from the full struct-log trace, one per instance at a time since traces can be huge.
+ * The wait, download and analysis share what's left before `deadline`.
+ */
+async function fromTrace(
+  url: string,
+  network: string,
+  txHash: string,
+  info: Info,
+  deadline: number,
+): Promise<AnalyzeTraceResult> {
+  const turnWait = Math.min(MAX_TURN_WAIT_MS, deadline - Date.now() - MIN_TRACE_WORK_MS)
+  if (turnWait < 0) throw new AnalyzerError(504, "Analyzing this transaction took too long.")
+  return oneAtATime(turnWait, async () => {
+    const started = Date.now()
+    const trace = await fetchTrace(url, txHash, deadline - started - MIN_ANALYSIS_MS).catch((e: unknown) => {
+      console.log(
+        `analyzer trace: network=${network} fetch_ms=${Date.now() - started} outcome=fetch_failed` +
+          ` error=${e instanceof Error ? e.message : String(e)}`,
+      )
+      throw e
+    })
+    const fetched = Date.now()
+    const size = trace.byteLength
     const outcome = await analyzeTrace(
       trace,
       DEFAULT_ESTIMATOR_ADDRESS,
       info.from,
       info.blockNumber,
       info.to,
-      ANALYSIS_TIMEOUT_MS,
+      deadline - fetched,
+    )
+    // One line per struct-log analysis, for tuning MAX_TRACE_BYTES and the budget from real traffic.
+    console.log(
+      `analyzer trace: network=${network} mb=${(size / 1e6).toFixed(1)} fetch_ms=${fetched - started}` +
+        ` analysis_ms=${Date.now() - fetched} budget_ms=${deadline - fetched} outcome=${outcome.ok ? "ok" : outcome.kind}`,
     )
     if (outcome.ok) return outcome.result
     if (outcome.kind === "too_large") throw traceTooLarge(`RPC error: ${outcome.message}`)
