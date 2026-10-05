@@ -62,8 +62,15 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
             />
           </div>
 
-          {(result.is_heuristic || result.reentered) && (
+          {(response.method === "prestate" || result.is_heuristic || result.reentered) && (
             <ul className="space-y-2 border-t border-white/10 pt-5 text-sm text-zinc-400">
+              {response.method === "prestate" && (
+                <li className="flex gap-2">
+                  <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
+                  Estimated from the storage this transaction changed rather than a full replay, so repeated
+                  writes to the same slot count once.
+                </li>
+              )}
               {result.is_heuristic && (
                 <li className="flex gap-2">
                   <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
@@ -181,7 +188,7 @@ function CostLine({
   )
 }
 
-function DeveloperDetails({ response: { result } }: { response: AnalyzeResponse }) {
+function DeveloperDetails({ response: { result, method, prestateSkipped } }: { response: AnalyzeResponse }) {
   const [copied, setCopied] = useState(false)
 
   async function copyEncoded() {
@@ -198,6 +205,13 @@ function DeveloperDetails({ response: { result } }: { response: AnalyzeResponse 
         </AccordionTrigger>
         <AccordionContent className="space-y-5">
           <dl className="grid grid-cols-2 gap-3 text-sm">
+            <div className="col-span-2 rounded-lg border border-white/10 bg-black/40 p-3">
+              <dt className="text-xs uppercase tracking-widest text-zinc-500">Method</dt>
+              <dd className="mt-1 text-white">
+                {method === "prestate" ? "Storage diff (prestate and call tracers)" : "Full execution trace"}
+              </dd>
+              {prestateSkipped && <dd className="mt-1 text-xs text-zinc-500 break-words">Storage diff not used: {prestateSkipped}</dd>}
+            </div>
             <div className="rounded-lg border border-white/10 bg-black/40 p-3">
               <dt className="text-xs uppercase tracking-widest text-zinc-500">State updates</dt>
               <dd className="mt-1 font-mono text-white">{result.state_update_count}</dd>
