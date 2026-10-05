@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
           ANALYSIS_TIMEOUT_MS,
         )
         if (outcome.ok) return outcome.result
-        if (outcome.kind === "too_large") throw traceTooLarge()
+        if (outcome.kind === "too_large") throw traceTooLarge(`RPC error: ${outcome.message}`)
         if (outcome.kind === "crashed") console.error("analyzer worker crashed", outcome.message)
         const message = outcome.kind === "crashed" ? "Analysis failed unexpectedly" : outcome.message
         throw new AnalyzerError(OUTCOME_STATUS[outcome.kind], message)
