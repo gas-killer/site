@@ -7,6 +7,7 @@ import {
   fetchTrace,
   fetchTransactionInfo,
   rpcUrlFor,
+  traceTooLarge,
 } from "@/lib/analyzer/trace"
 import { usdPrice } from "@/lib/analyzer/price"
 import { oneAtATime } from "@/lib/analyzer/serial"
@@ -61,6 +62,7 @@ export async function POST(request: NextRequest) {
           ANALYSIS_TIMEOUT_MS,
         )
         if (outcome.ok) return outcome.result
+        if (outcome.kind === "too_large") throw traceTooLarge()
         if (outcome.kind === "crashed") console.error("analyzer worker crashed", outcome.message)
         const message = outcome.kind === "crashed" ? "Analysis failed unexpectedly" : outcome.message
         throw new AnalyzerError(OUTCOME_STATUS[outcome.kind], message)
@@ -83,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
     return Response.json(response)
   } catch (e) {
-    if (e instanceof AnalyzerError) return Response.json({ error: e.message }, { status: e.status })
+    if (e instanceof AnalyzerError) return Response.json({ error: e.message, code: e.code }, { status: e.status })
     console.error("analyze failed", e)
     return Response.json({ error: "Analysis failed unexpectedly" }, { status: 500 })
   }

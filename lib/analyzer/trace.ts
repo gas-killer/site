@@ -17,9 +17,15 @@ const MAX_TRACE_BYTES = 200_000_000
 
 /** A failure the page can show as-is. */
 export class AnalyzerError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(readonly status: number, message: string, readonly code?: string) {
     super(message)
   }
+}
+
+const TRACE_TOO_LARGE = "trace_too_large"
+
+export function traceTooLarge(): AnalyzerError {
+  return new AnalyzerError(413, "This transaction's trace is too large to analyze here.", TRACE_TOO_LARGE)
 }
 
 export function rpcUrlFor(network: string): string {
@@ -44,6 +50,7 @@ async function rpc(url: string, method: string, params: unknown[], timeoutMs: nu
     }
     throw new AnalyzerError(502, "Upstream RPC request failed")
   }
+  if (resp.status === 413) throw traceTooLarge()
   if (!resp.ok) throw new AnalyzerError(502, `Upstream RPC returned HTTP ${resp.status}`)
   return resp
 }
@@ -77,12 +84,10 @@ export async function fetchTrace(url: string, txHash: string): Promise<Uint8Arra
 }
 
 async function readCapped(resp: Response, maxBytes: number): Promise<Uint8Array> {
-  const tooLarge = () =>
-    new AnalyzerError(413, `This transaction's trace is over ${maxBytes / 1e6} MB, too large to analyze here.`)
   const declared = Number(resp.headers.get("content-length")) || 0
   if (declared > maxBytes) {
     await resp.body?.cancel()
-    throw tooLarge()
+    throw traceTooLarge()
   }
   if (!resp.body) return new Uint8Array()
   const reader = resp.body.getReader()
@@ -97,7 +102,7 @@ async function readCapped(resp: Response, maxBytes: number): Promise<Uint8Array>
       if (done) break
       if (size + value.byteLength > maxBytes) {
         await reader.cancel()
-        throw tooLarge()
+        throw traceTooLarge()
       }
       if (buffer && size + value.byteLength <= buffer.byteLength) buffer.set(value, size)
       else {

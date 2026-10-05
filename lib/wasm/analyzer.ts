@@ -39,7 +39,7 @@ let compiled: Promise<WebAssembly.Module> | undefined
 
 export type AnalysisOutcome =
   | { ok: true; result: AnalyzeTraceResult }
-  | { ok: false; kind: "rpc" | "analysis" | "timeout" | "crashed"; message: string }
+  | { ok: false; kind: "rpc" | "too_large" | "analysis" | "timeout" | "crashed"; message: string }
 
 /**
  * Analyze a raw debug_traceTransaction response in a fresh worker. The main thread stays free for
