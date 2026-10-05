@@ -41,9 +41,10 @@ const WORKER_PATH = path.join(process.cwd(), "lib/wasm/analyze-worker.mjs")
 
 let compiled: Promise<WebAssembly.Module> | undefined
 
-type Failure = { ok: false; kind: "rpc" | "too_large" | "analysis" | "timeout" | "crashed"; message: string }
+// `wasmBytes` is the analyzer's wasm memory when it finished, if it got that far.
+type Failure = { ok: false; kind: "rpc" | "too_large" | "analysis" | "timeout" | "crashed"; message: string; wasmBytes?: number }
 
-export type AnalysisOutcome = { ok: true; result: AnalyzeTraceResult } | Failure
+export type AnalysisOutcome = { ok: true; result: AnalyzeTraceResult; wasmBytes?: number } | Failure
 
 export type PrestateOutcome =
   | { ok: true; eligible: true; result: AnalyzeTraceResult }
