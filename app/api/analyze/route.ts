@@ -155,7 +155,11 @@ async function fromTrace(
     // One line per struct-log analysis, for tuning MAX_TRACE_BYTES and the budget from real traffic.
     console.log(
       `analyzer trace: network=${network} mb=${(size / 1e6).toFixed(1)} fetch_ms=${fetched - started}` +
-        ` analysis_ms=${Date.now() - fetched} budget_ms=${deadline - fetched} outcome=${outcome.ok ? "ok" : outcome.kind}`,
+        ` analysis_ms=${Date.now() - fetched} budget_ms=${deadline - fetched}` +
+        ` wasm_mb=${outcome.wasmBytes === undefined ? "?" : (outcome.wasmBytes / 1e6).toFixed(0)}` +
+        // The instance's peak resident memory so far; Hobby kills it at 2GB.
+        ` peak_rss_mb=${(process.resourceUsage().maxRSS / 1024).toFixed(0)}` +
+        ` outcome=${outcome.ok ? "ok" : outcome.kind}`,
     )
     if (outcome.ok) return outcome.result
     if (outcome.kind === "too_large") throw traceTooLarge(`RPC error: ${outcome.message}`)
