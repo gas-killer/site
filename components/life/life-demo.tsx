@@ -106,7 +106,7 @@ export function LifeDemo({ viewer, how }: { viewer: LifeViewer; how: ReactNode }
         generationRef.current ??
         (await client.readContract({ address: LIFE_ADDRESS, abi: LIFE_ABI, functionName: "generation" }))
       const rows = await fetchRecent(generation)
-      recentBehindRef.current = (rows[0]?.gen ?? 0n) < generation
+      recentBehindRef.current = (rows[0]?.gen ?? 0n) < (generationRef.current ?? generation)
       setRecent(rows)
       if (rows[0]) setLastGkGas((gas) => gas ?? Number(rows[0].gasUsed))
     } catch (err) {
