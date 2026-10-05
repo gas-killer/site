@@ -8,13 +8,13 @@ const RPC_URLS: Record<string, string | undefined> = {
   sepolia: process.env.RPC_SEPOLIA,
 }
 
-// The route has 60s in all; see its budget.
+// The route has 60s in all; the struct-log trace gets whatever its deadline leaves.
 const RECEIPT_TIMEOUT_MS = 8_000
 const PRESTATE_TIMEOUT_MS = 6_000
-const TRACE_TIMEOUT_MS = 22_000
-// An analysis holds the trace's bytes, its decoded text and about 2.5x its size in wasm memory. With
-// one trace in flight per instance, a 200MB trace peaks near 900MB, within a Hobby function's 2GB.
-const MAX_TRACE_BYTES = 200_000_000
+// An analysis holds the trace's bytes, its decoded text and about 2.5x its size in wasm memory, so
+// about 4.5x in all. With one trace in flight per instance, a 300MB trace peaks near 1.35GB, which
+// leaves room for the runtime in a Hobby function's 2GB.
+const MAX_TRACE_BYTES = 300_000_000
 // The prestate tracers grow with the storage a call touches, not its steps; anything past this
 // belongs on the struct-log path's cap and lock.
 const MAX_PRESTATE_BYTES = 20_000_000
@@ -103,8 +103,8 @@ async function tracerResult(url: string, txHash: string, config: object): Promis
 }
 
 /** The raw debug_traceTransaction response, undecoded: it can run past 100MB, and the worker decodes it. */
-export async function fetchTrace(url: string, txHash: string): Promise<Uint8Array> {
-  const resp = await rpc(url, "debug_traceTransaction", [txHash, { enableMemory: true }], TRACE_TIMEOUT_MS)
+export async function fetchTrace(url: string, txHash: string, timeoutMs: number): Promise<Uint8Array> {
+  const resp = await rpc(url, "debug_traceTransaction", [txHash, { enableMemory: true }], timeoutMs)
   return readCapped(resp, MAX_TRACE_BYTES)
 }
 
