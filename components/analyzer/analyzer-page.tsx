@@ -18,13 +18,15 @@ type State = {
   isRunning: boolean
   statusMessage: string | null
   response: AnalyzeResponse | null
-  error: string | null
+  error: RunError | null
 }
+
+type RunError = { message: string; code?: string }
 
 type Action =
   | { type: "RUN_START"; statusMessage: string }
   | { type: "RUN_SUCCESS"; response: AnalyzeResponse }
-  | { type: "RUN_ERROR"; error: string }
+  | { type: "RUN_ERROR"; error: RunError }
 
 const initialState: State = {
   isRunning: false,
@@ -63,10 +65,13 @@ export function AnalyzerPage() {
         body: JSON.stringify({ network: selectedNetwork, txHash: txHash.trim() }),
       })
       const body = await resp.json().catch(() => null)
-      if (!resp.ok) throw new Error(errorMessage(body, resp))
+      if (!resp.ok) {
+        dispatch({ type: "RUN_ERROR", error: { message: errorMessage(body, resp), code: body?.code } })
+        return
+      }
       dispatch({ type: "RUN_SUCCESS", response: body })
     } catch (e) {
-      dispatch({ type: "RUN_ERROR", error: e instanceof Error ? e.message : String(e) })
+      dispatch({ type: "RUN_ERROR", error: { message: e instanceof Error ? e.message : String(e) } })
     }
   }
 
@@ -195,9 +200,21 @@ export function AnalyzerPage() {
           {state.error && (
             <Alert variant="destructive" className="border-rose-500/30 bg-rose-950/40 text-rose-200">
               <AlertTitle>Analysis failed</AlertTitle>
-              <AlertDescription className="font-mono text-sm whitespace-pre-wrap">
-                {state.error}
-              </AlertDescription>
+              {state.error.code === "trace_too_large" ? (
+                <AlertDescription className="text-sm">
+                  <p>
+                    {state.error.message} Reach out to the team for a manual analysis on our{" "}
+                    <Link href="/docs/contact" className="underline underline-offset-4 hover:text-white">
+                      contact page
+                    </Link>
+                    .
+                  </p>
+                </AlertDescription>
+              ) : (
+                <AlertDescription className="font-mono text-sm whitespace-pre-wrap">
+                  {state.error.message}
+                </AlertDescription>
+              )}
             </Alert>
           )}
 
