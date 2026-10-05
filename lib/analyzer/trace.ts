@@ -10,10 +10,14 @@ const RPC_URLS: Record<string, string | undefined> = {
 
 // The route has 60s in all; see its budget.
 const RECEIPT_TIMEOUT_MS = 8_000
-const TRACE_TIMEOUT_MS = 25_000
+const PRESTATE_TIMEOUT_MS = 6_000
+const TRACE_TIMEOUT_MS = 22_000
 // An analysis holds the trace's bytes, its decoded text and about 2.5x its size in wasm memory. With
 // one trace in flight per instance, a 200MB trace peaks near 900MB, within a Hobby function's 2GB.
 const MAX_TRACE_BYTES = 200_000_000
+// The prestate tracers grow with the storage a call touches, not its steps; anything past this
+// belongs on the struct-log path's cap and lock.
+const MAX_PRESTATE_BYTES = 20_000_000
 
 /** A failure the page can show as-is. */
 export class AnalyzerError extends Error {
@@ -77,6 +81,25 @@ export async function fetchTransactionInfo(url: string, txHash: string): Promise
     gasUsed: Number(json.result.gasUsed),
     effectiveGasPrice: BigInt(json.result.effectiveGasPrice ?? 0),
   }
+}
+
+export type PrestateTraces = { diff: string; frame: string }
+
+/** The prestateTracer diff and callTracer frame, as JSON for analyze_prestate. */
+export async function fetchPrestateTraces(url: string, txHash: string): Promise<PrestateTraces> {
+  const [diff, frame] = await Promise.all([
+    tracerResult(url, txHash, { tracer: "prestateTracer", tracerConfig: { diffMode: true } }),
+    tracerResult(url, txHash, { tracer: "callTracer", tracerConfig: { withLog: true } }),
+  ])
+  return { diff, frame }
+}
+
+async function tracerResult(url: string, txHash: string, config: object): Promise<string> {
+  const resp = await rpc(url, "debug_traceTransaction", [txHash, config], PRESTATE_TIMEOUT_MS)
+  const json = JSON.parse(new TextDecoder().decode(await readCapped(resp, MAX_PRESTATE_BYTES)))
+  if (json.error) throw new AnalyzerError(502, `RPC error: ${json.error.message || JSON.stringify(json.error)}`)
+  if (!json.result) throw new AnalyzerError(502, "Unexpected RPC response format")
+  return JSON.stringify(json.result)
 }
 
 /** The raw debug_traceTransaction response, undecoded: it can run past 100MB, and the worker decodes it. */
