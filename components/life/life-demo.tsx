@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
-import { createPublicClient, http, parseEventLogs, type Hex, type Log } from "viem"
+import { createPublicClient, fallback, http, parseEventLogs, type Hex, type Log } from "viem"
 import { mainnet, sepolia } from "viem/chains"
 import { draw, population, unpack, SIZE, type Cells } from "@/lib/life/board"
 import {
@@ -19,10 +19,20 @@ import {
 
 export type LifeViewer = "signed-out" | "unverified" | "ready"
 
-const client = createPublicClient({
-  chain: sepolia,
-  transport: http(process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL ?? "https://ethereum-sepolia-rpc.publicnode.com"),
-})
+// publicnode has been answering eth_getLogs with [] and receipts with null for this contract's blocks,
+// with no error, so it goes last. A configured RPC goes first.
+const RPC_URLS = [
+  ...new Set(
+    [
+      process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL,
+      "https://sepolia.gateway.tenderly.co",
+      "https://ethereum-sepolia-rpc.publicnode.com",
+    ].filter((u): u is string => !!u),
+  ),
+]
+const client = createPublicClient({ chain: sepolia, transport: fallback(RPC_URLS.map((u) => http(u))) })
+// One client per RPC for the history scan: fallback() only moves on after an error, not after an empty answer.
+const historyClients = RPC_URLS.map((u) => createPublicClient({ chain: sepolia, transport: http(u) }))
 const mainnetClient = createPublicClient({ chain: mainnet, transport: http("https://ethereum-rpc.publicnode.com") })
 
 const fmt = (n: number | bigint) => Number(n).toLocaleString("en-US")
@@ -33,8 +43,9 @@ const STEPS: Step[] = ["queued", "signing", "relayed", "settled"]
 
 type RecentRow = { gen: bigint; steps: bigint | undefined; hash: Hex; gasUsed: bigint; timestamp: bigint }
 type Stepped = Log & { args: { generation: bigint } }
+type HistoryClient = (typeof historyClients)[number]
 
-async function fetchSteppedLogs(): Promise<Stepped[]> {
+async function fetchSteppedLogs(client: HistoryClient): Promise<Stepped[]> {
   // Two blocks back: publicnode is load-balanced and a lagging node rejects ranges past its head.
   const head = (await client.getBlockNumber()) - 2n
   const out: Stepped[] = []
@@ -57,8 +68,22 @@ async function fetchSteppedLogs(): Promise<Stepped[]> {
 
 const receiptCache = new Map<Hex, { gasUsed: bigint; timestamp: bigint }>()
 
-async function fetchRecent(): Promise<RecentRow[]> {
-  const all = await fetchSteppedLogs()
+/** `generation` is the board's current generation; above 0 there must be logs, so an empty scan means a bad RPC. */
+async function fetchRecent(generation: bigint): Promise<RecentRow[]> {
+  let lastErr: unknown
+  for (const client of historyClients) {
+    try {
+      const all = await fetchSteppedLogs(client)
+      if (all.length === 0 && generation > 0n) throw new Error(`no GenerationStepped logs at generation ${generation}`)
+      return await rowsFrom(client, all)
+    } catch (err) {
+      lastErr = err
+    }
+  }
+  throw lastErr
+}
+
+async function rowsFrom(client: HistoryClient, all: Stepped[]): Promise<RecentRow[]> {
   return Promise.all(
     all.slice(0, 8).map(async (log, i) => {
       const hash = log.transactionHash!
@@ -120,7 +145,11 @@ export function LifeDemo({ viewer, how }: { viewer: LifeViewer; how: ReactNode }
 
   const loadRecent = useCallback(async () => {
     try {
-      const rows = await fetchRecent()
+      // The empty-history check needs the generation, so read it if the board hasn't loaded yet.
+      const generation =
+        generationRef.current ??
+        (await client.readContract({ address: LIFE_ADDRESS, abi: LIFE_ABI, functionName: "generation" }))
+      const rows = await fetchRecent(generation)
       setRecent(rows)
       if (rows[0]) setLastGkGas((gas) => gas ?? Number(rows[0].gasUsed))
     } catch (err) {
