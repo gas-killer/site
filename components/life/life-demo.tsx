@@ -3,15 +3,15 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
-import { createPublicClient, fallback, http, parseEventLogs, type Hex, type Log } from "viem"
+import { createPublicClient, fallback, http, parseEventLogs, type Hex } from "viem"
 import { mainnet, sepolia } from "viem/chains"
 import { draw, population, unpack, SIZE, type Cells } from "@/lib/life/board"
+import type { RecentRow as RecentRowJson } from "@/lib/life/recent"
 import {
   BLOCK_GAS_LIMIT,
   ETHERSCAN,
   LIFE_ABI,
   LIFE_ADDRESS,
-  LIFE_DEPLOY_BLOCK,
   NAIVE_GAS,
   TX_GAS_CAP,
   type Generations,
@@ -31,8 +31,6 @@ const RPC_URLS = [
   ),
 ]
 const client = createPublicClient({ chain: sepolia, transport: fallback(RPC_URLS.map((u) => http(u))) })
-// One client per RPC for the history scan: fallback() only moves on after an error, not after an empty answer.
-const historyClients = RPC_URLS.map((u) => createPublicClient({ chain: sepolia, transport: http(u) }))
 const mainnetClient = createPublicClient({ chain: mainnet, transport: http("https://ethereum-rpc.publicnode.com") })
 
 const fmt = (n: number | bigint) => Number(n).toLocaleString("en-US")
@@ -42,64 +40,20 @@ type Step = "queued" | "signing" | "relayed" | "settled"
 const STEPS: Step[] = ["queued", "signing", "relayed", "settled"]
 
 type RecentRow = { gen: bigint; steps: bigint | undefined; hash: Hex; gasUsed: bigint; timestamp: bigint }
-type Stepped = Log & { args: { generation: bigint } }
-type HistoryClient = (typeof historyClients)[number]
 
-async function fetchSteppedLogs(client: HistoryClient): Promise<Stepped[]> {
-  // Two blocks back: publicnode is load-balanced and a lagging node rejects ranges past its head.
-  const head = (await client.getBlockNumber()) - 2n
-  const out: Stepped[] = []
-  const CHUNK = 40_000n
-  for (let to = head; to >= LIFE_DEPLOY_BLOCK && out.length < 9; to -= CHUNK) {
-    const from = to - CHUNK + 1n > LIFE_DEPLOY_BLOCK ? to - CHUNK + 1n : LIFE_DEPLOY_BLOCK
-    const logs = await client.getContractEvents({
-      address: LIFE_ADDRESS,
-      abi: LIFE_ABI,
-      eventName: "GenerationStepped",
-      fromBlock: from,
-      toBlock: to,
-    })
-    out.unshift(...(logs as unknown as Stepped[]))
-    if (from === LIFE_DEPLOY_BLOCK) break
-  }
-  // One extra (older) log so every shown row knows how many generations it advanced.
-  return out.slice(-9).reverse()
-}
-
-const receiptCache = new Map<Hex, { gasUsed: bigint; timestamp: bigint }>()
-
-/** `generation` is the board's current generation; above 0 there must be logs, so an empty scan means a bad RPC. */
+// Scanned server-side: public RPCs drop these logs or are blocked on some networks, and the
+// configured RPC's key must stay off the page.
 async function fetchRecent(generation: bigint): Promise<RecentRow[]> {
-  let lastErr: unknown
-  for (const client of historyClients) {
-    try {
-      const all = await fetchSteppedLogs(client)
-      if (all.length === 0 && generation > 0n) throw new Error(`no GenerationStepped logs at generation ${generation}`)
-      return await rowsFrom(client, all)
-    } catch (err) {
-      lastErr = err
-    }
-  }
-  throw lastErr
-}
-
-async function rowsFrom(client: HistoryClient, all: Stepped[]): Promise<RecentRow[]> {
-  return Promise.all(
-    all.slice(0, 8).map(async (log, i) => {
-      const hash = log.transactionHash!
-      let info = receiptCache.get(hash)
-      if (!info) {
-        const [receipt, block] = await Promise.all([
-          client.getTransactionReceipt({ hash }),
-          client.getBlock({ blockNumber: log.blockNumber! }),
-        ])
-        info = { gasUsed: receipt.gasUsed, timestamp: block.timestamp }
-        receiptCache.set(hash, info)
-      }
-      const prev = all[i + 1]?.args.generation ?? (all.length < 9 ? 0n : undefined)
-      return { gen: log.args.generation, steps: prev === undefined ? undefined : log.args.generation - prev, hash, ...info }
-    }),
-  )
+  const res = await fetch(`/api/life/recent?generation=${generation}`)
+  if (!res.ok) throw new Error(`recent runs: HTTP ${res.status}`)
+  const rows = (await res.json()) as RecentRowJson[]
+  return rows.map((r) => ({
+    gen: BigInt(r.gen),
+    steps: r.steps === null ? undefined : BigInt(r.steps),
+    hash: r.hash,
+    gasUsed: BigInt(r.gasUsed),
+    timestamp: BigInt(r.timestamp),
+  }))
 }
 
 function ago(ts: number): string {
@@ -116,6 +70,8 @@ export function LifeDemo({ viewer, how }: { viewer: LifeViewer; how: ReactNode }
   const cellsRef = useRef<Cells | undefined>(undefined)
   const generationRef = useRef<bigint | undefined>(undefined)
   const runningRef = useRef(false)
+  // The list lags the board: the RPC hadn't indexed the newest run yet, so it's fetched again.
+  const recentBehindRef = useRef(false)
 
   const [board, setBoard] = useState<{ generation: bigint; live: number } | null>(null)
   const [running, setRunning] = useState<Generations | null>(null)
@@ -150,10 +106,12 @@ export function LifeDemo({ viewer, how }: { viewer: LifeViewer; how: ReactNode }
         generationRef.current ??
         (await client.readContract({ address: LIFE_ADDRESS, abi: LIFE_ABI, functionName: "generation" }))
       const rows = await fetchRecent(generation)
+      recentBehindRef.current = (rows[0]?.gen ?? 0n) < (generationRef.current ?? generation)
       setRecent(rows)
       if (rows[0]) setLastGkGas((gas) => gas ?? Number(rows[0].gasUsed))
     } catch (err) {
       console.warn("recent runs failed", err)
+      recentBehindRef.current = true
       setRecent("error")
     }
   }, [])
@@ -175,7 +133,7 @@ export function LifeDemo({ viewer, how }: { viewer: LifeViewer; how: ReactNode }
       if (runningRef.current || document.hidden) return
       loadBoard(true)
         .then((changed) => {
-          if (changed) return loadRecent()
+          if (changed || recentBehindRef.current) return loadRecent()
         })
         .catch(() => {})
     }, 20_000)
