@@ -33,7 +33,7 @@ export const signUpBodySchema = z.object({
  * email: verifying it flips `emailVerified` and revokes any session created before then,
  * so signing up with someone else's address grants nothing that survives their sign-in.
  * That revocation is Better Auth's own (`revokeUnprovenAccountAccess`, called from magic-link
- * verify), not code here, so re-check it when upgrading `better-auth`.
+ * verify), not code here, so `test/pre-confirmation-session.test.ts` guards it across `better-auth` upgrades.
  */
 const emailOnlySignUp = () =>
   ({

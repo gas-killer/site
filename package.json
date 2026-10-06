@@ -7,6 +7,7 @@
     "dev": "next dev",
     "lint": "eslint .",
     "start": "next start",
+    "test": "vitest run",
     "postinstall": "fumadocs-mdx",
     "generate:api": "node scripts/generate-docs.mjs",
     "sync:openapi": "node scripts/sync-openapi.mjs",
@@ -87,6 +88,7 @@
     "drizzle-kit": "^0.31.11",
     "postcss": "^8.5",
     "tailwindcss": "^4.3.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.3"
   }
 }
