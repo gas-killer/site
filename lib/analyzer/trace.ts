@@ -10,10 +10,10 @@ const RPC_URLS: Record<string, string | undefined> = {
 // The route has 60s in all; the struct-log trace gets whatever its deadline leaves.
 const RECEIPT_TIMEOUT_MS = 8_000
 const PRESTATE_TIMEOUT_MS = 6_000
-// An analysis holds the trace's bytes, its decoded text and about 2.5x its size in wasm memory, so
-// about 4.5x in all. With one trace in flight per instance, a 300MB trace peaks near 1.35GB, which
-// leaves room for the runtime in a Hobby function's 2GB.
-const MAX_TRACE_BYTES = 300_000_000
+// An analysis holds the trace's bytes and about 1.4x their size in wasm memory. At 300MB, production
+// peaked at about 130MB + 5.3x the trace against 4.5x expected; scaled the same way, a 450MB trace,
+// one in flight per instance, peaks near 1.4GB of a Hobby function's 2GB.
+const MAX_TRACE_BYTES = 450_000_000
 // The prestate tracers grow with the storage a call touches, not its steps; anything past this
 // belongs on the struct-log path's cap and lock.
 const MAX_PRESTATE_BYTES = 20_000_000
