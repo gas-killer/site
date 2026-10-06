@@ -37,7 +37,6 @@ npm run dev
 | Variable | Required | Description |
 |---|---|---|
 | `RPC_ETHEREUM` | No | Ethereum mainnet RPC URL |
-| `RPC_GNOSIS` | No | Gnosis Chain RPC URL |
 | `RPC_SEPOLIA` | No | Sepolia testnet RPC URL |
 
 RPC URLs are used server-side only and are never exposed to the browser: `/api/analyze` fetches the trace and runs the WASM analyzer on the server. At least one must be set for the analyzer to function.

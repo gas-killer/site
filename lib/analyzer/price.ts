@@ -2,8 +2,6 @@ import "server-only"
 
 /** The network's native token in USD, or null when there's no meaningful price (a testnet) or it can't be fetched. */
 export async function usdPrice(network: string): Promise<number | null> {
-  // xDAI is pegged to the dollar.
-  if (network === "gnosis") return 1
   if (network !== "ethereum") return null
   try {
     const resp = await fetch("https://api.coinbase.com/v2/prices/ETH-USD/spot", {

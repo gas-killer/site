@@ -7,6 +7,5 @@ export type Network = {
 
 export const NETWORKS: Network[] = [
   { id: "ethereum", name: "Ethereum", explorer: "https://etherscan.io", nativeSymbol: "ETH" },
-  { id: "gnosis", name: "Gnosis", explorer: "https://gnosisscan.io", nativeSymbol: "xDAI" },
   { id: "sepolia", name: "Sepolia", explorer: "https://sepolia.etherscan.io", nativeSymbol: "SepoliaETH" },
 ]
