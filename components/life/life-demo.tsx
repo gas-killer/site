@@ -72,6 +72,8 @@ export function LifeDemo({ viewer, how }: { viewer: LifeViewer; how: ReactNode }
   const runningRef = useRef(false)
   // The list lags the board: the RPC hadn't indexed the newest run yet, so it's fetched again.
   const recentBehindRef = useRef(false)
+  // This page's settled runs, newest first, shown until the server's scan (two blocks short of head) includes them.
+  const settledRef = useRef<RecentRow[]>([])
 
   const [board, setBoard] = useState<{ generation: bigint; live: number } | null>(null)
   const [running, setRunning] = useState<Generations | null>(null)
@@ -106,13 +108,15 @@ export function LifeDemo({ viewer, how }: { viewer: LifeViewer; how: ReactNode }
         generationRef.current ??
         (await client.readContract({ address: LIFE_ADDRESS, abi: LIFE_ABI, functionName: "generation" }))
       const rows = await fetchRecent(generation)
-      recentBehindRef.current = (rows[0]?.gen ?? 0n) < (generationRef.current ?? generation)
-      setRecent(rows)
+      const newest = rows[0]?.gen ?? 0n
+      recentBehindRef.current = newest < (generationRef.current ?? generation)
+      settledRef.current = settledRef.current.filter((r) => r.gen > newest)
+      setRecent([...settledRef.current, ...rows].slice(0, 8))
       if (rows[0]) setLastGkGas((gas) => gas ?? Number(rows[0].gasUsed))
     } catch (err) {
       console.warn("recent runs failed", err)
       recentBehindRef.current = true
-      setRecent("error")
+      setRecent(settledRef.current.length ? settledRef.current : "error")
     }
   }, [])
 
@@ -184,6 +188,17 @@ export function LifeDemo({ viewer, how }: { viewer: LifeViewer; how: ReactNode }
             ? `As a normal transaction this would need ~${fmt(naive)} gas, more than any single transaction can hold.`
             : `A normal transaction would use ~${fmt(naive)}, about ${Math.round(naive / gkGas)}× more.`),
       })
+      if (stepped) {
+        const row: RecentRow = {
+          gen: stepped.args.generation,
+          steps: BigInt(gens),
+          hash: body.txHash,
+          gasUsed: receipt.gasUsed,
+          timestamp: BigInt(Math.floor(Date.now() / 1000)),
+        }
+        settledRef.current = [row, ...settledRef.current]
+        setRecent((prev) => [row, ...(Array.isArray(prev) ? prev : [])].slice(0, 8))
+      }
       await loadBoard(true)
       loadRecent()
     } catch (err) {
