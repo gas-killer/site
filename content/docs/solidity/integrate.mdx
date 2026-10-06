@@ -166,17 +166,6 @@ The operators execute `recompute(1000)` off-chain, sign the resulting diff, and
 the payload you get back is a `verifyAndUpdate` call that writes `total`, `runs`,
 and the `Recomputed` log directly, without running the loop on-chain.
 
-## Coming from the BLS SDK
-
-Earlier SDK releases verified BLS signatures (constructor argument
-`blsSigChecker`, interface ID `0x93de4531`). The operators now sign with
-aggregate Schnorr only, so a target built on that release no longer settles. To
-move one across, update the SDK, swap `_setBlsSignatureChecker` for
-`_setSchnorrRegistry`, and redeploy against the addresses in
-[Configuration](/docs/solidity/configuration). The task digest, `trackState`
-and the state update encoding are unchanged, so the contract's own logic stays
-as it is.
-
 ## Where to go next
 
 - **[Configuration](/docs/solidity/configuration)** — the addresses to wire, how
