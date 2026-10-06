@@ -94,7 +94,7 @@ export function AnalyzerPage() {
             </p>
           </div>
 
-          {ANALYZER_DISABLED ? (
+          {ANALYZER_DISABLED && (
             <Alert className="border-amber-500/30 bg-amber-950/40 text-amber-100">
               <AlertTitle className="text-amber-100">Temporarily disabled</AlertTitle>
               <AlertDescription className="space-y-4 text-amber-100/80">
@@ -120,18 +120,6 @@ export function AnalyzerPage() {
                 </div>
               </AlertDescription>
             </Alert>
-          ) : (
-            <p className="text-sm text-zinc-500">
-              Ready to integrate?{" "}
-              <Link href="/dashboard" className="text-zinc-300 underline underline-offset-4 hover:text-white">
-                Get an API key
-              </Link>{" "}
-              and head to the{" "}
-              <Link href="/docs/quickstart" className="text-zinc-300 underline underline-offset-4 hover:text-white">
-                quickstart guide
-              </Link>
-              .
-            </p>
           )}
 
           <form
