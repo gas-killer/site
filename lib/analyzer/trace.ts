@@ -4,7 +4,6 @@ export const DEFAULT_ESTIMATOR_ADDRESS = "0xd682Fe2ee8bdd59fdcCc5a4962FD98c20Ef4
 
 const RPC_URLS: Record<string, string | undefined> = {
   ethereum: process.env.RPC_ETHEREUM,
-  gnosis: process.env.RPC_GNOSIS,
   sepolia: process.env.RPC_SEPOLIA,
 }
 

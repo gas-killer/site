@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { ArrowRight, ExternalLink, Info, TriangleAlert } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -48,6 +49,7 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
                 least as much as the transaction spends on computation. Gas Killer pays off on transactions that do
                 heavy onchain computation relative to the state they change.
               </p>
+              <p className="text-sm text-zinc-300">Try another transaction to see where it saves gas.</p>
             </div>
           )}
 
@@ -90,7 +92,27 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
         </CardContent>
       </Card>
 
+      {saved > 0 && <IntegrateCallToAction />}
+
       <DeveloperDetails response={response} />
+    </div>
+  )
+}
+
+function IntegrateCallToAction() {
+  return (
+    <div className="flex flex-col gap-4 rounded-xl border border-emerald-400/20 bg-emerald-950/30 p-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-1">
+        <p className="font-semibold text-white">Start saving gas on transactions like this one.</p>
+        <p className="text-sm text-zinc-400">The quickstart walks you through integrating Gas Killer into your contract.</p>
+      </div>
+      <Link
+        href="/docs/quickstart"
+        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-zinc-200"
+      >
+        Read the integration guide
+        <ArrowRight className="size-4" aria-hidden />
+      </Link>
     </div>
   )
 }
