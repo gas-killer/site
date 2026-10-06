@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { BookOpen, Menu } from "lucide-react"
+import { BookOpen, Gauge, Menu } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +31,7 @@ function AccountButton() {
   return (
     <Link
       href="/login"
-      className="text-sm text-black bg-white px-4 py-1.5 rounded-full hover:bg-zinc-200 transition-colors font-medium"
+      className="whitespace-nowrap text-sm text-black bg-white px-4 py-1.5 rounded-full hover:bg-zinc-200 transition-colors font-medium"
     >
       Sign In
     </Link>
@@ -42,6 +42,7 @@ function AccountButton() {
 const SECTION_LINKS = [
   { href: "#why", label: "Why" },
   { href: "#how", label: "How" },
+  { href: "#demo", label: "Demo" },
   { href: "#services", label: "Services" },
   { href: "#case-study", label: "Case study" },
 ]
@@ -71,6 +72,7 @@ function ParagraphIcon({ className }: IconProps) {
 
 // Text on wide screens because the Paragraph mark isn't widely recognised; the phone menu shows icon and label together.
 const TEXT_LINKS = [
+  { href: "/analyzer", label: "Gas Analyzer", Icon: Gauge },
   { href: "/docs", label: "Docs", Icon: BookOpen },
   { href: "https://paragraph.com/@gaskiller", label: "Blog", Icon: ParagraphIcon },
 ]
@@ -81,7 +83,7 @@ const ICON_LINKS = [
   { href: "https://t.me/gaskillerfriends", label: "Telegram", Icon: filledIcon("M12 0a12 12 0 1 0 0 24 12 12 0 0 0 0-24zm5.56 8.24-1.86 8.77c-.14.62-.51.77-1.03.48l-2.85-2.1-1.37 1.32c-.15.15-.28.28-.57.28l.2-2.9 5.28-4.77c.23-.2-.05-.32-.36-.11l-6.52 4.1-2.81-.88c-.61-.19-.62-.61.13-.9l10.99-4.24c.51-.19.96.12.79.95z") },
 ]
 
-const linkClass = "text-sm text-zinc-400 hover:text-white transition-colors"
+const linkClass = "whitespace-nowrap text-sm text-zinc-400 hover:text-white transition-colors"
 
 function MobileMenu() {
   return (
@@ -134,7 +136,7 @@ export function Header() {
             />
           </Link>
           {isLanding && (
-            <nav aria-label="Sections" className="hidden md:flex items-center gap-7">
+            <nav aria-label="Sections" className="hidden lg:flex items-center gap-7">
               {SECTION_LINKS.map((link) => (
                 <Link key={link.href} href={link.href} className={linkClass}>
                   {link.label}

@@ -3,6 +3,24 @@ import { ArchitectureDiagram } from "@/components/architecture-diagram"
 import Image from "next/image"
 import Link from "next/link"
 
+// A glider on a small grid, echoing the /life board.
+function LifeGlyph() {
+  const live = new Set(["1,0", "2,1", "0,2", "1,2", "2,2"])
+  return (
+    <div className="grid w-fit shrink-0 grid-cols-5 gap-1" aria-hidden="true">
+      {Array.from({ length: 25 }, (_, i) => {
+        const key = `${i % 5 - 1},${Math.floor(i / 5) - 1}`
+        return (
+          <span
+            key={i}
+            className={`size-3 rounded-[2px] ${live.has(key) ? "bg-emerald-300" : "bg-white/[0.06]"}`}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 export default function Home() {
   return (
     <>
@@ -53,6 +71,16 @@ export default function Home() {
                     Documentation
                   </Link>
                 </div>
+                <Link
+                  href="/analyzer"
+                  className="group mt-8 inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors"
+                >
+                  Is your protocol overpaying for gas?
+                  <span className="text-zinc-200 underline decoration-white/30 underline-offset-4 group-hover:decoration-white">
+                    Find out
+                  </span>
+                  <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
+                </Link>
               </div>
             </div>
           </section>
@@ -128,6 +156,29 @@ export default function Home() {
                 If the network is unavailable, transactions fall back to executing on-chain. Gas Killer
                 is never a bottleneck. Operators returning incorrect outputs are rejected and slashed.
               </p>
+
+              {/* Live demo: the mechanism above, running on Sepolia */}
+              <Link
+                id="demo"
+                href="/life"
+                className="group card-poster mt-12 scroll-mt-24 !p-8 md:!p-10 flex flex-col gap-8 md:flex-row md:items-center"
+              >
+                <LifeGlyph />
+                <div className="flex-1">
+                  <p className="text-zinc-500 text-xs uppercase tracking-widest mb-3">Live demo · Sepolia</p>
+                  <h3 className="text-2xl md:text-3xl font-semibold text-white mb-3">Watch it run: the Game of Life</h3>
+                  <p className="text-zinc-400 leading-relaxed max-w-2xl">
+                    One generation of Conway's Game of Life costs{" "}
+                    <span className="text-orange-300 font-semibold">16.6M gas</span> as a normal transaction. Gas
+                    Killer settles it for <span className="text-emerald-300 font-semibold">under 1%</span> of that,
+                    and runs two generations that no single transaction could hold.
+                  </p>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-white">
+                  Run the demo
+                  <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
+                </span>
+              </Link>
             </div>
           </section>
 
@@ -238,6 +289,47 @@ export default function Home() {
                     <path d="M7 17L17 7M17 7H8M17 7v9" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </a>
+              </div>
+            </div>
+          </section>
+
+          {/* Savings check: for teams with a contract already in production */}
+          <section id="savings" className="w-full py-20 md:py-28 border-t border-white/10">
+            <div className="container px-4 md:px-8 max-w-6xl">
+              <p className="mb-8"><span className="eyebrow-chip">Gas Analyzer</span></p>
+              <div className="grid gap-12 md:grid-cols-[1.1fr_1fr] md:items-center">
+                <div>
+                  <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 text-white text-balance">
+                    Could your protocol save gas?
+                  </h2>
+                  <p className="text-zinc-400 text-lg leading-relaxed mb-10 text-pretty">
+                    Paste a transaction your contract has already processed. The Gas Analyzer replays it and shows
+                    what it would have cost through Gas Killer. It's the same analysis we ran for RAILGUN.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+                    <Link
+                      href="/analyzer"
+                      className="inline-flex items-center gap-2 text-black bg-white px-6 py-3 rounded-full hover:bg-zinc-200 transition-colors text-sm font-medium"
+                    >
+                      Analyze a transaction
+                      <span aria-hidden>→</span>
+                    </Link>
+                    <span className="text-zinc-500 text-sm">Free account · Ethereum and Sepolia</span>
+                  </div>
+                </div>
+                <ol className="poster-frame grid gap-px bg-white/10 overflow-hidden">
+                  {[
+                    ["01", "Paste a transaction hash", "Any transaction your contract has already processed on Ethereum or Sepolia."],
+                    ["02", "Replay it", "The analyzer traces the transaction and works out the state changes it made."],
+                    ["03", "See the savings", "Original gas next to the Gas Killer cost, so you know if integrating is worth it."],
+                  ].map(([n, title, body]) => (
+                    <li key={n} className="bg-zinc-950 p-6 md:p-8">
+                      <span className="font-display text-sm text-zinc-500 tracking-widest">STEP {n}</span>
+                      <h3 className="text-lg font-semibold text-white mt-2 mb-1">{title}</h3>
+                      <p className="text-zinc-400 text-sm leading-relaxed">{body}</p>
+                    </li>
+                  ))}
+                </ol>
               </div>
             </div>
           </section>
