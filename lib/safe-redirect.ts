@@ -1,6 +1,8 @@
 // Only same-origin paths, so a crafted ?next= can't bounce a signed-in user off-site. Prefix checks
 // aren't enough: URL parsing strips tabs and newlines, so "/\t/evil.com" becomes "//evil.com".
-export function safeNextPath(next: string | null | undefined, fallback = "/dashboard"): string {
+const DEFAULT_NEXT = "/dashboard"
+
+export function safeNextPath(next: string | null | undefined, fallback = DEFAULT_NEXT): string {
   if (!next) return fallback
   try {
     const url = new URL(next, "http://n")
@@ -13,4 +15,9 @@ export function safeNextPath(next: string | null | undefined, fallback = "/dashb
   } catch {
     return fallback
   }
+}
+
+// Carries a destination across the sign-in and sign-up pages, leaving the default out of the URL.
+export function withNext(path: string, next: string): string {
+  return next === DEFAULT_NEXT ? path : `${path}?next=${encodeURIComponent(next)}`
 }

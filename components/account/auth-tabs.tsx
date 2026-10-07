@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { withNext } from "@/lib/safe-redirect"
 
 const TABS = [
   { id: "signin", label: "Sign In", href: "/login" },
@@ -8,13 +9,13 @@ const TABS = [
 
 // Separate pages rather than in-page tabs, so each has its own URL for the header and redirects.
 // The active tab shares the box's background and drops its bottom rule, so it reads as the open folder.
-export function AuthTabs({ active }: { active: (typeof TABS)[number]["id"] }) {
+export function AuthTabs({ active, next }: { active: (typeof TABS)[number]["id"]; next: string }) {
   return (
     <nav aria-label="Account" className="grid grid-cols-2">
       {TABS.map((tab, i) => (
         <Link
           key={tab.id}
-          href={tab.href}
+          href={withNext(tab.href, next)}
           aria-current={tab.id === active ? "page" : undefined}
           className={cn(
             "font-display px-6 py-4 text-center text-xs font-semibold uppercase tracking-[0.18em] transition-colors",

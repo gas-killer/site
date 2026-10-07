@@ -29,7 +29,7 @@ type Values = z.infer<typeof schema>
 const inputClass = "border-white/10 bg-black text-white placeholder:text-zinc-600 focus-visible:ring-white/20"
 const labelClass = "text-zinc-400 text-xs uppercase tracking-widest"
 
-export function SignupForm() {
+export function SignupForm({ next }: { next: string }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [existingEmail, setExistingEmail] = useState<string | null>(null)
@@ -53,7 +53,7 @@ export function SignupForm() {
     }
     const { created } = (await resp.json()) as { created: boolean }
 
-    const sent = await authClient.signIn.magicLink({ email, callbackURL: "/dashboard", errorCallbackURL: "/login" })
+    const sent = await authClient.signIn.magicLink({ email, callbackURL: next, errorCallbackURL: "/login" })
     if (!created) {
       if (sent.error) {
         setError(sent.error.status === 429 ? "Too many attempts. Wait a minute and try again." : "Couldn't send a sign-in link. Try again.")
@@ -81,7 +81,7 @@ export function SignupForm() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
       <div className="poster-frame bg-zinc-950 text-zinc-200">
-        <AuthTabs active="signup" />
+        <AuthTabs active="signup" next={next} />
         <CardContent className="space-y-6 pt-6">
           <div className="space-y-2">
             <Label htmlFor="email" className={labelClass}>Email</Label>

@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
 import { authClient } from "@/lib/auth-client"
 import { AuthTabs } from "@/components/account/auth-tabs"
+import { withNext } from "@/lib/safe-redirect"
 
 const LINK_ERRORS: Record<string, string> = {
   INVALID_TOKEN: "That sign-in link has expired or was already used. Request a new one.",
@@ -44,7 +45,7 @@ export function LoginForm({ next, linkError }: { next: string; linkError?: strin
         <AlertDescription className="text-zinc-300">
           If <strong className="text-white">{sentTo}</strong> has an account, a sign-in link is on its way. It expires in
           15 minutes. No email?{" "}
-          <Link href="/signup" className="text-zinc-200 underline underline-offset-4 hover:text-white">Sign up</Link>{" "}
+          <Link href={withNext("/signup", next)} className="text-zinc-200 underline underline-offset-4 hover:text-white">Sign up</Link>{" "}
           to create an account.
         </AlertDescription>
       </Alert>
@@ -54,7 +55,7 @@ export function LoginForm({ next, linkError }: { next: string; linkError?: strin
   return (
     <form onSubmit={onSubmit}>
       <div className="poster-frame bg-zinc-950 text-zinc-200">
-        <AuthTabs active="signin" />
+        <AuthTabs active="signin" next={next} />
         <CardContent className="space-y-2 pt-6">
           <Label htmlFor="email" className="text-zinc-400 text-xs uppercase tracking-widest">Email</Label>
           <Input
@@ -75,7 +76,7 @@ export function LoginForm({ next, linkError }: { next: string; linkError?: strin
           </Button>
           <p className="text-sm text-zinc-400">
             Don't have an account?{" "}
-            <Link href="/signup" className="text-zinc-200 underline underline-offset-4 hover:text-white">Sign up</Link>
+            <Link href={withNext("/signup", next)} className="text-zinc-200 underline underline-offset-4 hover:text-white">Sign up</Link>
           </p>
         </CardFooter>
       </div>
