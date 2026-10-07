@@ -12,9 +12,8 @@ export const metadata: Metadata = {
 
 export default async function AnalyzerRoute() {
   const session = await auth.api.getSession({ headers: await headers(), query: { disableCookieCache: true } })
-  if (!session) redirect("/login?next=/analyzer")
   // The analyze route refuses unconfirmed users; the dashboard is where they can resend the confirmation.
-  if (!session.user.emailVerified) redirect("/dashboard")
+  if (session && !session.user.emailVerified) redirect("/dashboard")
 
-  return <AnalyzerLoader />
+  return <AnalyzerLoader signedIn={!!session} />
 }

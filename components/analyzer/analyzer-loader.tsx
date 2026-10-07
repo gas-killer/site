@@ -10,6 +10,6 @@ const AnalyzerPage = dynamic(
   { ssr: false }
 )
 
-export function AnalyzerLoader() {
-  return <AnalyzerPage />
+export function AnalyzerLoader({ signedIn }: { signedIn: boolean }) {
+  return <AnalyzerPage signedIn={signedIn} />
 }

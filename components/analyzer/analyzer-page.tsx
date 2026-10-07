@@ -48,7 +48,7 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-export function AnalyzerPage() {
+export function AnalyzerPage({ signedIn }: { signedIn: boolean }) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [txHash, setTxHash] = useState("")
   const [selectedNetwork, setSelectedNetwork] = useState(NETWORKS[0]?.id ?? "")
@@ -75,7 +75,8 @@ export function AnalyzerPage() {
     }
   }
 
-  const canAnalyze = !ANALYZER_DISABLED && txHash.trim() && selectedNetwork && !state.isRunning
+  const formDisabled = ANALYZER_DISABLED || !signedIn
+  const canAnalyze = !formDisabled && txHash.trim() && selectedNetwork && !state.isRunning
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-zinc-200">
@@ -141,7 +142,7 @@ export function AnalyzerPage() {
                         key={n.id}
                         type="button"
                         size="sm"
-                        disabled={ANALYZER_DISABLED}
+                        disabled={formDisabled}
                         onClick={() => setSelectedNetwork(n.id)}
                         className={
                           selectedNetwork === n.id
@@ -160,27 +161,33 @@ export function AnalyzerPage() {
                   <Input
                     placeholder="0x..."
                     value={txHash}
-                    disabled={ANALYZER_DISABLED}
+                    disabled={formDisabled}
                     onChange={(e) => setTxHash(e.target.value)}
                     className="font-mono border-white/10 bg-black text-white placeholder:text-zinc-600 focus-visible:ring-white/20"
                   />
                 </div>
               </CardContent>
               <CardFooter>
-                <Button
-                  type="submit"
-                  disabled={!canAnalyze}
-                  className="bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500"
-                >
-                  {state.isRunning ? (
-                    <>
-                      <Spinner className="mr-2 text-black" />
-                      {state.statusMessage}
-                    </>
-                  ) : (
-                    "Analyze"
-                  )}
-                </Button>
+                {!signedIn && !ANALYZER_DISABLED ? (
+                  <Button asChild className="bg-white text-black hover:bg-zinc-200">
+                    <Link href="/login?next=/analyzer">Sign in</Link>
+                  </Button>
+                ) : (
+                  <Button
+                    type="submit"
+                    disabled={!canAnalyze}
+                    className="bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500"
+                  >
+                    {state.isRunning ? (
+                      <>
+                        <Spinner className="mr-2 text-black" />
+                        {state.statusMessage}
+                      </>
+                    ) : (
+                      "Analyze"
+                    )}
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           </form>
