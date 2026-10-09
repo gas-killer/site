@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { formatGas } from "@/lib/analyzer-utils"
-import { NETWORKS } from "@/lib/networks"
+import { NETWORKS, ranUnderGlamsterdam } from "@/lib/networks"
 import type { AnalyzeResponse } from "@/lib/wasm/analyzer"
 
 export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
@@ -20,6 +20,7 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
   const saved = original - estimate
   const percent = original > 0 ? (saved / original) * 100 : 0
   const scale = Math.max(original, estimate)
+  const glamsterdam = ranUnderGlamsterdam(network, tx.blockNumber)
 
   return (
     <div className="space-y-5">
@@ -64,7 +65,7 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
             />
           </div>
 
-          {(response.method === "prestate" || result.is_heuristic || result.reentered) && (
+          {(response.method === "prestate" || result.is_heuristic || result.reentered || glamsterdam) && (
             <ul className="space-y-2 border-t border-white/10 pt-5 text-sm text-zinc-400">
               {response.method === "prestate" && (
                 <li className="flex gap-2">
@@ -78,6 +79,14 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
                   <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
                   The full EVM simulation couldn&apos;t run on this transaction, so the Gas Killer figure comes from a
                   heuristic and may be less accurate.
+                </li>
+              )}
+              {glamsterdam && (
+                <li className="flex gap-2">
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden />
+                  This transaction ran under the Glamsterdam upgrade, which the analyzer doesn&apos;t support yet. The
+                  Gas Killer figure uses the previous upgrade&apos;s gas rules while the original uses Glamsterdam&apos;s,
+                  so the savings may be off.
                 </li>
               )}
               {result.reentered && (
