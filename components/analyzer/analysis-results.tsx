@@ -86,7 +86,7 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
                   <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden />
                   This transaction ran under the Glamsterdam upgrade, which the analyzer doesn&apos;t support yet. The
                   Gas Killer figure uses the previous upgrade&apos;s gas rules while the original uses Glamsterdam&apos;s,
-                  so the savings may be off.
+                  so the savings may be slightly off.
                 </li>
               )}
               {result.reentered && (
