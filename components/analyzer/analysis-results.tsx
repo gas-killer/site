@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { formatGas } from "@/lib/analyzer-utils"
+import { formatGas, mostGasInCallees } from "@/lib/analyzer-utils"
 import { NETWORKS, ranUnderGlamsterdam } from "@/lib/networks"
 import type { AnalyzeResponse } from "@/lib/wasm/analyzer"
 
@@ -21,6 +21,7 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
   const saved = original - estimate
   const percent = original > 0 ? (saved / original) * 100 : 0
   const scale = Math.max(original, estimate)
+  const calleesDominate = mostGasInCallees(result.native_call_gas, original)
   const glamsterdam = ranUnderGlamsterdam(network, tx.blockNumber)
 
   return (
@@ -47,9 +48,20 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
             <div className="space-y-2 pt-4">
               <p className="text-3xl font-display font-bold text-white">No savings on this transaction</p>
               <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">
-                {saved < 0 ? `Gas Killer would add ${formatGas(-saved)} gas here: v` : "V"}erifying its result costs at
-                least as much as the transaction spends on computation. Gas Killer pays off on transactions that do
-                heavy onchain computation relative to the state they change.
+                {saved < 0 && `Gas Killer would add ${formatGas(-saved)} gas here. `}
+                {calleesDominate ? (
+                  <>
+                    {formatGas(result.native_call_gas)} of this transaction&apos;s gas (
+                    {Math.round((result.native_call_gas / original) * 100)}%) is spent inside other contracts it calls.
+                    Gas Killer only saves gas in contracts that integrate it, so it runs those calls as they are when it
+                    settles, and what&apos;s left to save doesn&apos;t cover verifying and applying the result.
+                  </>
+                ) : (
+                  <>
+                    Verifying its result costs at least as much as the transaction spends on computation. Gas Killer
+                    pays off on transactions that do heavy onchain computation relative to the state they change.
+                  </>
+                )}
               </p>
               <p className="text-sm text-zinc-300">Try another transaction to see where it saves gas.</p>
             </div>
