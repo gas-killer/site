@@ -10,6 +10,8 @@ export interface AnalyzeTraceResult {
   state_update_count: number
   skipped_opcodes: string[]
   reentered: boolean
+  native_call_gas: number
+  signature_verification_gas: number
 }
 
 export interface AnalyzedTransaction {
