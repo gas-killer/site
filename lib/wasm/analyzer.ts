@@ -2,6 +2,7 @@ import "server-only"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { Worker } from "node:worker_threads"
+import type { Callee } from "@/lib/analyzer/callees"
 
 export interface AnalyzeTraceResult {
   encoded_updates: string
@@ -12,6 +13,24 @@ export interface AnalyzeTraceResult {
   reentered: boolean
   native_call_gas: number
   signature_verification_gas: number
+}
+
+/** What the transaction would cost settled as a nested tree, from analyze_frame_tree_bytes. */
+export interface FrameTreeAnalysis {
+  // The transaction settled through its target alone, and as a tree with the owned contracts.
+  root_only_gas: number
+  nested_gas: number
+  // Gas inside the calls each settlement still runs natively, included in its total.
+  root_only_native_call_gas: number
+  nested_native_call_gas: number
+  frame_overhead_gas: number
+  // Paid once per settlement, in neither total.
+  signature_verification_gas: number
+  // The root first, in execution order.
+  frames: { target: string; caller: string; op_count: number; gas: number }[]
+  // Owned contracts that got no frame, and why.
+  not_nested: { address: string; reason: string }[]
+  skipped_opcodes: string[]
 }
 
 export interface AnalyzedTransaction {
@@ -34,6 +53,12 @@ export interface AnalyzeResponse {
   tx: AnalyzedTransaction
   // The native token's USD price today, or null on a testnet or when it couldn't be fetched.
   usdPrice: number | null
+  // Contracts the transaction calls that could settle as nested frames; empty without a call tree.
+  callees: Callee[]
+}
+
+export interface NestedResponse {
+  analysis: FrameTreeAnalysis
 }
 
 // Read by path at runtime, so outputFileTracingIncludes in next.config.mjs ships it.
@@ -47,6 +72,8 @@ let compiled: Promise<WebAssembly.Module> | undefined
 type Failure = { ok: false; kind: "rpc" | "too_large" | "analysis" | "timeout" | "crashed"; message: string; wasmBytes?: number }
 
 export type AnalysisOutcome = { ok: true; result: AnalyzeTraceResult; wasmBytes?: number } | Failure
+
+export type FrameTreeOutcome = { ok: true; result: FrameTreeAnalysis; wasmBytes?: number } | Failure
 
 export type PrestateOutcome =
   | { ok: true; eligible: true; result: AnalyzeTraceResult }
@@ -81,6 +108,36 @@ export function analyzeTrace(
       prestateDiff,
     },
     // Hands the trace over without a copy; `bytes` is unusable here afterwards.
+    [bytes.buffer as ArrayBuffer],
+    timeoutMs,
+  )
+}
+
+/**
+ * Price the struct-log trace as a nested settlement rooted at `rootAddress`, as if it and `owned` had
+ * integrated the SDK, in a worker for the same reasons as analyzeTrace.
+ */
+export function analyzeFrameTree(
+  bytes: Uint8Array,
+  rootAddress: string,
+  owned: string[],
+  callerAddress: string,
+  blockNumber: bigint,
+  value: bigint,
+  prestateDiff: string | null,
+  timeoutMs: number,
+): Promise<FrameTreeOutcome> {
+  return runWorker<FrameTreeOutcome>(
+    {
+      mode: "frame_tree",
+      bytes,
+      rootAddress,
+      owned,
+      callerAddress,
+      blockNumber,
+      value: value.toString(),
+      prestateDiff,
+    },
     [bytes.buffer as ArrayBuffer],
     timeoutMs,
   )

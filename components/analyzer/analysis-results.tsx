@@ -11,6 +11,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { formatGas, mostGasInCallees } from "@/lib/analyzer-utils"
 import { NETWORKS, ranUnderGlamsterdam } from "@/lib/networks"
 import type { AnalyzeResponse } from "@/lib/wasm/analyzer"
+import { NestedSettlement } from "./nested-settlement"
 
 export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
   const { result, tx, usdPrice } = response
@@ -55,6 +56,8 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
                     {Math.round((result.native_call_gas / original) * 100)}%) is spent inside other contracts it calls.
                     Gas Killer only saves gas in contracts that integrate it, so it runs those calls as they are when it
                     settles, and what&apos;s left to save doesn&apos;t cover verifying and applying the result.
+                    {response.callees.length > 0 &&
+                      " If you control those contracts, see what settling them too would save under Nested settlement below."}
                   </>
                 ) : (
                   <>
@@ -115,6 +118,8 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
       </Card>
 
       {saved > 0 && <IntegrateCallToAction />}
+
+      {response.callees.length > 0 && <NestedSettlement key={tx.hash} response={response} />}
 
       <DeveloperDetails response={response} />
     </div>
