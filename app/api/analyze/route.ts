@@ -67,7 +67,11 @@ export async function POST(request: NextRequest) {
       fromPrestate(prestate, info).then(async (pre) =>
         pre.result
           ? { result: pre.result, method: "prestate" as const, prestateSkipped: null }
-          : { result: await fromTrace(url, network, txHash, info, deadline), method: "trace" as const, prestateSkipped: pre.skipped },
+          : {
+              result: await fromTrace(url, network, txHash, info, typeof prestate === "string" ? null : prestate.diff, deadline),
+              method: "trace" as const,
+              prestateSkipped: pre.skipped,
+            },
       ),
       usdPrice(network),
     ])
@@ -123,13 +127,15 @@ async function fromPrestate(
 
 /**
  * The analysis from the full struct-log trace, one per instance at a time since traces can be huge.
- * The wait, download and analysis share what's left before `deadline`.
+ * The wait, download and analysis share what's left before `deadline`. `prestateDiff`, when the
+ * prestate tracers ran, gives the analysis the state the transaction started from.
  */
 async function fromTrace(
   url: string,
   network: string,
   txHash: string,
   info: Info,
+  prestateDiff: string | null,
   deadline: number,
 ): Promise<AnalyzeTraceResult> {
   const turnWait = Math.min(MAX_TURN_WAIT_MS, deadline - Date.now() - MIN_TRACE_WORK_MS)
@@ -152,6 +158,8 @@ async function fromTrace(
       info.blockNumber,
       info.to,
       info.value,
+      // The analyzer seeds the diff into the origin's storage, so it refuses one without an origin.
+      info.to ? prestateDiff : null,
       deadline - fetched,
     )
     // One line per struct-log analysis, for tuning MAX_TRACE_BYTES and the budget from real traffic.
