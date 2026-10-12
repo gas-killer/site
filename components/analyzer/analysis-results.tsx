@@ -16,7 +16,8 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
   const { result, tx, usdPrice } = response
   const network = NETWORKS.find((n) => n.id === tx.network)
   const original = tx.gasUsed
-  const estimate = result.gas_estimate
+  // The analyzer's estimate covers the state updates; settling also verifies the operators' signature.
+  const estimate = result.gas_estimate + result.signature_verification_gas
   const saved = original - estimate
   const percent = original > 0 ? (saved / original) * 100 : 0
   const scale = Math.max(original, estimate)
@@ -65,39 +66,42 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
             />
           </div>
 
-          {(response.method === "prestate" || result.is_heuristic || result.reentered || glamsterdam) && (
-            <ul className="space-y-2 border-t border-white/10 pt-5 text-sm text-zinc-400">
-              {response.method === "prestate" && (
-                <li className="flex gap-2">
-                  <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
-                  Estimated from the storage this transaction changed rather than a full replay, so repeated
-                  writes to the same slot count once.
-                </li>
-              )}
-              {result.is_heuristic && (
-                <li className="flex gap-2">
-                  <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
-                  The full EVM simulation couldn&apos;t run on this transaction, so the Gas Killer figure comes from a
-                  heuristic and may be less accurate.
-                </li>
-              )}
-              {glamsterdam && (
-                <li className="flex gap-2">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden />
-                  This transaction ran under the Glamsterdam upgrade, which the analyzer doesn&apos;t support yet. The
-                  Gas Killer figure uses the previous upgrade&apos;s gas rules while the original uses Glamsterdam&apos;s,
-                  so the savings may be slightly off.
-                </li>
-              )}
-              {result.reentered && (
-                <li className="flex gap-2">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden />
-                  A contract called by this transaction calls back into it. That callback&apos;s gas is counted
-                  as external, so the Gas Killer figure may be on the high side.
-                </li>
-              )}
-            </ul>
-          )}
+          <ul className="space-y-2 border-t border-white/10 pt-5 text-sm text-zinc-400">
+            <li className="flex gap-2">
+              <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
+              The Gas Killer figure includes {formatGas(result.signature_verification_gas)} gas to verify the operators&apos;
+              signature onchain.
+            </li>
+            {response.method === "prestate" && (
+              <li className="flex gap-2">
+                <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
+                Estimated from the storage this transaction changed rather than a full replay, so repeated
+                writes to the same slot count once.
+              </li>
+            )}
+            {result.is_heuristic && (
+              <li className="flex gap-2">
+                <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
+                The full EVM simulation couldn&apos;t run on this transaction, so the Gas Killer figure comes from a
+                heuristic and may be less accurate.
+              </li>
+            )}
+            {glamsterdam && (
+              <li className="flex gap-2">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden />
+                This transaction ran under the Glamsterdam upgrade, which the analyzer doesn&apos;t support yet. The
+                Gas Killer figure uses the previous upgrade&apos;s gas rules while the original uses Glamsterdam&apos;s,
+                so the savings may be slightly off.
+              </li>
+            )}
+            {result.reentered && (
+              <li className="flex gap-2">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden />
+                A contract called by this transaction calls back into it. That callback&apos;s gas is counted
+                as external, so the Gas Killer figure may be on the high side.
+              </li>
+            )}
+          </ul>
         </CardContent>
       </Card>
 
