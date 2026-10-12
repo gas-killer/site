@@ -65,10 +65,21 @@ export function analyzeTrace(
   blockNumber: bigint,
   originAddress: string | null,
   value: bigint,
+  // The prestateTracer diff: without it every storage write is priced as one to an empty slot.
+  prestateDiff: string | null,
   timeoutMs: number,
 ): Promise<AnalysisOutcome> {
   return runWorker<AnalysisOutcome>(
-    { mode: "trace", bytes, estimatorAddress, callerAddress, blockNumber, originAddress, value: value.toString() },
+    {
+      mode: "trace",
+      bytes,
+      estimatorAddress,
+      callerAddress,
+      blockNumber,
+      originAddress,
+      value: value.toString(),
+      prestateDiff,
+    },
     // Hands the trace over without a copy; `bytes` is unusable here afterwards.
     [bytes.buffer as ArrayBuffer],
     timeoutMs,
