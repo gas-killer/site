@@ -67,19 +67,32 @@ export type TransactionInfo = {
   to: string | null
   gasUsed: number
   effectiveGasPrice: bigint
+  // Wei sent with the call. The analysis replays it, since contracts that check or forward
+  // msg.value revert without it.
+  value: bigint
 }
 
 export async function fetchTransactionInfo(url: string, txHash: string): Promise<TransactionInfo> {
-  const json = await (await rpc(url, "eth_getTransactionReceipt", [txHash], RECEIPT_TIMEOUT_MS)).json()
-  if (json.error) throw new AnalyzerError(502, `RPC error: ${json.error.message || JSON.stringify(json.error)}`)
-  if (!json.result) throw new AnalyzerError(404, "Transaction not found")
+  // Receipts carry no value, so the transaction is fetched alongside.
+  const [receipt, tx] = await Promise.all([
+    rpcResult(url, "eth_getTransactionReceipt", txHash),
+    rpcResult(url, "eth_getTransactionByHash", txHash),
+  ])
+  if (!receipt || !tx) throw new AnalyzerError(404, "Transaction not found")
   return {
-    blockNumber: BigInt(json.result.blockNumber),
-    from: json.result.from,
-    to: json.result.to ?? json.result.contractAddress ?? null,
-    gasUsed: Number(json.result.gasUsed),
-    effectiveGasPrice: BigInt(json.result.effectiveGasPrice ?? 0),
+    blockNumber: BigInt(receipt.blockNumber),
+    from: receipt.from,
+    to: receipt.to ?? receipt.contractAddress ?? null,
+    gasUsed: Number(receipt.gasUsed),
+    effectiveGasPrice: BigInt(receipt.effectiveGasPrice ?? 0),
+    value: BigInt(tx.value ?? 0),
   }
+}
+
+async function rpcResult(url: string, method: string, txHash: string) {
+  const json = await (await rpc(url, method, [txHash], RECEIPT_TIMEOUT_MS)).json()
+  if (json.error) throw new AnalyzerError(502, `RPC error: ${json.error.message || JSON.stringify(json.error)}`)
+  return json.result
 }
 
 export type PrestateTraces = { diff: string; frame: string }

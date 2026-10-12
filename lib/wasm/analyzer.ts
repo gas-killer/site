@@ -64,10 +64,11 @@ export function analyzeTrace(
   callerAddress: string,
   blockNumber: bigint,
   originAddress: string | null,
+  value: bigint,
   timeoutMs: number,
 ): Promise<AnalysisOutcome> {
   return runWorker<AnalysisOutcome>(
-    { mode: "trace", bytes, estimatorAddress, callerAddress, blockNumber, originAddress },
+    { mode: "trace", bytes, estimatorAddress, callerAddress, blockNumber, originAddress, value: value.toString() },
     // Hands the trace over without a copy; `bytes` is unusable here afterwards.
     [bytes.buffer as ArrayBuffer],
     timeoutMs,
@@ -81,10 +82,11 @@ export function analyzePrestate(
   estimatorAddress: string,
   callerAddress: string,
   blockNumber: bigint,
+  value: bigint,
   timeoutMs: number,
 ): Promise<PrestateOutcome> {
   return runWorker<PrestateOutcome>(
-    { mode: "prestate", ...traces, consumerAddress, estimatorAddress, callerAddress, blockNumber },
+    { mode: "prestate", ...traces, consumerAddress, estimatorAddress, callerAddress, blockNumber, value: value.toString() },
     [],
     timeoutMs,
   )
