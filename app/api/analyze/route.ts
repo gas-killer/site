@@ -111,6 +111,7 @@ async function fromPrestate(
     DEFAULT_ESTIMATOR_ADDRESS,
     info.from,
     info.blockNumber,
+    info.value,
     PRESTATE_ANALYSIS_TIMEOUT_MS,
   )
   if (!outcome.ok) {
@@ -150,6 +151,7 @@ async function fromTrace(
       info.from,
       info.blockNumber,
       info.to,
+      info.value,
       deadline - fetched,
     )
     // One line per struct-log analysis, for tuning MAX_TRACE_BYTES and the budget from real traffic.
