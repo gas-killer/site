@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         effectiveGasPrice: info.effectiveGasPrice.toString(),
       },
       usdPrice: price,
-      callees: typeof prestate === "string" || !info.to ? [] : calleesFromCallFrame(prestate.frame, info.to),
+      callees: typeof prestate === "string" ? null : info.to ? calleesFromCallFrame(prestate.frame, info.to) : [],
     }
     return Response.json(response)
   } catch (e) {

@@ -80,7 +80,9 @@ export function AddressInput({
           onPaste={(e) => {
             // A single-line input drops pasted line breaks, which would run a pasted list together.
             e.preventDefault()
-            commit(draft + e.clipboardData.getData("text"))
+            const { selectionStart, selectionEnd } = e.currentTarget
+            const start = selectionStart ?? draft.length
+            commit(draft.slice(0, start) + e.clipboardData.getData("text") + draft.slice(selectionEnd ?? start))
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {

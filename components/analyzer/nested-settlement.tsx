@@ -101,7 +101,7 @@ export function NestedSettlementPicker({
         </p>
 
         <ul className="space-y-2">
-          {callees.map((callee) => {
+          {callees?.map((callee) => {
             const checked = owned.includes(callee.address)
             return (
               <li key={callee.address}>
@@ -171,7 +171,7 @@ export function NestedSettlementSummary({
 }) {
   const explorer = NETWORKS.find((n) => n.id === tx.network)?.explorer
   const notNested = new Map(analysis.not_nested.map((n) => [n.address.toLowerCase(), n.reason]))
-  const gasUsed = new Map(callees.map((c) => [c.address, c.gasUsed]))
+  const gasUsed = new Map(callees?.map((c) => [c.address, c.gasUsed]))
 
   return (
     <div className="space-y-3 rounded-lg border border-emerald-400/20 bg-emerald-950/20 p-4">

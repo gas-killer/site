@@ -53,8 +53,8 @@ export interface AnalyzeResponse {
   tx: AnalyzedTransaction
   // The native token's USD price today, or null on a testnet or when it couldn't be fetched.
   usdPrice: number | null
-  // Contracts the transaction calls that could settle as nested frames; empty without a call tree.
-  callees: Callee[]
+  // Contracts the transaction calls that could settle as nested frames, or null when the call tree couldn't be fetched.
+  callees: Callee[] | null
 }
 
 export interface NestedResponse {

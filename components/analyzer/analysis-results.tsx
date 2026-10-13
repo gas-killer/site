@@ -17,26 +17,31 @@ import { AddressLink, NestedSettlementPicker, NestedSettlementSummary, useNested
 export function AnalysisResults({ response, owned }: { response: AnalyzeResponse; owned: string[] }) {
   const { result, tx, usdPrice } = response
   const network = NETWORKS.find((n) => n.id === tx.network)
-  const inTrace = new Set(response.callees.map((c) => c.address))
-  // The target settles through Gas Killer regardless, so listing it is no mistake worth flagging.
-  const notInTrace = owned.filter((a) => !inTrace.has(a) && a !== tx.to?.toLowerCase())
-  const nested = useNestedSettlement(response, owned.filter((a) => inTrace.has(a)))
+  const { callees } = response
+  const target = tx.to?.toLowerCase()
+  const inTrace = new Set(callees?.map((c) => c.address))
+  // The target settles through Gas Killer regardless, so listing it is no mistake worth flagging. Without a
+  // call tree there's no telling what the transaction calls, so the nested analysis sorts it out instead.
+  const notInTrace = callees ? owned.filter((a) => !inTrace.has(a) && a !== target) : []
+  const nested = useNestedSettlement(
+    response,
+    owned.filter((a) => (callees ? inTrace.has(a) : a !== target)),
+  )
   const nestedAnalysis = nested.showNested ? nested.estimate?.analysis : undefined
 
   const original = tx.gasUsed
   // The analyzer's estimate covers the state updates; settling also verifies the operators' signature.
-  const estimate = nestedAnalysis
-    ? nestedAnalysis.nested_gas + nestedAnalysis.signature_verification_gas
-    : result.gas_estimate + result.signature_verification_gas
+  // The nested run always prices the struct-log trace, while `result` may come from the prestate net form,
+  // so only nesting's gain over the target alone carries over, not its absolute figure.
+  const nestedGain = nestedAnalysis ? nestedAnalysis.root_only_gas - nestedAnalysis.nested_gas : 0
+  const estimate = result.gas_estimate + result.signature_verification_gas - nestedGain
   const saved = original - estimate
   const percent = original > 0 ? (saved / original) * 100 : 0
   const scale = Math.max(original, estimate)
   const calleesDominate = mostGasInCallees(result.native_call_gas, original)
   const glamsterdam = ranUnderGlamsterdam(network, tx.blockNumber)
   const hasNotes =
-    response.method === "prestate" ||
-    result.is_heuristic ||
-    result.reentered ||
+    (!nestedAnalysis && (response.method === "prestate" || result.is_heuristic || result.reentered)) ||
     glamsterdam ||
     notInTrace.length > 0
 
@@ -64,7 +69,7 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
             <div className="space-y-2 pt-4">
               <p className="text-3xl font-display font-bold text-white">Still no savings</p>
               <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">
-                {saved < 0 && `Settling these contracts too would add ${formatGas(-saved)} gas. `}
+                {saved < 0 && `Even with these contracts nested, Gas Killer would add ${formatGas(-saved)} gas here. `}
                 What they would save doesn&apos;t cover verifying and applying the result.
               </p>
             </div>
@@ -79,7 +84,7 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
                     {Math.round((result.native_call_gas / original) * 100)}%) is spent inside other contracts it calls.
                     Gas Killer only saves gas in contracts that integrate it, so it runs those calls as they are when it
                     settles, and what&apos;s left to save doesn&apos;t cover verifying and applying the result.
-                    {response.callees.length > 0 &&
+                    {(callees?.length ?? 0) > 0 &&
                       " If you control those contracts, see what settling them too would save below."}
                   </>
                 ) : (
@@ -113,7 +118,7 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
           {nestedAnalysis && nested.estimate ? (
             <NestedSettlementSummary response={response} owned={nested.estimate.owned} analysis={nestedAnalysis} />
           ) : (
-            response.callees.length > 0 && (
+            (callees?.length ?? 0) > 0 && (
               <NestedSettlementPicker response={response} nested={nested} defaultOpen={nested.owned.length > 0} />
             )
           )}
