@@ -4,6 +4,7 @@ import { calleesFromCallFrame } from "@/lib/analyzer/callees"
 import {
   AnalyzerError,
   DEFAULT_ESTIMATOR_ADDRESS,
+  fetchPrestate,
   fetchPrestateTraces,
   fetchTrace,
   fetchTransactionInfo,
@@ -132,13 +133,17 @@ async function fromTrace(
   if (turnWait < 0) throw new AnalyzerError(504, "Analyzing this transaction took too long.")
   return oneAtATime(turnWait, async () => {
     const started = Date.now()
-    const trace = await fetchTrace(url, txHash, deadline - started - MIN_ANALYSIS_MS).catch((e: unknown) => {
-      console.log(
-        `analyzer trace: network=${network} fetch_ms=${Date.now() - started} outcome=fetch_failed` +
-          ` error=${e instanceof Error ? e.message : String(e)}`,
-      )
-      throw e
-    })
+    // Fetched alongside the trace, which takes longer; without it the callees' gas comes from the trace.
+    const [trace, prestate] = await Promise.all([
+      fetchTrace(url, txHash, deadline - started - MIN_ANALYSIS_MS).catch((e: unknown) => {
+        console.log(
+          `analyzer trace: network=${network} fetch_ms=${Date.now() - started} outcome=fetch_failed` +
+            ` error=${e instanceof Error ? e.message : String(e)}`,
+        )
+        throw e
+      }),
+      info.to ? fetchPrestate(url, txHash).catch(() => null) : null,
+    ])
     const fetched = Date.now()
     const size = trace.byteLength
     const outcome = await analyzeTrace(
@@ -150,6 +155,7 @@ async function fromTrace(
       info.value,
       // The analyzer seeds the diff into the origin's storage, so it refuses one without an origin.
       info.to ? prestateDiff : null,
+      prestate ? { prestate, gasPrice: info.effectiveGasPrice, timestamp: info.blockTimestamp } : null,
       deadline - fetched,
     )
     // One line per struct-log analysis, for tuning MAX_TRACE_BYTES and the budget from real traffic.
@@ -159,8 +165,12 @@ async function fromTrace(
         ` wasm_mb=${outcome.wasmBytes === undefined ? "?" : (outcome.wasmBytes / 1e6).toFixed(0)}` +
         // The instance's peak resident memory so far; Hobby kills it at 2GB.
         ` peak_rss_mb=${(process.resourceUsage().maxRSS / 1024).toFixed(0)}` +
-        ` outcome=${outcome.ok ? "ok" : outcome.kind}`,
+        ` outcome=${outcome.ok ? "ok" : outcome.kind}` +
+        ` replay=${!prestate ? "none" : outcome.ok ? (outcome.result.callees_executed ? "ok" : "failed") : "?"}`,
     )
+    if (outcome.ok && outcome.result.replay_error) {
+      console.log(`analyzer replay failed: network=${network} tx=${txHash} error=${outcome.result.replay_error.slice(0, 300)}`)
+    }
     if (outcome.ok) return outcome.result
     if (outcome.kind === "too_large") throw traceTooLarge(`RPC error: ${outcome.message}`)
     if (outcome.kind === "crashed") console.error("analyzer worker crashed", outcome.message)
