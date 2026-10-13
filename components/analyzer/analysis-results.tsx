@@ -6,23 +6,44 @@ import { ArrowRight, ExternalLink, Info, TriangleAlert } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { formatGas, mostGasInCallees } from "@/lib/analyzer-utils"
 import { NETWORKS, ranUnderGlamsterdam } from "@/lib/networks"
-import type { AnalyzeResponse } from "@/lib/wasm/analyzer"
+import type { AnalyzeResponse, FrameTreeAnalysis } from "@/lib/wasm/analyzer"
+import { AddressLink, NestedSettlementPicker, NestedSettlementSummary, useNestedSettlement } from "./nested-settlement"
 
-export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
+export function AnalysisResults({ response, owned }: { response: AnalyzeResponse; owned: string[] }) {
   const { result, tx, usdPrice } = response
   const network = NETWORKS.find((n) => n.id === tx.network)
+  const { callees } = response
+  const target = tx.to?.toLowerCase()
+  const inTrace = new Set(callees?.map((c) => c.address))
+  // The target settles through Gas Killer regardless, so listing it is no mistake worth flagging. Without a
+  // call tree there's no telling what the transaction calls, so the nested analysis sorts it out instead.
+  const notInTrace = callees ? owned.filter((a) => !inTrace.has(a) && a !== target) : []
+  const nested = useNestedSettlement(
+    response,
+    owned.filter((a) => (callees ? inTrace.has(a) : a !== target)),
+  )
+  const nestedAnalysis = nested.showNested ? nested.estimate?.analysis : undefined
+
   const original = tx.gasUsed
   // The analyzer's estimate covers the state updates; settling also verifies the operators' signature.
-  const estimate = result.gas_estimate + result.signature_verification_gas
+  // The nested run always prices the struct-log trace, while `result` may come from the prestate net form,
+  // so only nesting's gain over the target alone carries over, not its absolute figure.
+  const nestedGain = nestedAnalysis ? nestedAnalysis.root_only_gas - nestedAnalysis.nested_gas : 0
+  const estimate = result.gas_estimate + result.signature_verification_gas - nestedGain
   const saved = original - estimate
   const percent = original > 0 ? (saved / original) * 100 : 0
   const scale = Math.max(original, estimate)
   const calleesDominate = mostGasInCallees(result.native_call_gas, original)
   const glamsterdam = ranUnderGlamsterdam(network, tx.blockNumber)
+  const hasNotes =
+    (!nestedAnalysis && (response.method === "prestate" || result.is_heuristic || result.reentered)) ||
+    glamsterdam ||
+    notInTrace.length > 0
 
   return (
     <div className="space-y-5">
@@ -44,6 +65,14 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
                 saved on this transaction.
               </p>
             </div>
+          ) : nestedAnalysis ? (
+            <div className="space-y-2 pt-4">
+              <p className="text-3xl font-display font-bold text-white">Still no savings</p>
+              <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">
+                {saved < 0 && `Even with these contracts nested, Gas Killer would add ${formatGas(-saved)} gas here. `}
+                What they would save doesn&apos;t cover verifying and applying the result.
+              </p>
+            </div>
           ) : (
             <div className="space-y-2 pt-4">
               <p className="text-3xl font-display font-bold text-white">No savings on this transaction</p>
@@ -55,6 +84,8 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
                     {Math.round((result.native_call_gas / original) * 100)}%) is spent inside other contracts it calls.
                     Gas Killer only saves gas in contracts that integrate it, so it runs those calls as they are when it
                     settles, and what&apos;s left to save doesn&apos;t cover verifying and applying the result.
+                    {(callees?.length ?? 0) > 0 &&
+                      " If you control those contracts, see what settling them too would save below."}
                   </>
                 ) : (
                   <>
@@ -76,18 +107,32 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
               className={saved > 0 ? "bg-emerald-400" : "bg-rose-400"}
               estimated
             />
+            {nested.estimate && (
+              <label className="flex w-fit items-center gap-3 pt-2 text-sm text-zinc-300">
+                <Switch checked={nested.showNested} onCheckedChange={nested.setShowNested} />
+                Nested settlement
+              </label>
+            )}
           </div>
 
-          {(response.method === "prestate" || result.is_heuristic || result.reentered || glamsterdam) && (
+          {nestedAnalysis && nested.estimate ? (
+            <NestedSettlementSummary response={response} owned={nested.estimate.owned} analysis={nestedAnalysis} />
+          ) : (
+            (callees?.length ?? 0) > 0 && (
+              <NestedSettlementPicker response={response} nested={nested} defaultOpen={nested.owned.length > 0} />
+            )
+          )}
+
+          {hasNotes && (
             <ul className="space-y-2 border-t border-white/10 pt-5 text-sm text-zinc-400">
-              {response.method === "prestate" && (
+              {!nestedAnalysis && response.method === "prestate" && (
                 <li className="flex gap-2">
                   <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
                   Estimated from the storage this transaction changed rather than a full replay, so repeated
                   writes to the same slot count once.
                 </li>
               )}
-              {result.is_heuristic && (
+              {!nestedAnalysis && result.is_heuristic && (
                 <li className="flex gap-2">
                   <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
                   The full EVM simulation couldn&apos;t run on this transaction, so the Gas Killer figure comes from a
@@ -102,11 +147,26 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
                   so the savings may be slightly off.
                 </li>
               )}
-              {result.reentered && (
+              {!nestedAnalysis && result.reentered && (
                 <li className="flex gap-2">
                   <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden />
                   A contract called by this transaction calls back into it. That callback&apos;s gas is counted
                   as external, so the Gas Killer figure may be on the high side.
+                </li>
+              )}
+              {notInTrace.length > 0 && (
+                <li className="flex gap-2">
+                  <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
+                  <span>
+                    {notInTrace.map((address, i) => (
+                      <span key={address}>
+                        {i > 0 && ", "}
+                        <AddressLink address={address} explorer={network?.explorer} />
+                      </span>
+                    ))}{" "}
+                    {notInTrace.length === 1 ? "isn't" : "aren't"} part of this trace, so{" "}
+                    {notInTrace.length === 1 ? "it was" : "they were"} left out.
+                  </span>
                 </li>
               )}
             </ul>
@@ -116,7 +176,7 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
 
       {saved > 0 && <IntegrateCallToAction />}
 
-      <DeveloperDetails response={response} />
+      <DeveloperDetails response={response} nestedAnalysis={nestedAnalysis} />
     </div>
   )
 }
@@ -232,7 +292,14 @@ function CostLine({
   )
 }
 
-function DeveloperDetails({ response: { result, method, prestateSkipped } }: { response: AnalyzeResponse }) {
+function DeveloperDetails({
+  response: { result, method, prestateSkipped, tx },
+  nestedAnalysis,
+}: {
+  response: AnalyzeResponse
+  nestedAnalysis?: FrameTreeAnalysis
+}) {
+  const explorer = NETWORKS.find((n) => n.id === tx.network)?.explorer
   const [copied, setCopied] = useState(false)
 
   async function copyEncoded() {
@@ -273,6 +340,23 @@ function DeveloperDetails({ response: { result, method, prestateSkipped } }: { r
                   {op}
                 </Badge>
               ))}
+            </div>
+          )}
+
+          {nestedAnalysis && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-white">Frames</h4>
+              <ul className="space-y-1.5 text-sm">
+                {nestedAnalysis.frames.map((frame, i) => (
+                  <li key={`${frame.target}-${i}`} className="flex items-center gap-3">
+                    <AddressLink address={frame.target} explorer={explorer} />
+                    {i === 0 && frame.target.toLowerCase() === tx.to?.toLowerCase() && (
+                      <span className="text-xs text-zinc-500">target</span>
+                    )}
+                    <span className="ml-auto font-mono text-zinc-300">{formatGas(frame.gas)}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

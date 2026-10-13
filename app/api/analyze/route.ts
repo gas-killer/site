@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
-import { auth } from "@/lib/auth"
-import { ANALYZER_DISABLED } from "@/lib/analyzer-status"
+import { analyzerAccessDenied } from "@/lib/analyzer/access"
+import { calleesFromCallFrame } from "@/lib/analyzer/callees"
 import {
   AnalyzerError,
   DEFAULT_ESTIMATOR_ADDRESS,
@@ -35,19 +35,8 @@ const OUTCOME_STATUS = { rpc: 502, analysis: 422, timeout: 504, crashed: 500 } a
 
 export async function POST(request: NextRequest) {
   const deadline = Date.now() + BUDGET_MS
-  if (ANALYZER_DISABLED) {
-    return Response.json({ error: "The analyzer is temporarily disabled" }, { status: 503 })
-  }
-
-  // Traces are fetched through paid archive RPCs, and signup hands out a session before the email
-  // is proven, so only confirmed users may analyze.
-  const session = await auth.api.getSession({ headers: request.headers, query: { disableCookieCache: true } })
-  if (!session) {
-    return Response.json({ error: "Sign in to use the analyzer" }, { status: 401 })
-  }
-  if (!session.user.emailVerified) {
-    return Response.json({ error: "Confirm your email to use the analyzer" }, { status: 403 })
-  }
+  const denied = await analyzerAccessDenied(request.headers)
+  if (denied) return denied
 
   const body = (await request.json().catch(() => null)) as { network?: unknown; txHash?: unknown } | null
   const network = body?.network
@@ -88,6 +77,7 @@ export async function POST(request: NextRequest) {
         effectiveGasPrice: info.effectiveGasPrice.toString(),
       },
       usdPrice: price,
+      callees: typeof prestate === "string" ? null : info.to ? calleesFromCallFrame(prestate.frame, info.to) : [],
     }
     return Response.json(response)
   } catch (e) {

@@ -11,6 +11,7 @@ const nextConfig = {
   // The analyzer reads its .wasm by path, so tracing can't find it alone.
   outputFileTracingIncludes: {
     "/api/analyze": ["./node_modules/@gas-killer/analyzer-wasm/gas_killer_wasm_bg.wasm"],
+    "/api/analyze/nested": ["./node_modules/@gas-killer/analyzer-wasm/gas_killer_wasm_bg.wasm"],
   },
   // `curl -fsSL https://gaskiller.xyz/bash | sh` — the gkvm toolchain installer (gk-run,
   // gk-anvil, the `gk` command, the guest toolchain image). The script lives in
