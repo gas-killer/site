@@ -12,7 +12,13 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { formatGas, mostGasInCallees } from "@/lib/analyzer-utils"
 import { NETWORKS, ranUnderGlamsterdam } from "@/lib/networks"
 import type { AnalyzeResponse, FrameTreeAnalysis } from "@/lib/wasm/analyzer"
-import { AddressLink, NestedSettlementPicker, NestedSettlementSummary, useNestedSettlement } from "./nested-settlement"
+import {
+  AddressLink,
+  NestedSettlementPicker,
+  NestedSettlementStatus,
+  NestedSettlementSummary,
+  useNestedSettlement,
+} from "./nested-settlement"
 
 export function AnalysisResults({ response, owned }: { response: AnalyzeResponse; owned: string[] }) {
   const { result, tx, usdPrice } = response
@@ -117,8 +123,10 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
 
           {nestedAnalysis && nested.estimate ? (
             <NestedSettlementSummary response={response} owned={nested.estimate.owned} analysis={nestedAnalysis} />
+          ) : callees === null ? (
+            <NestedSettlementStatus running={nested.running} error={nested.error} />
           ) : (
-            (callees?.length ?? 0) > 0 && (
+            callees.length > 0 && (
               <NestedSettlementPicker response={response} nested={nested} defaultOpen={nested.owned.length > 0} />
             )
           )}

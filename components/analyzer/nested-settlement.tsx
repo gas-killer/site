@@ -140,14 +140,31 @@ export function NestedSettlementPicker({
           )}
         </Button>
 
-        {error && (
-          <Alert variant="destructive" className="border-rose-500/30 bg-rose-950/40 text-rose-200">
-            <AlertTitle>Estimate failed</AlertTitle>
-            <AlertDescription className="font-mono text-sm whitespace-pre-wrap">{error}</AlertDescription>
-          </Alert>
-        )}
+        {error && <EstimateFailed error={error} />}
       </CollapsibleContent>
     </Collapsible>
+  )
+}
+
+/** A nested estimate's progress and failure, for when there's no picker to show them in. */
+export function NestedSettlementStatus({ running, error }: Pick<NestedSettlementState, "running" | "error">) {
+  if (running) {
+    return (
+      <p className="flex items-center gap-2 text-sm text-zinc-400">
+        <Spinner className="text-zinc-400" />
+        Estimating nested settlement...
+      </p>
+    )
+  }
+  return error ? <EstimateFailed error={error} /> : null
+}
+
+function EstimateFailed({ error }: { error: string }) {
+  return (
+    <Alert variant="destructive" className="border-rose-500/30 bg-rose-950/40 text-rose-200">
+      <AlertTitle>Estimate failed</AlertTitle>
+      <AlertDescription className="font-mono text-sm whitespace-pre-wrap">{error}</AlertDescription>
+    </Alert>
   )
 }
 

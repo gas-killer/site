@@ -97,13 +97,20 @@ async function rpcResult(url: string, method: string, txHash: string) {
 
 export type PrestateTraces = { diff: string; frame: string }
 
+const PRESTATE_DIFF = { tracer: "prestateTracer", tracerConfig: { diffMode: true } }
+
 /** The prestateTracer diff and callTracer frame, as JSON for analyze_prestate. */
 export async function fetchPrestateTraces(url: string, txHash: string): Promise<PrestateTraces> {
   const [diff, frame] = await Promise.all([
-    tracerResult(url, txHash, { tracer: "prestateTracer", tracerConfig: { diffMode: true } }),
+    tracerResult(url, txHash, PRESTATE_DIFF),
     tracerResult(url, txHash, { tracer: "callTracer", tracerConfig: { withLog: true } }),
   ])
   return { diff, frame }
+}
+
+/** The prestateTracer diff alone, for an analysis that takes everything else from the struct-log trace. */
+export function fetchPrestateDiff(url: string, txHash: string): Promise<string> {
+  return tracerResult(url, txHash, PRESTATE_DIFF)
 }
 
 async function tracerResult(url: string, txHash: string, config: object): Promise<string> {
