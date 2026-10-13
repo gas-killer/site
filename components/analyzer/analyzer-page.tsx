@@ -188,7 +188,7 @@ export function AnalyzerPage({ signedIn }: { signedIn: boolean }) {
                     disabled={formDisabled}
                     className="group inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-white disabled:pointer-events-none disabled:opacity-50"
                   >
-                    Advanced...
+                    Advanced
                     <ChevronDown className="size-4 transition-transform group-data-[state=open]:rotate-180" aria-hidden />
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-2 pt-4">

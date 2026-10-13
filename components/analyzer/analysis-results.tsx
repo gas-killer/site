@@ -12,7 +12,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { formatGas, mostGasInCallees } from "@/lib/analyzer-utils"
 import { NETWORKS, ranUnderGlamsterdam } from "@/lib/networks"
 import type { AnalyzeResponse, FrameTreeAnalysis } from "@/lib/wasm/analyzer"
-import { AddressLink, NestedSettlementPicker, useNestedSettlement } from "./nested-settlement"
+import { AddressLink, NestedSettlementPicker, NestedSettlementSummary, useNestedSettlement } from "./nested-settlement"
 
 export function AnalysisResults({ response, owned }: { response: AnalyzeResponse; owned: string[] }) {
   const { result, tx, usdPrice } = response
@@ -34,7 +34,6 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
   const calleesDominate = mostGasInCallees(result.native_call_gas, original)
   const glamsterdam = ranUnderGlamsterdam(network, tx.blockNumber)
   const hasNotes =
-    (nestedAnalysis?.not_nested.length ?? 0) > 0 ||
     response.method === "prestate" ||
     result.is_heuristic ||
     result.reentered ||
@@ -111,20 +110,16 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
             )}
           </div>
 
-          {response.callees.length > 0 && (
-            <NestedSettlementPicker response={response} nested={nested} defaultOpen={nested.owned.length > 0} />
+          {nestedAnalysis && nested.estimate ? (
+            <NestedSettlementSummary response={response} owned={nested.estimate.owned} analysis={nestedAnalysis} />
+          ) : (
+            response.callees.length > 0 && (
+              <NestedSettlementPicker response={response} nested={nested} defaultOpen={nested.owned.length > 0} />
+            )
           )}
 
           {hasNotes && (
             <ul className="space-y-2 border-t border-white/10 pt-5 text-sm text-zinc-400">
-              {nestedAnalysis?.not_nested.map((n) => (
-                <li key={n.address} className="flex gap-2">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden />
-                  <span>
-                    <AddressLink address={n.address} explorer={network?.explorer} /> wasn&apos;t nested: {n.reason}
-                  </span>
-                </li>
-              ))}
               {!nestedAnalysis && response.method === "prestate" && (
                 <li className="flex gap-2">
                   <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />

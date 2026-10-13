@@ -1,12 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ChevronDown, ExternalLink, Sparkles } from "lucide-react"
+import { Check, ChevronDown, ExternalLink, Sparkles, X } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Spinner } from "@/components/ui/spinner"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatGas } from "@/lib/analyzer-utils"
 import { MAX_OWNED } from "@/lib/analyzer/callees"
 import { NETWORKS } from "@/lib/networks"
@@ -147,6 +148,74 @@ export function NestedSettlementPicker({
         )}
       </CollapsibleContent>
     </Collapsible>
+  )
+}
+
+// The analyzer's not_nested reasons, reworded for the page; any other reason shows as the analyzer gave it.
+const NOT_NESTED_REASONS: Record<string, string> = {
+  "called directly, but cheaper as a plain CALL (or it reverted, or uses transient storage or selfdestruct)":
+    "This contract doesn't benefit from nesting. It was cheaper as a plain CALL (or it could not be simulated).",
+  "not called from a nested frame":
+    "This contract can't be nested. It isn't called by the target or by another nested contract.",
+}
+
+/** The nested settlement the user ran: the contracts they ticked, and which of those got a frame. */
+export function NestedSettlementSummary({
+  response: { tx, callees },
+  owned,
+  analysis,
+}: {
+  response: AnalyzeResponse
+  owned: string[]
+  analysis: FrameTreeAnalysis
+}) {
+  const explorer = NETWORKS.find((n) => n.id === tx.network)?.explorer
+  const notNested = new Map(analysis.not_nested.map((n) => [n.address.toLowerCase(), n.reason]))
+  const gasUsed = new Map(callees.map((c) => [c.address, c.gasUsed]))
+
+  return (
+    <div className="space-y-3 rounded-lg border border-emerald-400/20 bg-emerald-950/20 p-4">
+      <div className="flex items-center gap-2.5 text-sm text-emerald-100">
+        <Sparkles className="size-4 shrink-0 text-emerald-300" aria-hidden />
+        Nested settlement with the contracts you control
+      </div>
+      <TooltipProvider delayDuration={100}>
+        <ul className="space-y-2">
+          {owned.map((address) => {
+            const reason = notNested.get(address)
+            const gas = gasUsed.get(address)
+            return (
+              <li
+                key={address}
+                className="flex items-center gap-3 rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-sm"
+              >
+                {reason === undefined ? (
+                  <Check className="size-4 shrink-0 text-emerald-300" aria-label="Nested" />
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" className="shrink-0 rounded text-rose-300 hover:text-rose-200">
+                        <X className="size-4" aria-label="Not nested" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs border-white/10 bg-zinc-900 text-zinc-200">
+                      {NOT_NESTED_REASONS[reason] ?? reason}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                <AddressLink address={address} explorer={explorer} />
+                {gas !== undefined && (
+                  <span className="ml-auto text-right text-zinc-400">
+                    {formatGas(gas)} gas
+                    <span className="text-zinc-500"> · {share(gas, tx.gasUsed)} of the transaction</span>
+                  </span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      </TooltipProvider>
+    </div>
   )
 }
 
