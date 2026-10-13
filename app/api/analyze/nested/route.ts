@@ -4,7 +4,7 @@ import { MAX_OWNED, parseOwned } from "@/lib/analyzer/callees"
 import { oneAtATime } from "@/lib/analyzer/serial"
 import {
   AnalyzerError,
-  fetchPrestateTraces,
+  fetchPrestateDiff,
   fetchTrace,
   fetchTransactionInfo,
   rpcUrlFor,
@@ -50,10 +50,7 @@ export async function POST(request: NextRequest) {
     // The diff seeds the starting state; without it every write is priced as one to an empty slot.
     const [info, diff] = await Promise.all([
       fetchTransactionInfo(url, txHash),
-      fetchPrestateTraces(url, txHash).then(
-        (traces) => traces.diff,
-        () => null,
-      ),
+      fetchPrestateDiff(url, txHash).catch(() => null),
     ])
     const root = info.to
     if (!root) throw new AnalyzerError(422, "This transaction has no target contract to settle through.")
