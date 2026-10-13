@@ -41,3 +41,12 @@ export function parseOwned(value: unknown): string[] | null {
   const owned = [...new Set(value.map((a) => a.toLowerCase()))]
   return owned.length <= MAX_OWNED ? owned : null
 }
+
+/** The addresses in a typed list, split on commas and whitespace, lowercased and distinct, and the entries that aren't addresses. */
+export function parseAddressList(text: string): { addresses: string[]; invalid: string[] } {
+  const entries = text.split(/[\s,]+/).filter(Boolean)
+  return {
+    addresses: [...new Set(entries.filter((e) => ADDRESS.test(e)).map((e) => e.toLowerCase()))],
+    invalid: entries.filter((e) => !ADDRESS.test(e)),
+  }
+}

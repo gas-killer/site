@@ -11,19 +11,34 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { formatGas, mostGasInCallees } from "@/lib/analyzer-utils"
 import { NETWORKS, ranUnderGlamsterdam } from "@/lib/networks"
 import type { AnalyzeResponse } from "@/lib/wasm/analyzer"
-import { NestedSettlement } from "./nested-settlement"
+import { AddressLink, NestedSettlementPicker, useNestedSettlement } from "./nested-settlement"
 
-export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
+export function AnalysisResults({ response, owned }: { response: AnalyzeResponse; owned: string[] }) {
   const { result, tx, usdPrice } = response
   const network = NETWORKS.find((n) => n.id === tx.network)
+  const inTrace = new Set(response.callees.map((c) => c.address))
+  // The target settles through Gas Killer regardless, so listing it is no mistake worth flagging.
+  const notInTrace = owned.filter((a) => !inTrace.has(a) && a !== tx.to?.toLowerCase())
+  const nested = useNestedSettlement(response, owned.filter((a) => inTrace.has(a)))
+  const nestedAnalysis = nested.view === "after" ? nested.estimate?.analysis : undefined
+
   const original = tx.gasUsed
   // The analyzer's estimate covers the state updates; settling also verifies the operators' signature.
-  const estimate = result.gas_estimate + result.signature_verification_gas
+  const estimate = nestedAnalysis
+    ? nestedAnalysis.nested_gas + nestedAnalysis.signature_verification_gas
+    : result.gas_estimate + result.signature_verification_gas
   const saved = original - estimate
   const percent = original > 0 ? (saved / original) * 100 : 0
   const scale = Math.max(original, estimate)
   const calleesDominate = mostGasInCallees(result.native_call_gas, original)
   const glamsterdam = ranUnderGlamsterdam(network, tx.blockNumber)
+  const hasNotes =
+    nestedAnalysis !== undefined ||
+    response.method === "prestate" ||
+    result.is_heuristic ||
+    result.reentered ||
+    glamsterdam ||
+    notInTrace.length > 0
 
   return (
     <div className="space-y-5">
@@ -32,48 +47,83 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
           <TransactionSummary response={response} />
         </CardHeader>
         <CardContent className="space-y-8">
-          {saved > 0 ? (
-            <div className="space-y-2 pt-4">
-              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                <span className="text-5xl md:text-6xl font-display font-bold text-white">{formatGas(saved)}</span>
-                <span className="text-lg text-zinc-400">
-                  gas saved · <span className="text-emerald-300">{Math.round(percent)}% less</span>
+          <div className="space-y-6 pt-4">
+            {nested.estimate && (
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <div role="group" aria-label="Compare results" className="inline-flex rounded-full border border-white/15 p-0.5">
+                  {(["before", "after"] as const).map((view) => (
+                    <button
+                      key={view}
+                      type="button"
+                      aria-pressed={nested.view === view}
+                      onClick={() => nested.setView(view)}
+                      className={`rounded-full px-3 py-1 capitalize transition-colors ${
+                        nested.view === view ? "bg-white text-black" : "text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      {view}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-zinc-500">
+                  {nestedAnalysis
+                    ? `With ${plural(nested.estimate.owned.length, "contract")} you control settled as nested frames`
+                    : "Settling through the target alone"}
                 </span>
               </div>
-              <p className="text-sm text-zinc-400">
-                <CostLine gas={saved} gasPrice={tx.effectiveGasPrice} usdPrice={usdPrice} symbol={network?.nativeSymbol} />{" "}
-                saved on this transaction.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2 pt-4">
-              <p className="text-3xl font-display font-bold text-white">No savings on this transaction</p>
-              <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">
-                {saved < 0 && `Gas Killer would add ${formatGas(-saved)} gas here. `}
-                {calleesDominate ? (
-                  <>
-                    {formatGas(result.native_call_gas)} of this transaction&apos;s gas (
-                    {Math.round((result.native_call_gas / original) * 100)}%) is spent inside other contracts it calls.
-                    Gas Killer only saves gas in contracts that integrate it, so it runs those calls as they are when it
-                    settles, and what&apos;s left to save doesn&apos;t cover verifying and applying the result.
-                    {response.callees.length > 0 &&
-                      " If you control those contracts, see what settling them too would save under Nested settlement below."}
-                  </>
-                ) : (
-                  <>
-                    Verifying its result costs at least as much as the transaction spends on computation. Gas Killer
-                    pays off on transactions that do heavy onchain computation relative to the state they change.
-                  </>
-                )}
-              </p>
-              <p className="text-sm text-zinc-300">Try another transaction to see where it saves gas.</p>
-            </div>
-          )}
+            )}
+
+            {saved > 0 ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                  <span className="text-5xl md:text-6xl font-display font-bold text-white">{formatGas(saved)}</span>
+                  <span className="text-lg text-zinc-400">
+                    gas saved · <span className="text-emerald-300">{Math.round(percent)}% less</span>
+                  </span>
+                </div>
+                <p className="text-sm text-zinc-400">
+                  <CostLine gas={saved} gasPrice={tx.effectiveGasPrice} usdPrice={usdPrice} symbol={network?.nativeSymbol} />{" "}
+                  saved on this transaction.
+                </p>
+              </div>
+            ) : nestedAnalysis ? (
+              <div className="space-y-2">
+                <p className="text-3xl font-display font-bold text-white">Still no savings</p>
+                <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">
+                  {saved < 0 && `Settling these contracts too would add ${formatGas(-saved)} gas. `}
+                  What they would save doesn&apos;t cover verifying and applying the result.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-3xl font-display font-bold text-white">No savings on this transaction</p>
+                <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">
+                  {saved < 0 && `Gas Killer would add ${formatGas(-saved)} gas here. `}
+                  {calleesDominate ? (
+                    <>
+                      {formatGas(result.native_call_gas)} of this transaction&apos;s gas (
+                      {Math.round((result.native_call_gas / original) * 100)}%) is spent inside other contracts it calls.
+                      Gas Killer only saves gas in contracts that integrate it, so it runs those calls as they are when it
+                      settles, and what&apos;s left to save doesn&apos;t cover verifying and applying the result.
+                      {response.callees.length > 0 &&
+                        " If you control those contracts, see what settling them too would save below."}
+                    </>
+                  ) : (
+                    <>
+                      Verifying its result costs at least as much as the transaction spends on computation. Gas Killer
+                      pays off on transactions that do heavy onchain computation relative to the state they change.
+                    </>
+                  )}
+                </p>
+                <p className="text-sm text-zinc-300">Try another transaction to see where it saves gas.</p>
+              </div>
+            )}
+          </div>
 
           <div className="space-y-4">
             <GasBar label="Original" gas={original} scale={scale} className="bg-zinc-500" />
             <GasBar
-              label="With Gas Killer"
+              label={nestedAnalysis ? "With nested settlement" : "With Gas Killer"}
               gas={estimate}
               scale={scale}
               className={saved > 0 ? "bg-emerald-400" : "bg-rose-400"}
@@ -81,16 +131,35 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
             />
           </div>
 
-          {(response.method === "prestate" || result.is_heuristic || result.reentered || glamsterdam) && (
+          {response.callees.length > 0 && (
+            <NestedSettlementPicker response={response} nested={nested} defaultOpen={nested.owned.length > 0} />
+          )}
+
+          {hasNotes && (
             <ul className="space-y-2 border-t border-white/10 pt-5 text-sm text-zinc-400">
-              {response.method === "prestate" && (
+              {nestedAnalysis && (
+                <li className="flex gap-2">
+                  <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
+                  Hypothetical: assumes each contract you chose integrates Gas Killer and follows its nesting rules.
+                  Calls the tree still makes to other contracts are charged what they used in this transaction.
+                </li>
+              )}
+              {nestedAnalysis?.not_nested.map((n) => (
+                <li key={n.address} className="flex gap-2">
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden />
+                  <span>
+                    <AddressLink address={n.address} explorer={network?.explorer} /> wasn&apos;t nested: {n.reason}
+                  </span>
+                </li>
+              ))}
+              {!nestedAnalysis && response.method === "prestate" && (
                 <li className="flex gap-2">
                   <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
                   Estimated from the storage this transaction changed rather than a full replay, so repeated
                   writes to the same slot count once.
                 </li>
               )}
-              {result.is_heuristic && (
+              {!nestedAnalysis && result.is_heuristic && (
                 <li className="flex gap-2">
                   <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
                   The full EVM simulation couldn&apos;t run on this transaction, so the Gas Killer figure comes from a
@@ -105,11 +174,26 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
                   so the savings may be slightly off.
                 </li>
               )}
-              {result.reentered && (
+              {!nestedAnalysis && result.reentered && (
                 <li className="flex gap-2">
                   <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden />
                   A contract called by this transaction calls back into it. That callback&apos;s gas is counted
                   as external, so the Gas Killer figure may be on the high side.
+                </li>
+              )}
+              {notInTrace.length > 0 && (
+                <li className="flex gap-2">
+                  <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
+                  <span>
+                    {notInTrace.map((address, i) => (
+                      <span key={address}>
+                        {i > 0 && ", "}
+                        <AddressLink address={address} explorer={network?.explorer} />
+                      </span>
+                    ))}{" "}
+                    {notInTrace.length === 1 ? "isn't" : "aren't"} part of this trace, so{" "}
+                    {notInTrace.length === 1 ? "it was" : "they were"} left out.
+                  </span>
                 </li>
               )}
             </ul>
@@ -118,8 +202,6 @@ export function AnalysisResults({ response }: { response: AnalyzeResponse }) {
       </Card>
 
       {saved > 0 && <IntegrateCallToAction />}
-
-      {response.callees.length > 0 && <NestedSettlement key={tx.hash} response={response} />}
 
       <DeveloperDetails response={response} />
     </div>
@@ -307,4 +389,8 @@ function DeveloperDetails({ response: { result, method, prestateSkipped } }: { r
 
 function shorten(hex: string): string {
   return hex.length > 12 ? `${hex.slice(0, 6)}…${hex.slice(-4)}` : hex
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`
 }

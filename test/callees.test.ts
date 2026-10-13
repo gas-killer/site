@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { MAX_OWNED, calleesFromCallFrame, parseOwned } from "@/lib/analyzer/callees"
+import { MAX_OWNED, calleesFromCallFrame, parseAddressList, parseOwned } from "@/lib/analyzer/callees"
 
 const ROOT = "0xac9f360ae85469b27aeddeafc579ef2d052ad405"
 const WALLET = "0xfa7093cdd9ee6932b4eb2c9e1cde7ce00b1fa4b9"
@@ -58,5 +58,17 @@ describe("parseOwned", () => {
     const many = Array.from({ length: MAX_OWNED + 1 }, (_, i) => `0x${(i + 1).toString(16).padStart(40, "0")}`)
     expect(parseOwned(many)).toBeNull()
     expect(parseOwned(many.slice(0, MAX_OWNED))).toHaveLength(MAX_OWNED)
+  })
+})
+
+describe("parseAddressList", () => {
+  it("splits on commas and whitespace, lowercasing and deduplicating", () => {
+    const text = ` ${WALLET.toUpperCase().replace("0X", "0x")},\n${WALLET}  ${WETH}, `
+    expect(parseAddressList(text)).toEqual({ addresses: [WALLET, WETH], invalid: [] })
+  })
+
+  it("returns the entries that aren't addresses", () => {
+    expect(parseAddressList(`${WALLET} 0x12 weth`)).toEqual({ addresses: [WALLET], invalid: ["0x12", "weth"] })
+    expect(parseAddressList("")).toEqual({ addresses: [], invalid: [] })
   })
 })

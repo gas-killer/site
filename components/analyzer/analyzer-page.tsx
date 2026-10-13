@@ -2,22 +2,28 @@
 
 import Link from "next/link"
 import { useReducer, useState } from "react"
+import { ChevronDown } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
 import { Header } from "@/components/header"
 import type { AnalyzeResponse } from "@/lib/wasm/analyzer"
 import { NETWORKS } from "@/lib/networks"
 import { ANALYZER_DISABLED } from "@/lib/analyzer-status"
+import { MAX_OWNED, parseAddressList } from "@/lib/analyzer/callees"
 import { AnalysisResults } from "./analysis-results"
 
 type State = {
   isRunning: boolean
   statusMessage: string | null
   response: AnalyzeResponse | null
+  // The contracts the user said they control when they ran the analysis.
+  owned: string[]
   error: RunError | null
 }
 
@@ -25,13 +31,14 @@ type RunError = { message: string; code?: string }
 
 type Action =
   | { type: "RUN_START"; statusMessage: string }
-  | { type: "RUN_SUCCESS"; response: AnalyzeResponse }
+  | { type: "RUN_SUCCESS"; response: AnalyzeResponse; owned: string[] }
   | { type: "RUN_ERROR"; error: RunError }
 
 const initialState: State = {
   isRunning: false,
   statusMessage: null,
   response: null,
+  owned: [],
   error: null,
 }
 
@@ -40,7 +47,7 @@ function reducer(state: State, action: Action): State {
     case "RUN_START":
       return { ...state, isRunning: true, statusMessage: action.statusMessage, response: null, error: null }
     case "RUN_SUCCESS":
-      return { ...state, isRunning: false, statusMessage: null, response: action.response, error: null }
+      return { ...state, isRunning: false, statusMessage: null, response: action.response, owned: action.owned, error: null }
     case "RUN_ERROR":
       return { ...state, isRunning: false, statusMessage: null, error: action.error }
     default:
@@ -52,9 +59,18 @@ export function AnalyzerPage({ signedIn }: { signedIn: boolean }) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [txHash, setTxHash] = useState("")
   const [selectedNetwork, setSelectedNetwork] = useState(NETWORKS[0]?.id ?? "")
+  const [ownedText, setOwnedText] = useState("")
+  const owned = parseAddressList(ownedText)
+  const ownedError =
+    owned.invalid.length > 0
+      ? `Not an address: ${owned.invalid.join(", ")}`
+      : owned.addresses.length > MAX_OWNED
+        ? `List at most ${MAX_OWNED} contracts`
+        : null
 
   async function handleAnalyze() {
     if (!txHash.trim() || !selectedNetwork) return
+    const submittedOwned = owned.addresses
 
     dispatch({ type: "RUN_START", statusMessage: "Analyzing..." })
 
@@ -69,14 +85,14 @@ export function AnalyzerPage({ signedIn }: { signedIn: boolean }) {
         dispatch({ type: "RUN_ERROR", error: { message: errorMessage(body, resp), code: body?.code } })
         return
       }
-      dispatch({ type: "RUN_SUCCESS", response: body })
+      dispatch({ type: "RUN_SUCCESS", response: body, owned: submittedOwned })
     } catch (e) {
       dispatch({ type: "RUN_ERROR", error: { message: e instanceof Error ? e.message : String(e) } })
     }
   }
 
   const formDisabled = ANALYZER_DISABLED || !signedIn
-  const canAnalyze = !formDisabled && txHash.trim() && selectedNetwork && !state.isRunning
+  const canAnalyze = !formDisabled && txHash.trim() && selectedNetwork && !ownedError && !state.isRunning
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-zinc-200">
@@ -166,6 +182,37 @@ export function AnalyzerPage({ signedIn }: { signedIn: boolean }) {
                     className="font-mono border-white/10 bg-black text-white placeholder:text-zinc-600 focus-visible:ring-white/20"
                   />
                 </div>
+
+                <Collapsible>
+                  <CollapsibleTrigger
+                    disabled={formDisabled}
+                    className="group inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-white disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    Advanced...
+                    <ChevronDown className="size-4 transition-transform group-data-[state=open]:rotate-180" aria-hidden />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2 pt-4">
+                    <Label htmlFor="owned" className="text-zinc-400 text-xs uppercase tracking-widest">
+                      Contracts you control
+                    </Label>
+                    <Textarea
+                      id="owned"
+                      placeholder={"0x...\n0x..."}
+                      value={ownedText}
+                      disabled={formDisabled}
+                      onChange={(e) => setOwnedText(e.target.value)}
+                      className="font-mono border-white/10 bg-black text-white placeholder:text-zinc-600 focus-visible:ring-white/20"
+                    />
+                    {ownedError ? (
+                      <p className="text-sm text-rose-300">{ownedError}</p>
+                    ) : (
+                      <p className="text-sm text-zinc-500">
+                        One per line or comma separated. Any this transaction calls are also estimated as settling
+                        through Gas Killer as nested frames.
+                      </p>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
               </CardContent>
               <CardFooter>
                 {!signedIn && !ANALYZER_DISABLED ? (
@@ -214,7 +261,7 @@ export function AnalyzerPage({ signedIn }: { signedIn: boolean }) {
           )}
 
           {state.response && (
-            <AnalysisResults response={state.response} />
+            <AnalysisResults response={state.response} owned={state.owned} />
           )}
         </div>
       </main>
