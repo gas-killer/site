@@ -3,10 +3,10 @@
 import Link from "next/link"
 import { useState } from "react"
 import { ArrowRight, ExternalLink, Info, TriangleAlert } from "lucide-react"
+import * as Switch from "@radix-ui/react-switch"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { formatGas, mostGasInCallees } from "@/lib/analyzer-utils"
@@ -34,7 +34,7 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
   const calleesDominate = mostGasInCallees(result.native_call_gas, original)
   const glamsterdam = ranUnderGlamsterdam(network, tx.blockNumber)
   const hasNotes =
-    nestedAnalysis !== undefined ||
+    (nestedAnalysis?.not_nested.length ?? 0) > 0 ||
     response.method === "prestate" ||
     result.is_heuristic ||
     result.reentered ||
@@ -105,11 +105,14 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
             />
             {nested.estimate && (
               <label className="flex w-fit items-center gap-3 pt-2 text-sm text-zinc-300">
-                <Switch
+                {/* The shared Switch draws its thumb in --background, which this site's theme doesn't define. */}
+                <Switch.Root
                   checked={nested.showNested}
                   onCheckedChange={nested.setShowNested}
-                  className="data-[state=checked]:bg-emerald-400 data-[state=unchecked]:bg-zinc-600"
-                />
+                  className="inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 data-[state=checked]:bg-emerald-400 data-[state=unchecked]:bg-zinc-700"
+                >
+                  <Switch.Thumb className="block size-5 rounded-full bg-white shadow transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0" />
+                </Switch.Root>
                 Nested settlement
               </label>
             )}
@@ -121,13 +124,6 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
 
           {hasNotes && (
             <ul className="space-y-2 border-t border-white/10 pt-5 text-sm text-zinc-400">
-              {nestedAnalysis && (
-                <li className="flex gap-2">
-                  <Info className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden />
-                  Hypothetical: assumes each contract you chose integrates Gas Killer and follows its nesting rules.
-                  Calls the tree still makes to other contracts are charged what they used in this transaction.
-                </li>
-              )}
               {nestedAnalysis?.not_nested.map((n) => (
                 <li key={n.address} className="flex gap-2">
                   <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden />
