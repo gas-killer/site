@@ -7,7 +7,6 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
@@ -15,7 +14,7 @@ import { Header } from "@/components/header"
 import type { AnalyzeResponse } from "@/lib/wasm/analyzer"
 import { NETWORKS } from "@/lib/networks"
 import { ANALYZER_DISABLED } from "@/lib/analyzer-status"
-import { MAX_OWNED, parseAddressList } from "@/lib/analyzer/callees"
+import { AddressInput } from "./address-input"
 import { AnalysisResults } from "./analysis-results"
 
 type State = {
@@ -59,18 +58,11 @@ export function AnalyzerPage({ signedIn }: { signedIn: boolean }) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [txHash, setTxHash] = useState("")
   const [selectedNetwork, setSelectedNetwork] = useState(NETWORKS[0]?.id ?? "")
-  const [ownedText, setOwnedText] = useState("")
-  const owned = parseAddressList(ownedText)
-  const ownedError =
-    owned.invalid.length > 0
-      ? `Not an address: ${owned.invalid.join(", ")}`
-      : owned.addresses.length > MAX_OWNED
-        ? `List at most ${MAX_OWNED} contracts`
-        : null
+  const [owned, setOwned] = useState<string[]>([])
 
   async function handleAnalyze() {
     if (!txHash.trim() || !selectedNetwork) return
-    const submittedOwned = owned.addresses
+    const submittedOwned = owned
 
     dispatch({ type: "RUN_START", statusMessage: "Analyzing..." })
 
@@ -92,7 +84,7 @@ export function AnalyzerPage({ signedIn }: { signedIn: boolean }) {
   }
 
   const formDisabled = ANALYZER_DISABLED || !signedIn
-  const canAnalyze = !formDisabled && txHash.trim() && selectedNetwork && !ownedError && !state.isRunning
+  const canAnalyze = !formDisabled && txHash.trim() && selectedNetwork && !state.isRunning
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-zinc-200">
@@ -195,22 +187,7 @@ export function AnalyzerPage({ signedIn }: { signedIn: boolean }) {
                     <Label htmlFor="owned" className="text-zinc-400 text-xs uppercase tracking-widest">
                       Contracts you control
                     </Label>
-                    <Textarea
-                      id="owned"
-                      placeholder={"0x...\n0x..."}
-                      value={ownedText}
-                      disabled={formDisabled}
-                      onChange={(e) => setOwnedText(e.target.value)}
-                      className="font-mono border-white/10 bg-black text-white placeholder:text-zinc-600 focus-visible:ring-white/20"
-                    />
-                    {ownedError ? (
-                      <p className="text-sm text-rose-300">{ownedError}</p>
-                    ) : (
-                      <p className="text-sm text-zinc-500">
-                        One per line or comma separated. Any this transaction calls are also estimated as settling
-                        through Gas Killer as nested frames.
-                      </p>
-                    )}
+                    <AddressInput id="owned" addresses={owned} onChange={setOwned} disabled={formDisabled} />
                   </CollapsibleContent>
                 </Collapsible>
               </CardContent>
