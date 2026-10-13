@@ -24,7 +24,7 @@ export function useNestedSettlement({ tx }: AnalyzeResponse, preselected: string
   const [running, setRunning] = useState(false)
   const [estimate, setEstimate] = useState<{ analysis: FrameTreeAnalysis; owned: string[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [view, setView] = useState<"before" | "after">("after")
+  const [showNested, setShowNested] = useState(true)
   const started = useRef(false)
 
   const run = useCallback(
@@ -42,7 +42,7 @@ export function useNestedSettlement({ tx }: AnalyzeResponse, preselected: string
           setError(typeof body?.error === "string" ? body.error : `HTTP ${resp.status}`)
         } else {
           setEstimate({ analysis: (body as NestedResponse).analysis, owned: contracts })
-          setView("after")
+          setShowNested(true)
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
@@ -64,7 +64,7 @@ export function useNestedSettlement({ tx }: AnalyzeResponse, preselected: string
     setOwned((current) => (checked ? [...current, address] : current.filter((a) => a !== address)))
   }
 
-  return { owned, toggle, running, error, estimate, view, setView, rerun: () => run(owned) }
+  return { owned, toggle, running, error, estimate, showNested, setShowNested, rerun: () => run(owned) }
 }
 
 /** The collapsible in the results card where the user picks the called contracts they control. */
@@ -144,23 +144,6 @@ export function NestedSettlementPicker({
             <AlertTitle>Estimate failed</AlertTitle>
             <AlertDescription className="font-mono text-sm whitespace-pre-wrap">{error}</AlertDescription>
           </Alert>
-        )}
-
-        {estimate && (
-          <div className="space-y-2 border-t border-white/10 pt-4">
-            <h4 className="text-sm font-semibold text-white">Frames</h4>
-            <ul className="space-y-1.5 text-sm">
-              {estimate.analysis.frames.map((frame, i) => (
-                <li key={`${frame.target}-${i}`} className="flex items-center gap-3">
-                  <AddressLink address={frame.target} explorer={explorer} />
-                  {i === 0 && frame.target.toLowerCase() === tx.to?.toLowerCase() && (
-                    <span className="text-xs text-zinc-500">target</span>
-                  )}
-                  <span className="ml-auto font-mono text-zinc-300">{formatGas(frame.gas)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
         )}
       </CollapsibleContent>
     </Collapsible>

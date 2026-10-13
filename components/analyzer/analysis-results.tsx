@@ -6,11 +6,12 @@ import { ArrowRight, ExternalLink, Info, TriangleAlert } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { formatGas, mostGasInCallees } from "@/lib/analyzer-utils"
 import { NETWORKS, ranUnderGlamsterdam } from "@/lib/networks"
-import type { AnalyzeResponse } from "@/lib/wasm/analyzer"
+import type { AnalyzeResponse, FrameTreeAnalysis } from "@/lib/wasm/analyzer"
 import { AddressLink, NestedSettlementPicker, useNestedSettlement } from "./nested-settlement"
 
 export function AnalysisResults({ response, owned }: { response: AnalyzeResponse; owned: string[] }) {
@@ -20,7 +21,7 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
   // The target settles through Gas Killer regardless, so listing it is no mistake worth flagging.
   const notInTrace = owned.filter((a) => !inTrace.has(a) && a !== tx.to?.toLowerCase())
   const nested = useNestedSettlement(response, owned.filter((a) => inTrace.has(a)))
-  const nestedAnalysis = nested.view === "after" ? nested.estimate?.analysis : undefined
+  const nestedAnalysis = nested.showNested ? nested.estimate?.analysis : undefined
 
   const original = tx.gasUsed
   // The analyzer's estimate covers the state updates; settling also verifies the operators' signature.
@@ -47,88 +48,71 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
           <TransactionSummary response={response} />
         </CardHeader>
         <CardContent className="space-y-8">
-          <div className="space-y-6 pt-4">
-            {nested.estimate && (
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <div role="group" aria-label="Compare results" className="inline-flex rounded-full border border-white/15 p-0.5">
-                  {(["before", "after"] as const).map((view) => (
-                    <button
-                      key={view}
-                      type="button"
-                      aria-pressed={nested.view === view}
-                      onClick={() => nested.setView(view)}
-                      className={`rounded-full px-3 py-1 capitalize transition-colors ${
-                        nested.view === view ? "bg-white text-black" : "text-zinc-400 hover:text-white"
-                      }`}
-                    >
-                      {view}
-                    </button>
-                  ))}
-                </div>
-                <span className="text-zinc-500">
-                  {nestedAnalysis
-                    ? `With ${plural(nested.estimate.owned.length, "contract")} you control settled as nested frames`
-                    : "Settling through the target alone"}
+          {saved > 0 ? (
+            <div className="space-y-2 pt-4">
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <span className="text-5xl md:text-6xl font-display font-bold text-white">{formatGas(saved)}</span>
+                <span className="text-lg text-zinc-400">
+                  gas saved · <span className="text-emerald-300">{Math.round(percent)}% less</span>
                 </span>
               </div>
-            )}
-
-            {saved > 0 ? (
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                  <span className="text-5xl md:text-6xl font-display font-bold text-white">{formatGas(saved)}</span>
-                  <span className="text-lg text-zinc-400">
-                    gas saved · <span className="text-emerald-300">{Math.round(percent)}% less</span>
-                  </span>
-                </div>
-                <p className="text-sm text-zinc-400">
-                  <CostLine gas={saved} gasPrice={tx.effectiveGasPrice} usdPrice={usdPrice} symbol={network?.nativeSymbol} />{" "}
-                  saved on this transaction.
-                </p>
-              </div>
-            ) : nestedAnalysis ? (
-              <div className="space-y-2">
-                <p className="text-3xl font-display font-bold text-white">Still no savings</p>
-                <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">
-                  {saved < 0 && `Settling these contracts too would add ${formatGas(-saved)} gas. `}
-                  What they would save doesn&apos;t cover verifying and applying the result.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-3xl font-display font-bold text-white">No savings on this transaction</p>
-                <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">
-                  {saved < 0 && `Gas Killer would add ${formatGas(-saved)} gas here. `}
-                  {calleesDominate ? (
-                    <>
-                      {formatGas(result.native_call_gas)} of this transaction&apos;s gas (
-                      {Math.round((result.native_call_gas / original) * 100)}%) is spent inside other contracts it calls.
-                      Gas Killer only saves gas in contracts that integrate it, so it runs those calls as they are when it
-                      settles, and what&apos;s left to save doesn&apos;t cover verifying and applying the result.
-                      {response.callees.length > 0 &&
-                        " If you control those contracts, see what settling them too would save below."}
-                    </>
-                  ) : (
-                    <>
-                      Verifying its result costs at least as much as the transaction spends on computation. Gas Killer
-                      pays off on transactions that do heavy onchain computation relative to the state they change.
-                    </>
-                  )}
-                </p>
-                <p className="text-sm text-zinc-300">Try another transaction to see where it saves gas.</p>
-              </div>
-            )}
-          </div>
+              <p className="text-sm text-zinc-400">
+                <CostLine gas={saved} gasPrice={tx.effectiveGasPrice} usdPrice={usdPrice} symbol={network?.nativeSymbol} />{" "}
+                saved on this transaction.
+              </p>
+            </div>
+          ) : nestedAnalysis ? (
+            <div className="space-y-2 pt-4">
+              <p className="text-3xl font-display font-bold text-white">Still no savings</p>
+              <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">
+                {saved < 0 && `Settling these contracts too would add ${formatGas(-saved)} gas. `}
+                What they would save doesn&apos;t cover verifying and applying the result.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 pt-4">
+              <p className="text-3xl font-display font-bold text-white">No savings on this transaction</p>
+              <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">
+                {saved < 0 && `Gas Killer would add ${formatGas(-saved)} gas here. `}
+                {calleesDominate ? (
+                  <>
+                    {formatGas(result.native_call_gas)} of this transaction&apos;s gas (
+                    {Math.round((result.native_call_gas / original) * 100)}%) is spent inside other contracts it calls.
+                    Gas Killer only saves gas in contracts that integrate it, so it runs those calls as they are when it
+                    settles, and what&apos;s left to save doesn&apos;t cover verifying and applying the result.
+                    {response.callees.length > 0 &&
+                      " If you control those contracts, see what settling them too would save below."}
+                  </>
+                ) : (
+                  <>
+                    Verifying its result costs at least as much as the transaction spends on computation. Gas Killer
+                    pays off on transactions that do heavy onchain computation relative to the state they change.
+                  </>
+                )}
+              </p>
+              <p className="text-sm text-zinc-300">Try another transaction to see where it saves gas.</p>
+            </div>
+          )}
 
           <div className="space-y-4">
             <GasBar label="Original" gas={original} scale={scale} className="bg-zinc-500" />
             <GasBar
-              label={nestedAnalysis ? "With nested settlement" : "With Gas Killer"}
+              label="With Gas Killer"
               gas={estimate}
               scale={scale}
               className={saved > 0 ? "bg-emerald-400" : "bg-rose-400"}
               estimated
             />
+            {nested.estimate && (
+              <label className="flex w-fit items-center gap-3 pt-2 text-sm text-zinc-300">
+                <Switch
+                  checked={nested.showNested}
+                  onCheckedChange={nested.setShowNested}
+                  className="data-[state=checked]:bg-emerald-400 data-[state=unchecked]:bg-zinc-600"
+                />
+                Nested settlement
+              </label>
+            )}
           </div>
 
           {response.callees.length > 0 && (
@@ -203,7 +187,7 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
 
       {saved > 0 && <IntegrateCallToAction />}
 
-      <DeveloperDetails response={response} />
+      <DeveloperDetails response={response} nestedAnalysis={nestedAnalysis} />
     </div>
   )
 }
@@ -319,7 +303,14 @@ function CostLine({
   )
 }
 
-function DeveloperDetails({ response: { result, method, prestateSkipped } }: { response: AnalyzeResponse }) {
+function DeveloperDetails({
+  response: { result, method, prestateSkipped, tx },
+  nestedAnalysis,
+}: {
+  response: AnalyzeResponse
+  nestedAnalysis?: FrameTreeAnalysis
+}) {
+  const explorer = NETWORKS.find((n) => n.id === tx.network)?.explorer
   const [copied, setCopied] = useState(false)
 
   async function copyEncoded() {
@@ -363,6 +354,23 @@ function DeveloperDetails({ response: { result, method, prestateSkipped } }: { r
             </div>
           )}
 
+          {nestedAnalysis && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-white">Frames</h4>
+              <ul className="space-y-1.5 text-sm">
+                {nestedAnalysis.frames.map((frame, i) => (
+                  <li key={`${frame.target}-${i}`} className="flex items-center gap-3">
+                    <AddressLink address={frame.target} explorer={explorer} />
+                    {i === 0 && frame.target.toLowerCase() === tx.to?.toLowerCase() && (
+                      <span className="text-xs text-zinc-500">target</span>
+                    )}
+                    <span className="ml-auto font-mono text-zinc-300">{formatGas(frame.gas)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {result.encoded_updates && (
             <div>
               <div className="mb-2 flex items-center justify-between">
@@ -389,8 +397,4 @@ function DeveloperDetails({ response: { result, method, prestateSkipped } }: { r
 
 function shorten(hex: string): string {
   return hex.length > 12 ? `${hex.slice(0, 6)}…${hex.slice(-4)}` : hex
-}
-
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`
 }
