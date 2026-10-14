@@ -35,6 +35,11 @@ describe("share links", () => {
     expect(verifyShare(nested!)).toEqual({ ...result, estimate: 612_345, nested: true })
   })
 
+  it("won't nest an already nested share", () => {
+    const nested = nestedShare(signShare(result), "ethereum", result.hash, 100_000)
+    expect(nestedShare(nested!, "ethereum", result.hash, 100_000)).toBeUndefined()
+  })
+
   it("won't carry a share over to another transaction", () => {
     expect(nestedShare(signShare(result), "ethereum", `0x${"cd".repeat(32)}`, 100_000)).toBeUndefined()
     expect(nestedShare(signShare(result), "sepolia", result.hash, 100_000)).toBeUndefined()

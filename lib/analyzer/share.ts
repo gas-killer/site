@@ -57,7 +57,8 @@ export function verifyShare(token: string): SharedResult | null {
 /** The share link for the nested estimate, from the target-only one and what nesting gains over it. */
 export function nestedShare(base: string, network: string, hash: string, gain: number): string | undefined {
   const r = verifyShare(base)
-  if (!r || r.network !== network || r.hash !== hash.toLowerCase()) return undefined
+  // A nested token as the base would subtract the gain again on every round.
+  if (!r || r.nested || r.network !== network || r.hash !== hash.toLowerCase()) return undefined
   return signShare({ ...r, estimate: Math.max(0, r.estimate - gain), nested: true })
 }
 
