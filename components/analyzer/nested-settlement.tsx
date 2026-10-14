@@ -19,11 +19,11 @@ export type NestedSettlementState = ReturnType<typeof useNestedSettlement>
  * What the transaction would save if contracts it calls integrated Gas Killer too, settling as nested
  * frames under one signature. Estimates `preselected` straight away when it isn't empty.
  */
-export function useNestedSettlement({ tx }: AnalyzeResponse, preselected: string[]) {
+export function useNestedSettlement({ tx, share }: AnalyzeResponse, preselected: string[]) {
   const [initial] = useState(preselected)
   const [owned, setOwned] = useState(preselected)
   const [running, setRunning] = useState(false)
-  const [estimate, setEstimate] = useState<{ analysis: FrameTreeAnalysis; owned: string[] } | null>(null)
+  const [estimate, setEstimate] = useState<{ analysis: FrameTreeAnalysis; owned: string[]; share?: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showNested, setShowNested] = useState(true)
   const started = useRef(false)
@@ -36,13 +36,14 @@ export function useNestedSettlement({ tx }: AnalyzeResponse, preselected: string
         const resp = await fetch("/api/analyze/nested", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ network: tx.network, txHash: tx.hash, owned: contracts }),
+          body: JSON.stringify({ network: tx.network, txHash: tx.hash, owned: contracts, share }),
         })
         const body = await resp.json().catch(() => null)
         if (!resp.ok) {
           setError(typeof body?.error === "string" ? body.error : `HTTP ${resp.status}`)
         } else {
-          setEstimate({ analysis: (body as NestedResponse).analysis, owned: contracts })
+          const { analysis, share: nestedShare } = body as NestedResponse
+          setEstimate({ analysis, owned: contracts, share: nestedShare })
           setShowNested(true)
         }
       } catch (e) {
@@ -51,7 +52,7 @@ export function useNestedSettlement({ tx }: AnalyzeResponse, preselected: string
         setRunning(false)
       }
     },
-    [tx.network, tx.hash],
+    [tx.network, tx.hash, share],
   )
 
   useEffect(() => {

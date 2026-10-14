@@ -12,6 +12,8 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/api/analyze": ["./node_modules/@gas-killer/analyzer-wasm/gas_killer_wasm_bg.wasm"],
     "/api/analyze/nested": ["./node_modules/@gas-killer/analyzer-wasm/gas_killer_wasm_bg.wasm"],
+    // The share card's font and wordmark, read by path in lib/share-card.tsx.
+    "/share/**": ["./public/fonts/*", "./public/brand/gk-wordmark-transparent.png"],
   },
   // `curl -fsSL https://gaskiller.xyz/bash | sh` — the gkvm toolchain installer (gk-run,
   // gk-anvil, the `gk` command, the guest toolchain image). The script lives in

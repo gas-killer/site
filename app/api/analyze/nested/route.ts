@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { analyzerAccessDenied } from "@/lib/analyzer/access"
 import { MAX_OWNED, parseOwned } from "@/lib/analyzer/callees"
 import { oneAtATime } from "@/lib/analyzer/serial"
+import { nestedShare } from "@/lib/analyzer/share"
 import {
   AnalyzerError,
   fetchPrestate,
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
   if (denied) return denied
 
   const body = (await request.json().catch(() => null)) as
-    | { network?: unknown; txHash?: unknown; owned?: unknown }
+    | { network?: unknown; txHash?: unknown; owned?: unknown; share?: unknown }
     | null
   const network = body?.network
   const txHash = typeof body?.txHash === "string" ? body.txHash.trim() : ""
@@ -83,7 +84,11 @@ export async function POST(request: NextRequest) {
       throw new AnalyzerError(OUTCOME_STATUS[outcome.kind], message)
     })
 
-    const response: NestedResponse = { analysis }
+    const share =
+      typeof body?.share === "string"
+        ? nestedShare(body.share, network, txHash, analysis.root_only_gas - analysis.nested_gas)
+        : undefined
+    const response: NestedResponse = { analysis, share }
     return Response.json(response)
   } catch (e) {
     if (e instanceof AnalyzerError) return Response.json({ error: e.message, code: e.code }, { status: e.status })

@@ -64,6 +64,8 @@ export interface AnalyzeResponse {
   usdPrice: number | null
   // Contracts the transaction calls that could settle as nested frames, or null when the call tree couldn't be fetched.
   callees: Callee[] | null
+  // A signed link token for these figures, from lib/analyzer/share.
+  share: string
 }
 
 /** The starting state the analysis runs the transaction's callees over, from fetchPrestate. */
@@ -77,6 +79,8 @@ export interface Replay {
 
 export interface NestedResponse {
   analysis: FrameTreeAnalysis
+  // The share token for the nested figures, when the request carried a valid one for the target alone.
+  share?: string
 }
 
 // Read by path at runtime, so outputFileTracingIncludes in next.config.mjs ships it.
