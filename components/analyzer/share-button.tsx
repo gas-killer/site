@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Check, Link2, Share2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,6 +13,7 @@ import { shareText } from "@/lib/analyzer-utils"
 
 export function ShareButton({ token, percent }: { token: string; percent: number }) {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
+  const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const url = () => `${window.location.origin}/share/${token}`
   const text = shareText(percent)
 
@@ -23,7 +24,8 @@ export function ShareButton({ token, percent }: { token: string; percent: number
       () => false,
     )
     setCopyStatus(copied ? "copied" : "failed")
-    setTimeout(() => setCopyStatus("idle"), 2000)
+    clearTimeout(resetTimer.current)
+    resetTimer.current = setTimeout(() => setCopyStatus("idle"), 2000)
   }
 
   return (

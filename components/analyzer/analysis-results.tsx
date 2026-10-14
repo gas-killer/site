@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { ArrowRight, ExternalLink, Info, TriangleAlert } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -316,6 +316,7 @@ function DeveloperDetails({
 }) {
   const explorer = NETWORKS.find((n) => n.id === tx.network)?.explorer
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
+  const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   async function copyEncoded() {
     // Rejects when clipboard permission is denied or the page isn't focused.
@@ -324,7 +325,8 @@ function DeveloperDetails({
       () => false,
     )
     setCopyStatus(copied ? "copied" : "failed")
-    setTimeout(() => setCopyStatus("idle"), 2000)
+    clearTimeout(resetTimer.current)
+    resetTimer.current = setTimeout(() => setCopyStatus("idle"), 2000)
   }
 
   return (
