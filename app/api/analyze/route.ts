@@ -14,6 +14,7 @@ import {
 } from "@/lib/analyzer/trace"
 import { usdPrice } from "@/lib/analyzer/price"
 import { oneAtATime } from "@/lib/analyzer/serial"
+import { signShare } from "@/lib/analyzer/share"
 import { analyzePrestate, analyzeTrace, type AnalyzeResponse, type AnalyzeTraceResult } from "@/lib/wasm/analyzer"
 
 // Hobby's ceiling. Traces are analyzed here rather than in the browser because they routinely run
@@ -68,6 +69,14 @@ export async function POST(request: NextRequest) {
 
     const response: AnalyzeResponse = {
       ...analysis,
+      share: signShare({
+        network,
+        hash: txHash,
+        gasUsed: info.gasUsed,
+        estimate: analysis.result.gas_estimate + analysis.result.signature_verification_gas,
+        gasPrice: info.effectiveGasPrice.toString(),
+        nested: false,
+      }),
       tx: {
         hash: txHash,
         network,

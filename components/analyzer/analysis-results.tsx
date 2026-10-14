@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { formatGas, mostGasInCallees } from "@/lib/analyzer-utils"
+import { formatGas, formatNative, mostGasInCallees, savedPercent } from "@/lib/analyzer-utils"
 import { NETWORKS, ranUnderGlamsterdam } from "@/lib/networks"
 import type { AnalyzeResponse, FrameTreeAnalysis } from "@/lib/wasm/analyzer"
 import {
@@ -19,6 +19,7 @@ import {
   NestedSettlementSummary,
   useNestedSettlement,
 } from "./nested-settlement"
+import { ShareButton } from "./share-button"
 
 export function AnalysisResults({ response, owned }: { response: AnalyzeResponse; owned: string[] }) {
   const { result, tx, usdPrice } = response
@@ -42,7 +43,8 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
   const nestedGain = nestedAnalysis ? nestedAnalysis.root_only_gas - nestedAnalysis.nested_gas : 0
   const estimate = result.gas_estimate + result.signature_verification_gas - nestedGain
   const saved = original - estimate
-  const percent = original > 0 ? (saved / original) * 100 : 0
+  const percent = savedPercent(original, estimate)
+  const share = nestedAnalysis ? nested.estimate?.share : response.share
   const scale = Math.max(original, estimate)
   const calleesDominate = mostGasInCallees(result.native_call_gas, original)
   const glamsterdam = ranUnderGlamsterdam(network, tx.blockNumber)
@@ -65,6 +67,11 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
                 <span className="text-lg text-zinc-400">
                   gas saved · <span className="text-emerald-300">{Math.round(percent)}% less</span>
                 </span>
+                {share && (
+                  <span className="sm:ml-auto self-center">
+                    <ShareButton token={share} percent={percent} />
+                  </span>
+                )}
               </div>
               <p className="text-sm text-zinc-400">
                 <CostLine gas={saved} gasPrice={tx.effectiveGasPrice} usdPrice={usdPrice} symbol={network?.nativeSymbol} />{" "}
@@ -249,7 +256,7 @@ function ExplorerLink({ href, label, title }: { href?: string; label: string; ti
   )
 }
 
-function GasBar({
+export function GasBar({
   label,
   gas,
   scale,
@@ -289,7 +296,7 @@ function CostLine({
   symbol?: string
 }) {
   const native = Number(BigInt(gas) * BigInt(gasPrice)) / 1e18
-  const nativeText = `${native.toLocaleString(undefined, { maximumSignificantDigits: 3 })} ${symbol ?? ""}`.trim()
+  const nativeText = formatNative(gas, gasPrice, symbol)
   if (usdPrice === null) return <span className="text-white">{nativeText}</span>
   const usd = native * usdPrice
   const usdText = usd < 0.01 ? "under $0.01" : usd.toLocaleString(undefined, { style: "currency", currency: "USD" })
