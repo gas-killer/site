@@ -315,12 +315,16 @@ function DeveloperDetails({
   nestedAnalysis?: FrameTreeAnalysis
 }) {
   const explorer = NETWORKS.find((n) => n.id === tx.network)?.explorer
-  const [copied, setCopied] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
 
   async function copyEncoded() {
-    await navigator.clipboard.writeText(result.encoded_updates)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    // Rejects when clipboard permission is denied or the page isn't focused.
+    const copied = await navigator.clipboard.writeText(result.encoded_updates).then(
+      () => true,
+      () => false,
+    )
+    setCopyStatus(copied ? "copied" : "failed")
+    setTimeout(() => setCopyStatus("idle"), 2000)
   }
 
   return (
@@ -385,7 +389,9 @@ function DeveloperDetails({
                   className="text-xs text-zinc-300 hover:bg-white/10 hover:text-white"
                   onClick={copyEncoded}
                 >
-                  {copied ? "Copied" : "Copy"}
+                  <span aria-live="polite">
+                    {copyStatus === "copied" ? "Copied" : copyStatus === "failed" ? "Couldn't copy" : "Copy"}
+                  </span>
                 </Button>
               </div>
               <ScrollArea className="h-32 rounded-lg border border-white/10 bg-black p-3">
