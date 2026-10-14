@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Link2, Share2 } from "lucide-react"
+import { Check, Link2, Share2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -12,14 +12,18 @@ import {
 import { shareText } from "@/lib/analyzer-utils"
 
 export function ShareButton({ token, percent }: { token: string; percent: number }) {
-  const [copied, setCopied] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
   const url = () => `${window.location.origin}/share/${token}`
   const text = shareText(percent)
 
   async function copy() {
-    await navigator.clipboard.writeText(url())
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    // Rejects when clipboard permission is denied or the page isn't focused.
+    const copied = await navigator.clipboard.writeText(url()).then(
+      () => true,
+      () => false,
+    )
+    setCopyStatus(copied ? "copied" : "failed")
+    setTimeout(() => setCopyStatus("idle"), 2000)
   }
 
   return (
@@ -30,8 +34,16 @@ export function ShareButton({ token, percent }: { token: string; percent: number
           size="sm"
           className="border border-white/15 text-zinc-300 hover:bg-white/10 hover:border-white/30 hover:text-white"
         >
-          {copied ? <Check className="size-4" aria-hidden /> : <Share2 className="size-4" aria-hidden />}
-          {copied ? "Link copied" : "Share"}
+          {copyStatus === "copied" ? (
+            <Check className="size-4" aria-hidden />
+          ) : copyStatus === "failed" ? (
+            <TriangleAlert className="size-4 text-amber-400" aria-hidden />
+          ) : (
+            <Share2 className="size-4" aria-hidden />
+          )}
+          <span aria-live="polite">
+            {copyStatus === "copied" ? "Link copied" : copyStatus === "failed" ? "Couldn't copy link" : "Share"}
+          </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="border-white/10 bg-zinc-950 text-zinc-200">
