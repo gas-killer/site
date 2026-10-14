@@ -70,15 +70,19 @@ export type TransactionInfo = {
   // Wei sent with the call. The analysis replays it, since contracts that check or forward
   // msg.value revert without it.
   value: bigint
+  // Seconds; callees replayed over the prestate may check block.timestamp.
+  blockTimestamp: bigint
 }
 
 export async function fetchTransactionInfo(url: string, txHash: string): Promise<TransactionInfo> {
   // Receipts carry no value, so the transaction is fetched alongside.
   const [receipt, tx] = await Promise.all([
-    rpcResult(url, "eth_getTransactionReceipt", txHash),
-    rpcResult(url, "eth_getTransactionByHash", txHash),
+    rpcResult(url, "eth_getTransactionReceipt", [txHash]),
+    rpcResult(url, "eth_getTransactionByHash", [txHash]),
   ])
   if (!receipt || !tx) throw new AnalyzerError(404, "Transaction not found")
+  const block = await rpcResult(url, "eth_getBlockByHash", [receipt.blockHash, false])
+  if (!block) throw new AnalyzerError(404, "Transaction not found")
   return {
     blockNumber: BigInt(receipt.blockNumber),
     from: receipt.from,
@@ -86,11 +90,12 @@ export async function fetchTransactionInfo(url: string, txHash: string): Promise
     gasUsed: Number(receipt.gasUsed),
     effectiveGasPrice: BigInt(receipt.effectiveGasPrice ?? 0),
     value: BigInt(tx.value ?? 0),
+    blockTimestamp: BigInt(block.timestamp),
   }
 }
 
-async function rpcResult(url: string, method: string, txHash: string) {
-  const json = await (await rpc(url, method, [txHash], RECEIPT_TIMEOUT_MS)).json()
+async function rpcResult(url: string, method: string, params: unknown[]) {
+  const json = await (await rpc(url, method, params, RECEIPT_TIMEOUT_MS)).json()
   if (json.error) throw new AnalyzerError(502, `RPC error: ${json.error.message || JSON.stringify(json.error)}`)
   return json.result
 }
@@ -111,6 +116,14 @@ export async function fetchPrestateTraces(url: string, txHash: string): Promise<
 /** The prestateTracer diff alone, for an analysis that takes everything else from the struct-log trace. */
 export function fetchPrestateDiff(url: string, txHash: string): Promise<string> {
   return tracerResult(url, txHash, PRESTATE_DIFF)
+}
+
+/**
+ * The prestateTracer's default mode: every touched account's code, balance, nonce and slots before
+ * the transaction, so the analysis can run the contracts it calls rather than take their gas from the trace.
+ */
+export function fetchPrestate(url: string, txHash: string): Promise<string> {
+  return tracerResult(url, txHash, { tracer: "prestateTracer" })
 }
 
 async function tracerResult(url: string, txHash: string, config: object): Promise<string> {

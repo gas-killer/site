@@ -4,6 +4,7 @@ import { MAX_OWNED, parseOwned } from "@/lib/analyzer/callees"
 import { oneAtATime } from "@/lib/analyzer/serial"
 import {
   AnalyzerError,
+  fetchPrestate,
   fetchPrestateDiff,
   fetchTrace,
   fetchTransactionInfo,
@@ -47,10 +48,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const url = rpcUrlFor(network)
-    // The diff seeds the starting state; without it every write is priced as one to an empty slot.
-    const [info, diff] = await Promise.all([
+    // The diff seeds the starting state; without it every write is priced as one to an empty slot. The
+    // full prestate lets the callees outside the tree run their own code instead.
+    const [info, diff, prestate] = await Promise.all([
       fetchTransactionInfo(url, txHash),
       fetchPrestateDiff(url, txHash).catch(() => null),
+      fetchPrestate(url, txHash).catch(() => null),
     ])
     const root = info.to
     if (!root) throw new AnalyzerError(422, "This transaction has no target contract to settle through.")
@@ -67,8 +70,12 @@ export async function POST(request: NextRequest) {
         info.blockNumber,
         info.value,
         diff,
+        prestate ? { prestate, gasPrice: info.effectiveGasPrice, timestamp: info.blockTimestamp } : null,
         deadline - Date.now(),
       )
+      if (outcome.ok && outcome.result.replay_error) {
+        console.log(`nested analyzer replay failed: network=${network} tx=${txHash} error=${outcome.result.replay_error.slice(0, 300)}`)
+      }
       if (outcome.ok) return outcome.result
       if (outcome.kind === "too_large") throw traceTooLarge(`RPC error: ${outcome.message}`)
       if (outcome.kind === "crashed") console.error("nested analyzer worker crashed", outcome.message)

@@ -11,7 +11,12 @@ export interface AnalyzeTraceResult {
   state_update_count: number
   skipped_opcodes: string[]
   reentered: boolean
+  // Included in gas_estimate unless callees_executed.
   native_call_gas: number
+  // The callees ran their own code over the prestate, rather than being charged their trace gas.
+  callees_executed: boolean
+  // Why that replay failed and the estimate fell back, when it did.
+  replay_error: string | null
   signature_verification_gas: number
 }
 
@@ -20,9 +25,13 @@ export interface FrameTreeAnalysis {
   // The transaction settled through its target alone, and as a tree with the owned contracts.
   root_only_gas: number
   nested_gas: number
-  // Gas inside the calls each settlement still runs natively, included in its total.
+  // Gas inside the calls each settlement still runs natively, in the trace; included in its total
+  // unless callees_executed.
   root_only_native_call_gas: number
   nested_native_call_gas: number
+  // As for AnalyzeTraceResult, for both settlements together.
+  callees_executed: boolean
+  replay_error: string | null
   frame_overhead_gas: number
   // Paid once per settlement, in neither total.
   signature_verification_gas: number
@@ -55,6 +64,15 @@ export interface AnalyzeResponse {
   usdPrice: number | null
   // Contracts the transaction calls that could settle as nested frames, or null when the call tree couldn't be fetched.
   callees: Callee[] | null
+}
+
+/** The starting state the analysis runs the transaction's callees over, from fetchPrestate. */
+export interface Replay {
+  prestate: string
+  // Wei.
+  gasPrice: bigint
+  // Seconds.
+  timestamp: bigint
 }
 
 export interface NestedResponse {
@@ -94,6 +112,7 @@ export function analyzeTrace(
   value: bigint,
   // The prestateTracer diff: without it every storage write is priced as one to an empty slot.
   prestateDiff: string | null,
+  replay: Replay | null,
   timeoutMs: number,
 ): Promise<AnalysisOutcome> {
   return runWorker<AnalysisOutcome>(
@@ -106,6 +125,7 @@ export function analyzeTrace(
       originAddress,
       value: value.toString(),
       prestateDiff,
+      ...replayData(replay),
     },
     // Hands the trace over without a copy; `bytes` is unusable here afterwards.
     [bytes.buffer as ArrayBuffer],
@@ -125,6 +145,7 @@ export function analyzeFrameTree(
   blockNumber: bigint,
   value: bigint,
   prestateDiff: string | null,
+  replay: Replay | null,
   timeoutMs: number,
 ): Promise<FrameTreeOutcome> {
   return runWorker<FrameTreeOutcome>(
@@ -137,6 +158,7 @@ export function analyzeFrameTree(
       blockNumber,
       value: value.toString(),
       prestateDiff,
+      ...replayData(replay),
     },
     [bytes.buffer as ArrayBuffer],
     timeoutMs,
@@ -158,6 +180,12 @@ export function analyzePrestate(
     [],
     timeoutMs,
   )
+}
+
+function replayData(replay: Replay | null) {
+  return replay
+    ? { prestate: replay.prestate, gasPrice: replay.gasPrice.toString(), blockTimestamp: replay.timestamp }
+    : { prestate: null, gasPrice: null, blockTimestamp: null }
 }
 
 async function runWorker<T>(data: object, transferList: ArrayBuffer[], timeoutMs: number): Promise<T | Failure> {
