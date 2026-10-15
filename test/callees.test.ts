@@ -28,10 +28,43 @@ describe("calleesFromCallFrame", () => {
     ]),
   )
 
-  it("lists the contracts called that ran code, most gas first, summed per contract", () => {
+  it("lists the contracts called that ran code, most gas first, each with only its own code's gas", () => {
     expect(calleesFromCallFrame(frame, ROOT)).toEqual([
-      { address: WALLET, gasUsed: 1_057_541 },
-      { address: WETH, gasUsed: 19_012 + 9_195 },
+      // The delegatecall and the precompile run for the wallet; the WETH call doesn't.
+      { address: WALLET, gasUsed: 1_057_541 - 19_012 },
+      // Less the call back into the root.
+      { address: WETH, gasUsed: 19_012 + 9_195 - 55 },
+    ])
+  })
+
+  it("counts a contract called inside another only once", () => {
+    // Shaped like 0x15082298…: a verifier called from inside the contract the target calls.
+    const outer = "0xf241d57c6debae225c0f2e6ea1529373c9a9c9fb"
+    const verifier = "0x022891f938ae7fdc8ab9ead0fbf50aba8c897d6d"
+    const nested = JSON.stringify(
+      call("CALL", ROOT, 620_208, [
+        call("CALL", outer, 537_764, [
+          call("STATICCALL", ROOT, 5_246),
+          call("CALL", verifier, 235_451, [call("STATICCALL", "0x0000000000000000000000000000000000000008", 181_000)]),
+          call("DELEGATECALL", "0x8ffda7ed8b4ad98c2c34f54b76821711f4a6f2c5", 18_229),
+        ]),
+      ]),
+    )
+    const callees = calleesFromCallFrame(nested, ROOT)
+    expect(callees).toEqual([
+      { address: outer, gasUsed: 537_764 - 5_246 - 235_451 },
+      { address: verifier, gasUsed: 235_451 },
+    ])
+    expect(callees.reduce((sum, c) => sum + c.gasUsed, 0)).toBeLessThanOrEqual(620_208)
+  })
+
+  it("counts a contract re-entered from its own call only once", () => {
+    const reentrant = JSON.stringify(
+      call("CALL", ROOT, 100_000, [call("CALL", WALLET, 90_000, [call("CALL", WETH, 40_000, [call("CALL", WALLET, 30_000)])])]),
+    )
+    expect(calleesFromCallFrame(reentrant, ROOT)).toEqual([
+      { address: WALLET, gasUsed: 90_000 - 40_000 + 30_000 },
+      { address: WETH, gasUsed: 40_000 - 30_000 },
     ])
   })
 

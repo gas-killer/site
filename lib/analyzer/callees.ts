@@ -1,6 +1,7 @@
 export interface Callee {
   address: string
-  // Gas the transaction's calls into this contract used, summed over every call to it.
+  // Gas this contract's own code used across every call to it, including its delegatecalls and precompile
+  // calls but not the contracts it calls, so no gas counts toward two callees.
   gasUsed: number
 }
 
@@ -19,19 +20,33 @@ type CallFrame = { type?: string; to?: string; gasUsed?: string; calls?: CallFra
  * integrate the SDK.
  */
 export function calleesFromCallFrame(frameJson: string, root: string): Callee[] {
+  const rootAddress = root.toLowerCase()
   const gas = new Map<string, number>()
-  const walk = (frame: CallFrame) => {
+  // `owner` is the CALL target whose code this frame runs, or null for the root and any other context.
+  const walk = (frame: CallFrame, owner: string | null) => {
+    // The tracer's gasUsed includes every subcall's; each subcall credits its own share instead.
+    let own = Number(frame.gasUsed ?? 0)
     for (const call of frame.calls ?? []) {
+      own -= Number(call.gasUsed ?? 0)
       const to = call.to?.toLowerCase()
-      const used = Number(call.gasUsed ?? 0)
-      if (call.type === "CALL" && to && ADDRESS.test(to) && to !== root.toLowerCase() && used > 0) {
-        if (BigInt(to) >= PRECOMPILE_CEILING) gas.set(to, (gas.get(to) ?? 0) + used)
+      // Delegatecalls and precompiles run on behalf of the caller, so their gas stays with it.
+      if (!to || call.type === "DELEGATECALL" || call.type === "CALLCODE" || isPrecompile(to)) {
+        walk(call, owner)
+      } else {
+        walk(call, call.type === "CALL" && ADDRESS.test(to) && to !== rootAddress ? to : null)
       }
-      walk(call)
     }
+    if (owner) gas.set(owner, (gas.get(owner) ?? 0) + own)
   }
-  walk(JSON.parse(frameJson) as CallFrame)
-  return [...gas].map(([address, gasUsed]) => ({ address, gasUsed })).sort((a, b) => b.gasUsed - a.gasUsed)
+  walk(JSON.parse(frameJson) as CallFrame, null)
+  return [...gas]
+    .filter(([, gasUsed]) => gasUsed > 0)
+    .map(([address, gasUsed]) => ({ address, gasUsed }))
+    .sort((a, b) => b.gasUsed - a.gasUsed)
+}
+
+function isPrecompile(address: string): boolean {
+  return ADDRESS.test(address) && BigInt(address) < PRECOMPILE_CEILING
 }
 
 /** A request's owned contracts: 1 to MAX_OWNED distinct addresses, lowercased, or null if invalid. */
