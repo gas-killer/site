@@ -1,7 +1,7 @@
 export interface Callee {
   address: string
-  // Gas this contract's own code used across every call to it, including its delegatecalls and precompile
-  // calls but not the contracts it calls, so no gas counts toward two callees.
+  // Gas spent under the transaction's CALLs to this contract, less the CALLs it makes to other contracts,
+  // so no gas counts toward two callees.
   gasUsed: number
 }
 
