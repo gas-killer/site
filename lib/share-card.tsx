@@ -2,7 +2,7 @@ import "server-only"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { ImageResponse } from "next/og"
-import { formatGas, formatNative, savedPercent } from "@/lib/analyzer-utils"
+import { formatGas, savedPercent } from "@/lib/analyzer-utils"
 import { verifyShare } from "@/lib/analyzer/share"
 import { NETWORKS } from "@/lib/networks"
 
@@ -70,8 +70,7 @@ export async function renderShareCard(token: string): Promise<ImageResponse> {
               <span style={{ fontFamily: "Magz", fontSize: 64, lineHeight: 1 }}>less gas</span>
             </div>
             <span style={{ fontSize: 36, color: "#d4d4d8", marginTop: 24 }}>
-              {formatGas(shared.gasUsed)} → {formatGas(shared.estimate)} gas
-              {` · ${formatNative(shared.gasUsed - shared.estimate, shared.gasPrice, network?.nativeSymbol)} saved`}
+              {formatGas(shared.gasUsed)} → {formatGas(shared.estimate)} gas · {formatGas(shared.gasUsed - shared.estimate)} saved
             </span>
           </div>
         ) : (
