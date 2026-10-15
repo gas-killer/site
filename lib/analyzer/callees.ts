@@ -22,19 +22,17 @@ type CallFrame = { type?: string; to?: string; gasUsed?: string; calls?: CallFra
 export function calleesFromCallFrame(frameJson: string, root: string): Callee[] {
   const rootAddress = root.toLowerCase()
   const gas = new Map<string, number>()
-  // `owner` is the CALL target whose code this frame runs, or null for the root and any other context.
+  // `owner` is the callee whose CALL this frame runs under, or null under the root.
   const walk = (frame: CallFrame, owner: string | null) => {
     // The tracer's gasUsed includes every subcall's; each subcall credits its own share instead.
     let own = Number(frame.gasUsed ?? 0)
     for (const call of frame.calls ?? []) {
       own -= Number(call.gasUsed ?? 0)
       const to = call.to?.toLowerCase()
-      // Delegatecalls and precompiles run on behalf of the caller, so their gas stays with it.
-      if (!to || call.type === "DELEGATECALL" || call.type === "CALLCODE" || isPrecompile(to)) {
-        walk(call, owner)
-      } else {
-        walk(call, call.type === "CALL" && ADDRESS.test(to) && to !== rootAddress ? to : null)
-      }
+      // Only a CALL can settle as a nested frame. Everything else a callee runs, its view calls, delegatecalls,
+      // precompiles and creations, goes away with it when it settles, so that gas stays with it.
+      const opensFrame = call.type === "CALL" && !!to && ADDRESS.test(to) && !isPrecompile(to)
+      walk(call, opensFrame ? (to === rootAddress ? null : to) : owner)
     }
     if (owner) gas.set(owner, (gas.get(owner) ?? 0) + own)
   }

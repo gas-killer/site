@@ -52,10 +52,26 @@ describe("calleesFromCallFrame", () => {
     )
     const callees = calleesFromCallFrame(nested, ROOT)
     expect(callees).toEqual([
-      { address: outer, gasUsed: 537_764 - 5_246 - 235_451 },
+      // The view call into the root runs under the outer contract's frame, so it stays with it.
+      { address: outer, gasUsed: 537_764 - 235_451 },
       { address: verifier, gasUsed: 235_451 },
     ])
     expect(callees.reduce((sum, c) => sum + c.gasUsed, 0)).toBeLessThanOrEqual(620_208)
+  })
+
+  it("keeps a callee's view calls and creations with it", () => {
+    const oracle = "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419"
+    const viewing = JSON.stringify(
+      call("CALL", ROOT, 200_000, [
+        call("STATICCALL", oracle, 10_000),
+        call("CALL", WALLET, 150_000, [
+          call("STATICCALL", oracle, 60_000, [call("STATICCALL", WETH, 5_000)]),
+          call("CREATE", "0x1111111111111111111111111111111111111111", 50_000),
+        ]),
+      ]),
+    )
+    // The root's own view call belongs to no callee.
+    expect(calleesFromCallFrame(viewing, ROOT)).toEqual([{ address: WALLET, gasUsed: 150_000 }])
   })
 
   it("counts a contract re-entered from its own call only once", () => {
