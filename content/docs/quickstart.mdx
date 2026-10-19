@@ -108,8 +108,8 @@ securely and pass it as a bearer token on every request.
 ## 3. Submit a task
 
 Send the task to `POST /tasks` with the key as a bearer token. `call_data` is the
-ABI-encoded calldata as an array of byte values, and `value` is a 0x-prefixed hex
-uint256. `block_height` is the block the off-chain execution is anchored to and
+ABI-encoded calldata as an array of byte values, and `value` is the ETH the call
+sends, as a 0x-prefixed hex uint256 (`0x0` for none). `block_height` is the block the off-chain execution is anchored to and
 must be recent (within a few hundred blocks of head), so read it from the chain
 rather than hardcoding it. A `202` response returns a `task_id` you'll poll in
 the next step.
@@ -194,6 +194,14 @@ console.log(task_id)
 
 The `202` body is `{ "task_id": "…", "status": "queued" }`. See
 [Submit a compute task](/docs/api/tasks/submitTask) for every field and error.
+
+### `value`
+
+A task with nonzero `value` is analyzed as a call carrying that ETH, and the
+operators' signature binds it: the payload settles only when sent with exactly
+that `value`. The target must be built on an SDK that binds `msg.value`, or the
+router rejects the task with `400 INVALID_REQUEST`. See
+[Value-bearing transitions](/docs/solidity/tracked-functions#value-bearing-transitions).
 
 ### `transition_index`
 
@@ -288,7 +296,8 @@ A `ready` response looks like this:
 
 The `payload` is a complete transaction request. Sign it with your wallet and
 broadcast it **as-is**: `to`, `data`, and `value` are all supplied by the
-router. Use an RPC endpoint for the chain named in `payload.chain_id` (the
+router. `payload.value` is the task's own `value`. Sending any other amount,
+including zero for a task that carried ETH, fails the signature check. Use an RPC endpoint for the chain named in `payload.chain_id` (the
 testnet settles on Sepolia, `11155111`).
 
 <Tabs items={["Terminal", "TypeScript"]}>

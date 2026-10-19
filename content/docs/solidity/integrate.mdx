@@ -113,6 +113,10 @@ would otherwise debug from a revert:
 cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x82b35a01 --rpc-url "$RPC_URL"
 ```
 
+If the tracked function is `payable` and tasks will carry ETH, `0x0fd29ece`
+must return `true` as well, or the router rejects every task with nonzero
+`value`. See [Value-bearing transitions](/docs/solidity/tracked-functions#value-bearing-transitions).
+
 </Step>
 
 <Step>
@@ -182,6 +186,9 @@ as it is.
 - **[Configuration](/docs/solidity/configuration)** — the addresses to wire, how
   to verify them, and how to stay reconfigurable.
 - **[Tracked functions](/docs/solidity/tracked-functions)** — what `trackState`
-  guarantees, storage layout rules, and what keeps a function extractable.
+  guarantees, storage layout rules, what keeps a function extractable, and how
+  ETH moves through a settlement.
+- **[Nested settlement](/docs/solidity/nested-settlement)** — settle a call
+  through several SDK contracts as one signed tree.
 - **[Reference](/docs/solidity/reference)** — full API surface, state update
   types, and a revert-selector lookup table.
