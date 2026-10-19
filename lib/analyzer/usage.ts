@@ -1,5 +1,6 @@
 import "server-only"
 import { randomUUID } from "node:crypto"
+import { sql } from "drizzle-orm"
 import { after } from "next/server"
 import { db } from "@/lib/db"
 import { analyzerRun } from "@/lib/db/schema"
@@ -22,6 +23,8 @@ export function failRun(run: AnalyzerRun, status: number, error: string, code?: 
 // store megabytes per request.
 const cap = (value: string | null | undefined, max: number) => value?.slice(0, max) ?? null
 
+const RECORD_TIMEOUT_MS = 3_000
+
 /** Records the run once `response` has been sent, so the write never slows or fails an analysis. */
 export function recordRun(run: AnalyzerRun, response: Response): Response {
   const { started, ...row } = run
@@ -35,7 +38,17 @@ export function recordRun(run: AnalyzerRun, response: Response): Response {
     status: response.status,
     durationMs: Date.now() - started,
   }
-  const record = () => db.insert(analyzerRun).values(values).catch((e) => console.error("analyzer run record failed", e))
+  const record = async () => {
+    try {
+      // The pool is shared with session lookups, so a struggling database mustn't hold a connection for long.
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`select set_config('statement_timeout', ${String(RECORD_TIMEOUT_MS)}, true)`)
+        await tx.insert(analyzerRun).values(values)
+      })
+    } catch (e) {
+      console.error("analyzer run record failed", e)
+    }
+  }
   try {
     after(record)
   } catch {

@@ -10,6 +10,7 @@ const { sendSignInEmail } = await import("@/lib/email")
 const analyze = await import("@/app/api/analyze/route")
 const { db } = await import("@/lib/db")
 const { analyzerRun, user } = await import("@/lib/db/schema")
+const { recordRun, startRun } = await import("@/lib/analyzer/usage")
 
 const BASE = process.env.BETTER_AUTH_URL!
 const HASH = `0x${"ab".repeat(32)}`
@@ -90,6 +91,15 @@ describe("analyzer usage", () => {
       expect(run.txHash).toHaveLength(66)
       expect(run.error!.length).toBeLessThanOrEqual(500)
     }
+  })
+
+  it("hands back the response when the record can't be written", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {})
+    const response = Response.json({ ok: true })
+    // No such user, so the foreign key refuses the row.
+    expect(recordRun(startRun(`missing-${randomUUID()}`, "analyze"), response)).toBe(response)
+    await vi.waitFor(() => expect(errors).toHaveBeenCalledWith("analyzer run record failed", expect.anything()))
+    errors.mockRestore()
   })
 
   it("records nothing for a user who can't analyze", async () => {
