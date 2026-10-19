@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { analyzerAccessDenied } from "@/lib/analyzer/access"
+import { analyzerAccess } from "@/lib/analyzer/access"
 import { calleesFromCallFrame } from "@/lib/analyzer/callees"
 import {
   AnalyzerError,
@@ -15,6 +15,7 @@ import {
 import { usdPrice } from "@/lib/analyzer/price"
 import { oneAtATime } from "@/lib/analyzer/serial"
 import { signShare } from "@/lib/analyzer/share"
+import { type AnalyzerRun, failRun, recordRun, startRun } from "@/lib/analyzer/usage"
 import { analyzePrestate, analyzeTrace, type AnalyzeResponse, type AnalyzeTraceResult } from "@/lib/wasm/analyzer"
 
 // Hobby's ceiling. Traces are analyzed here rather than in the browser because they routinely run
@@ -37,14 +38,20 @@ const OUTCOME_STATUS = { rpc: 502, analysis: 422, timeout: 504, crashed: 500 } a
 
 export async function POST(request: NextRequest) {
   const deadline = Date.now() + BUDGET_MS
-  const denied = await analyzerAccessDenied(request.headers)
-  if (denied) return denied
+  const access = await analyzerAccess(request.headers)
+  if ("denied" in access) return access.denied
+  const run = startRun(access.userId, "analyze")
+  return recordRun(run, await analyze(request, run, deadline))
+}
 
+async function analyze(request: NextRequest, run: AnalyzerRun, deadline: number): Promise<Response> {
   const body = (await request.json().catch(() => null)) as { network?: unknown; txHash?: unknown } | null
   const network = body?.network
   const txHash = typeof body?.txHash === "string" ? body.txHash.trim() : ""
+  run.network = typeof network === "string" ? network : null
+  run.txHash = txHash || null
   if (typeof network !== "string" || !TX_HASH.test(txHash)) {
-    return Response.json({ error: "Enter a 0x-prefixed, 32-byte transaction hash" }, { status: 400 })
+    return failRun(run, 400, "Enter a 0x-prefixed, 32-byte transaction hash")
   }
 
   try {
@@ -54,6 +61,8 @@ export async function POST(request: NextRequest) {
       fetchTransactionInfo(url, txHash),
       fetchPrestateTraces(url, txHash).catch((e: unknown) => (e instanceof Error ? e.message : String(e))),
     ])
+    run.target = info.to
+    run.gasUsed = info.gasUsed
     const [analysis, price] = await Promise.all([
       fromPrestate(prestate, info).then(async (pre) =>
         pre.result
@@ -66,6 +75,17 @@ export async function POST(request: NextRequest) {
       ),
       usdPrice(network),
     ])
+    const estimate = analysis.result.gas_estimate + analysis.result.signature_verification_gas
+    run.method = analysis.method
+    run.estimate = estimate
+    run.details = {
+      prestateSkipped: analysis.prestateSkipped,
+      isHeuristic: analysis.result.is_heuristic,
+      stateUpdateCount: analysis.result.state_update_count,
+      calleesExecuted: analysis.result.callees_executed,
+      replayError: analysis.result.replay_error,
+      skippedOpcodes: analysis.result.skipped_opcodes,
+    }
 
     const response: AnalyzeResponse = {
       ...analysis,
@@ -73,7 +93,7 @@ export async function POST(request: NextRequest) {
         network,
         hash: txHash,
         gasUsed: info.gasUsed,
-        estimate: analysis.result.gas_estimate + analysis.result.signature_verification_gas,
+        estimate,
         gasPrice: info.effectiveGasPrice.toString(),
         nested: false,
       }),
@@ -91,9 +111,9 @@ export async function POST(request: NextRequest) {
     }
     return Response.json(response)
   } catch (e) {
-    if (e instanceof AnalyzerError) return Response.json({ error: e.message, code: e.code }, { status: e.status })
+    if (e instanceof AnalyzerError) return failRun(run, e.status, e.message, e.code)
     console.error("analyze failed", e)
-    return Response.json({ error: "Analysis failed unexpectedly" }, { status: 500 })
+    return failRun(run, 500, "Analysis failed unexpectedly")
   }
 }
 

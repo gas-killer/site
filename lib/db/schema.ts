@@ -8,6 +8,7 @@ import {
   boolean,
   integer,
   index,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
@@ -148,4 +149,35 @@ export const lifeRun = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [index("life_run_userId_createdAt_idx").on(table.userId, table.createdAt)],
+);
+
+// One row per analyzer request from a confirmed user, to see who analyzes what and what they get back.
+export const analyzerRun = pgTable(
+  "analyzer_run",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // "analyze" for the target alone, "nested" for a tree with the user's owned contracts.
+    kind: text("kind").notNull(),
+    network: text("network"),
+    txHash: text("tx_hash"),
+    target: text("target"),
+    owned: text("owned").array(),
+    status: integer("status").notNull(),
+    errorCode: text("error_code"),
+    error: text("error"),
+    method: text("method"),
+    gasUsed: bigint("gas_used", { mode: "number" }),
+    // What the user was shown settling through Gas Killer, signature verification included.
+    estimate: bigint("estimate", { mode: "number" }),
+    details: jsonb("details"),
+    durationMs: integer("duration_ms").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("analyzer_run_userId_createdAt_idx").on(table.userId, table.createdAt),
+    index("analyzer_run_createdAt_idx").on(table.createdAt),
+  ],
 );
