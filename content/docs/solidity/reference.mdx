@@ -258,20 +258,26 @@ What a failed settlement means. Reverts from the SDK:
 | `0x1eb7025c` | `InsufficientBatchValue` | `msg.value` below the applied submissions' total `value` | Send at least the sum of every submission's `value` |
 | `0x83a33c51` | `BlockStaleMeasureOverflow` | `_setBlockStaleMeasure` given a value above `uint96` | Fix the value your contract passes |
 | `0x287cdced` | `ReentrantTransition` | `verifyAndUpdate` re-entered mid-transition | A `CALL` update re-entered the contract; see `inTransition()` |
-| `0x493f09c4` | `RevertingContext` | A `CALL` update reverted | With empty revert data, the contract's balance can't cover the call's value; otherwise carries the inner revert data |
+| `0x493f09c4` | `RevertingContext` | A `CALL` or `NESTED` update reverted | Decode the inner revert data it carries. Empty data on a call that moves value often means the contract's balance can't cover it |
 | `0x30116425` | `DeploymentFailed` | A `CREATE`/`CREATE2` update failed | Often a balance that can't cover the deployment's value |
 | `0x5f6f132c` | `InvalidArguments` | Update arguments malformed | Report it |
 | `0x25773e13` | `MalformedLogPayload` | Log update malformed | Report it |
 
 ### Nested settlement reverts
 
-From `verifyAndUpdateTree` and the frames it applies:
+From `verifyAndUpdateTree` and the frames it applies. A child frame's revert
+reaches the settler wrapped in `RevertingContext(index, target, revertData, callargs)`,
+where `target` is the child and `revertData` holds one of the errors below:
+
+```bash
+cast decode-error <revertData>
+```
 
 | Selector | Error | Cause | Fix |
 | --- | --- | --- | --- |
-| `0x63a089fc` | `NotTreeMember(bytes32)` | A frame's leaf is not in the signed tree | Send exactly the payload's `value`. Otherwise a frame contract's transition index moved since the trace: submit a new task |
+| `0x63a089fc` | `NotTreeMember(bytes32)` | The root frame's leaf is not in the signed tree | Send exactly the payload's `value`; otherwise the payload was altered |
 | `0xc5d89109` | `NotApproved(bytes32)` | A child found no approval for the root in its registry | The child is wired to a different registry than the root, or the operator set changed mid-transaction: submit a new task |
-| `0xa5313d69` | `LeafMismatch(bytes32,bytes32)` | A child's recomputed leaf differs from the one its parent named | Usually the child's state advanced since the trace: submit a new task |
+| `0xa5313d69` | `LeafMismatch(bytes32,bytes32)` | A child's recomputed leaf differs from the one its parent named | Usually another transition on the child since the trace moved its transition index: submit a new task |
 | `0x0aa2ca67` | `NotPendingChild(address,bytes32)` | A frame was applied outside its parent's `NESTED` update | Report it |
 | `0x7c315b2e` | `NestedNotApplied(uint256,address)` | A `NESTED` target did not acknowledge its frame | The target is not a `GasKillerNestedSDK` contract |
 | `0x90a8ddf4` | `NestedOutsideTree` | A `NESTED` update reached `verifyAndUpdate` | Report it — malformed payload |

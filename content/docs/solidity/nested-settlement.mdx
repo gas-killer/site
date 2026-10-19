@@ -3,19 +3,10 @@ title: Nested settlement
 description: Settle a call that runs through several SDK contracts as one signed tree.
 ---
 
-import { Callout } from "fumadocs-ui/components/callout"
-
 A tracked function that calls another Gas Killer target can settle the whole
 call stack under one signature. If `A` calls `B` and `B` calls `C`, and all
 three opt in, each contract applies its own signed frame where the native call
 happened, instead of `B` and `C` running their code on-chain.
-
-<Callout type="warn">
-  Nested settlement is not yet switched on for the public testnet. Until it is,
-  a task whose call reaches another target settles flat: the callee runs
-  natively inside the settlement, as a `CALL` update. Contracts that inherit
-  `GasKillerNestedSDK` settle either way, so you can deploy them now.
-</Callout>
 
 ## When to use it
 
@@ -37,23 +28,34 @@ roots a tree or joins one. It is `GasKillerSDK` plus the tree entrypoints, and
 adds about 4 KB of runtime bytecode, so a contract that never nests should stay
 on `GasKillerSDK`.
 
+The root of the SDK's `nested-deposit` example forwards each deposit to a vault
+it deploys itself, so the vault can trust its creator as the only depositor:
+
 ```solidity
 import {GasKillerNestedSDK} from "gas-killer-sdk/GasKillerNestedSDK.sol";
+import {DepositVault} from "./DepositVault.sol";
 
-contract Gateway is GasKillerNestedSDK {
-    Vault public immutable vault;
+contract DepositGateway is GasKillerNestedSDK {
+    uint256 public deposits;
 
-    constructor(address avs, address schnorrRegistry, Vault _vault) {
+    DepositVault public immutable vault;
+
+    constructor(address avs, address schnorrRegistry, uint256 receiptRounds) {
         _setAvsAddress(avs);
         _setSchnorrRegistry(schnorrRegistry);
-        vault = _vault;
+        vault = new DepositVault(avs, schnorrRegistry, receiptRounds);
     }
 
     function deposit(address account) external payable trackState {
+        deposits += 1;
         vault.deposit{value: msg.value}(account);
     }
 }
 ```
+
+`DepositVault` inherits `GasKillerNestedSDK` too, marks its `deposit` with
+`trackState`, and reverts unless the caller is the gateway. See the
+[full example](https://github.com/gas-killer/solidity-sdk/tree/main/src/examples/nested-deposit).
 
 Each contract in a tree must:
 
