@@ -18,10 +18,23 @@ export function failRun(run: AnalyzerRun, status: number, error: string, code?: 
   return Response.json(code ? { error, code } : { error }, { status })
 }
 
+// The body is recorded before it's validated, and errors can echo it, so a caller could otherwise
+// store megabytes per request.
+const cap = (value: string | null | undefined, max: number) => value?.slice(0, max) ?? null
+
 /** Records the run once `response` has been sent, so the write never slows or fails an analysis. */
 export function recordRun(run: AnalyzerRun, response: Response): Response {
   const { started, ...row } = run
-  const values: Row = { ...row, id: randomUUID(), status: response.status, durationMs: Date.now() - started }
+  const values: Row = {
+    ...row,
+    network: cap(row.network, 32),
+    txHash: cap(row.txHash, 66),
+    error: cap(row.error, 500),
+    errorCode: cap(row.errorCode, 64),
+    id: randomUUID(),
+    status: response.status,
+    durationMs: Date.now() - started,
+  }
   const record = () => db.insert(analyzerRun).values(values).catch((e) => console.error("analyzer run record failed", e))
   try {
     after(record)

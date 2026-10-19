@@ -77,6 +77,21 @@ describe("analyzer usage", () => {
     expect(runs[1]).toMatchObject({ network: "goerli", txHash: HASH, status: 400, error: "RPC not configured for network: goerli" })
   })
 
+  it("caps what an oversized request can store", async () => {
+    const { cookie, userId } = await signUp(true)
+    const huge = "x".repeat(100_000)
+
+    expect((await analyzeTx(cookie, { network: huge, txHash: `0x${huge}` })).status).toBe(400)
+    expect((await analyzeTx(cookie, { network: huge, txHash: HASH })).status).toBe(400)
+
+    await vi.waitFor(async () => expect(await runsOf(userId)).toHaveLength(2))
+    for (const run of await runsOf(userId)) {
+      expect(run.network).toHaveLength(32)
+      expect(run.txHash).toHaveLength(66)
+      expect(run.error!.length).toBeLessThanOrEqual(500)
+    }
+  })
+
   it("records nothing for a user who can't analyze", async () => {
     const { cookie, userId } = await signUp(false)
     expect((await analyzeTx(cookie, { network: "ethereum", txHash: HASH })).status).toBe(403)
