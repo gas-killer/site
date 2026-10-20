@@ -142,19 +142,14 @@ transition: `RevertingContext` (with empty revert data) for a `CALL`,
   until the contract is funded and the task is resubmitted.
 </Callout>
 
-Targets built on an SDK release from before value binding report the same
-`IGasKillerSDK` interface ID, but accept a value-bearing signature with any
-`msg.value`. A target that binds the value also reports `IGasKillerValueBound`
-(`0x0fd29ece`), and the router refuses a task with nonzero `value` for any
-target that does not bind it the way operators sign, with `400 INVALID_REQUEST`.
-Check yours:
+The router accepts a task with nonzero `value` only for a target whose
+`getMessageHashWithValue` returns the digest the operators sign, and rejects
+anything else with `400 INVALID_REQUEST`. A target that binds the value also
+reports `IGasKillerValueBound` (`0x0fd29ece`) through ERC-165. Check yours:
 
 ```bash
 cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x0fd29ece --rpc-url "$RPC_URL"
 ```
-
-A target that returns `false` must be redeployed on the current SDK before it
-can take tasks with value. Its zero-value tasks settle as before.
 
 ## Checklist
 

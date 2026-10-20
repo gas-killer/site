@@ -25,7 +25,7 @@ contracts that root or join a tree.
 | --- | --- | --- |
 | — | `300` | Default `blockStaleMeasure`, in blocks, when unset |
 | ERC-165 id | `0x82b35a01` | `type(IGasKillerSDK).interfaceId`; the router requires it |
-| ERC-165 id | `0xce8e6efc` | `type(IGasKillerSDKBatch).interfaceId`; batching and the in-transition latch. Was `0x2ea5ee1d` before `TaskSubmission` gained `value` |
+| ERC-165 id | `0xce8e6efc` | `type(IGasKillerSDKBatch).interfaceId`; batching and the in-transition latch |
 | ERC-165 id | `0x0fd29ece` | `type(IGasKillerValueBound).interfaceId`; the digest binds `msg.value`, required for tasks with value |
 | ERC-165 id | `0x78481874` | `type(IGasKillerNested).interfaceId`; `GasKillerNestedSDK` only, reported only when the registry supports nesting |
 | ERC-165 id | `0xf1c57fc0` | `type(ISchnorrApprovalRegistry).interfaceId`; reported by a registry that can approve nested roots |
@@ -89,9 +89,8 @@ sha256(abi.encode(transitionIndex, address(this), targetFunction, storageUpdates
 sha256(abi.encode(transitionIndex, address(this), targetFunction, storageUpdates, msg.value))
 ```
 
-Zero-value transitions keep the original encoding, so their signatures are
-unchanged. The two encodings cannot collide, because their heads differ in
-length.
+The value is appended only when it is nonzero, and the two encodings cannot
+collide, because their heads differ in length.
 
 Both are available as views for off-chain cross-checking:
 

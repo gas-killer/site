@@ -64,8 +64,8 @@ Each contract in a tree must:
   does not report it settles flat.
 - **Use the same registry as the root, and that registry must implement
   `ISchnorrApprovalRegistry`** (`0xf1c57fc0`). A contract reports
-  `IGasKillerNested` only when its registry does, so a target wired to an older
-  registry quietly settles flat rather than failing.
+  `IGasKillerNested` only when its registry does, so a target whose registry
+  doesn't implement `ISchnorrApprovalRegistry` settles flat rather than failing.
 - **Mark the called function `trackState`, with the counter increment before
   any other storage write or external call** in that function. Replay
   increments first.
@@ -105,9 +105,8 @@ cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x78481874 --rpc-url "$RPC
   value out of the parent's balance, as the native call would have. See
   [Value-bearing transitions](/docs/solidity/tracked-functions#value-bearing-transitions).
 
-A task whose call reaches no other nesting-capable target signs and settles
-exactly as before: the root leaf of a one-frame tree is the `verifyAndUpdate`
-digest itself.
+A task whose call reaches no other nesting-capable target settles through
+`verifyAndUpdate`: the root leaf of a one-frame tree is that call's digest.
 
 ## What changes for the client
 
