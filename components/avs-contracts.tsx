@@ -20,7 +20,7 @@ import { ROUTER_BASE_URL, fetchAvsContracts } from "@/lib/avs-metadata"
 const FALLBACK = {
   chainId: 11155111,
   avsAddress: "0x0eF3c25243004C0F81Dc678c3411E619D61577ef",
-  schnorrStakeRegistry: "0x8A86301675ac9617895117afFE9577f5154555F9",
+  schnorrStakeRegistry: "0xC3550328D09EDC4dfda4f171fB1CE39269A2E4f0",
 } as const
 
 function Row({ label, value }: { label: string; value: string }) {

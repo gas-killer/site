@@ -75,6 +75,15 @@ checks against is not the one the operators signed with, or with
 `NotRegistered` (`0xbfc6c337`) when a non-signer the router lists is unknown to
 it. See the [error table](/docs/solidity/reference#revert-selectors).
 
+<Callout>
+  The previous testnet registry, `0x8A86301675ac9617895117afFE9577f5154555F9`,
+  is the exception for now. It holds the same operator set, so targets wired to
+  it still settle, but it cannot approve [nested settlement](/docs/solidity/nested-settlement)
+  and is no longer kept in sync with operator changes: the first change to the
+  operator set breaks its targets. Move a reconfigurable contract across with
+  `_setSchnorrRegistry`, and redeploy one that is not.
+</Callout>
+
 ## Stay reconfigurable
 
 <Callout type="warn">
