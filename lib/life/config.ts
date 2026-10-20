@@ -1,9 +1,9 @@
 // Values shared by the /life page and its run route.
 
 export const CHAIN_ID = 11155111;
-export const LIFE_ADDRESS = "0x85Ca89c5D6fe362d8b7CDfE6C424EBCCC900Efed" as const;
+export const LIFE_ADDRESS = "0x974554dE55AC3E837c3502A11c27EAb2993C761f" as const;
 /** Block the contract was deployed in; recent-run log scans start here. */
-export const LIFE_DEPLOY_BLOCK = 11809264n;
+export const LIFE_DEPLOY_BLOCK = 11956782n;
 
 export const ETHERSCAN = "https://sepolia.etherscan.io";
 
