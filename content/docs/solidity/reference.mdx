@@ -193,9 +193,9 @@ What a failed settlement means. Reverts from the SDK:
 
 ### Nested settlement reverts
 
-A revert inside a nested contract reaches you wrapped in `RevertingContext`;
-decode its inner data (`cast decode-error <revertData>`) to find which of these
-it was.
+These come straight from `verifyAndUpdateTree`, or, when they happen in a
+nested contract's part, wrapped in `RevertingContext`. Decode its inner data
+(`cast decode-error <revertData>`) to find which of these it was.
 
 | Selector | Error | Fix |
 | --- | --- | --- |
@@ -203,8 +203,7 @@ it was.
 | `0xa5313d69` | `LeafMismatch` | A nested contract's state changed since signing. Submit a new task |
 | `0xc5d89109` | `NotApproved` | A nested contract is wired to a different registry. Wire every contract to the published one |
 | `0x7c315b2e` | `NestedNotApplied` | A nested contract doesn't inherit `GasKillerNestedSDK` |
-| `0x2e29e1fd` | `ApprovalExpired` | The payload passed its expiry. Submit a new task |
-| `0x0aa2ca67`, `0x90a8ddf4`, `0xa8bab44a`, `0x3d52f9e6`, `0x14259559` | `NotPendingChild`, `NestedOutsideTree`, `MissingWitness`, `UnconsumedWitnesses`, `InvalidExpiryProof` | Malformed payload. Report it |
+| `0x0aa2ca67`, `0x90a8ddf4`, `0xa8bab44a`, `0x3d52f9e6` | `NotPendingChild`, `NestedOutsideTree`, `MissingWitness`, `UnconsumedWitnesses` | Malformed payload. Report it |
 
 Reverts that come from the `SchnorrStakeRegistry`, not the SDK:
 
@@ -214,6 +213,8 @@ Reverts that come from the `SchnorrStakeRegistry`, not the SDK:
 | `0x11ea130d` | `FutureReferenceBlock` | Reference block is not yet mined. Retry |
 | `0xbfc6c337` | `NotRegistered(address)` | A listed non-signer is not in this registry. **Your target may be wired to a different registry than the router signs for**, see [Configuration](/docs/solidity/configuration#verify-your-own-wiring) |
 | `0xedb3eb6c` | `NonSignersNotSorted` | Malformed non-signer list. Report it |
+| `0x2e29e1fd` | `ApprovalExpired` | A nested settlement passed its expiry. Submit a new task |
+| `0x14259559` | `InvalidExpiryProof` | Malformed nested settlement payload. Report it |
 | `0xad60149e` | `InvalidApprovalSignature` | A nested settlement's signature was rejected, for the same reasons as [`InvalidQuorumSignature`](#invalidquorumsignature) |
 
 ### `InvalidQuorumSignature`

@@ -26,9 +26,16 @@ on `GasKillerSDK`.
 
 ```solidity
 import {GasKillerNestedSDK} from "gas-killer-sdk/GasKillerNestedSDK.sol";
+import {DepositVault} from "./DepositVault.sol"; // also a GasKillerNestedSDK contract
 
 contract DepositGateway is GasKillerNestedSDK {
-    DepositVault public immutable vault; // also a GasKillerNestedSDK contract
+    DepositVault public immutable vault;
+
+    constructor(address avs, address schnorrRegistry, uint256 receiptRounds) {
+        _setAvsAddress(avs);
+        _setSchnorrRegistry(schnorrRegistry);
+        vault = new DepositVault(avs, schnorrRegistry, receiptRounds);
+    }
 
     function deposit(address account) external payable trackState {
         vault.deposit{value: msg.value}(account);
