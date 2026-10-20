@@ -197,10 +197,8 @@ The `202` body is `{ "task_id": "…", "status": "queued" }`. See
 
 ### `value`
 
-A task with nonzero `value` is analyzed as a call carrying that ETH, and the
-operators' signature binds it: the payload settles only when sent with exactly
-that `value`. The target must be built on an SDK that binds `msg.value`, or the
-router rejects the task with `400 INVALID_REQUEST`. See
+Set `value` to the ETH the call sends. The payload settles only with exactly
+that amount. See
 [Value-bearing transitions](/docs/solidity/tracked-functions#value-bearing-transitions).
 
 ### `transition_index`
@@ -296,8 +294,7 @@ A `ready` response looks like this:
 
 The `payload` is a complete transaction request. Sign it with your wallet and
 broadcast it **as-is**: `to`, `data`, and `value` are all supplied by the
-router. `payload.value` is the task's own `value`. Sending any other amount,
-including zero for a task that carried ETH, fails the signature check. Use an RPC endpoint for the chain named in `payload.chain_id` (the
+router. Sending any other `value` fails. Use an RPC endpoint for the chain named in `payload.chain_id` (the
 testnet settles on Sepolia, `11155111`).
 
 <Tabs items={["Terminal", "TypeScript"]}>
