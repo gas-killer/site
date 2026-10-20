@@ -16,19 +16,17 @@ abstract contract GasKillerNestedSDK is GasKillerSDK, IGasKillerNested
 ```
 
 `GasKillerNestedSDK` adds [`verifyAndUpdateTree`](#verifyandupdatetree) for
-[nested settlement](/docs/solidity/nested-settlement). Inherit it only in
-contracts that root or join a tree.
+[nested settlement](/docs/solidity/nested-settlement).
 
 ## Constants
 
 | Constant | Value | Meaning |
 | --- | --- | --- |
 | — | `300` | Default `blockStaleMeasure`, in blocks, when unset |
-| ERC-165 id | `0x82b35a01` | `type(IGasKillerSDK).interfaceId`; the router requires it |
-| ERC-165 id | `0xce8e6efc` | `type(IGasKillerSDKBatch).interfaceId`; batching and the in-transition latch |
-| ERC-165 id | `0x0fd29ece` | `type(IGasKillerValueBound).interfaceId`; the digest binds `msg.value`, required for tasks with value |
-| ERC-165 id | `0x78481874` | `type(IGasKillerNested).interfaceId`; `GasKillerNestedSDK` only, reported only when the registry supports nesting |
-| ERC-165 id | `0xf1c57fc0` | `type(ISchnorrApprovalRegistry).interfaceId`; reported by a registry that can approve nested roots |
+| ERC-165 id | `0x82b35a01` | `IGasKillerSDK`; the router requires it |
+| ERC-165 id | `0xce8e6efc` | `IGasKillerSDKBatch`; batching and the in-transition latch |
+| ERC-165 id | `0x0fd29ece` | `IGasKillerValueBound`; required for tasks with value |
+| ERC-165 id | `0x78481874` | `IGasKillerNested`; the contract can take part in nested settlement |
 
 The quorum threshold is not an SDK constant. It belongs to the
 `SchnorrStakeRegistry` the target is wired to, as `thresholdNum / thresholdDen`
@@ -80,43 +78,15 @@ non-signer.
 
 ### The signed digest
 
-The digest depends on whether the transition settles with ETH:
-
 ```solidity
-// msg.value == 0
 sha256(abi.encode(transitionIndex, address(this), targetFunction, storageUpdates))
-// msg.value != 0
+// with msg.value appended when the transition carries ETH:
 sha256(abi.encode(transitionIndex, address(this), targetFunction, storageUpdates, msg.value))
 ```
 
-The value is appended only when it is nonzero, and the two encodings cannot
-collide, because their heads differ in length.
-
-Both are available as views for off-chain cross-checking:
-
-```solidity
-function getMessageHash(
-    uint256 transitionIndex,
-    bytes4 targetFunction,
-    bytes calldata storageUpdates
-) external view returns (bytes32);
-
-function getMessageHashWithValue(
-    uint256 transitionIndex,
-    bytes4 targetFunction,
-    bytes calldata storageUpdates,
-    uint256 value
-) external view returns (bytes32);
-```
-
-`getMessageHash` returns the zero-value digest; `getMessageHashWithValue`
-returns whichever one `value` selects. Its selector, `0x0fd29ece`, is also the
-`IGasKillerValueBound` interface ID.
-
-Binding `address(this)` means a payload cannot be replayed against a different
-contract, binding `transitionIndex` means it cannot be replayed against a
-different state of the same one, and binding the value means a transition that
-credits `msg.value` cannot settle without its ETH.
+It binds the payload to one contract, one state of it, and the exact ETH sent.
+`getMessageHash(transitionIndex, targetFunction, storageUpdates)` and
+`getMessageHashWithValue(..., value)` return it for off-chain checks.
 
 ## `verifyAndUpdateBatch`
 
@@ -144,67 +114,26 @@ it, so the signed digest does not change when a transition is batched.
 Submissions apply in order of ascending `transitionIndex`, and the batch is
 atomic.
 
-A submission whose index has already settled is skipped rather than reverting the
-batch. Settlement is permissionless, so without the skip anyone could lift one
-submission from the mempool, settle it on its own first, and void the rest. Only
-a gap, meaning an index above the next expected one, reverts with
-`InvalidTransitionIndex`.
+A submission whose index has already settled is skipped rather than reverting
+the batch, so someone settling one submission first can't void the rest. Only a
+gap in the indexes reverts, with `InvalidTransitionIndex`.
 
-Each submission's `value` is the value its transition was analyzed with, and its
-digest binds it. `msg.value` must cover the sum over the submissions actually
-applied, or the batch reverts with `InsufficientBatchValue`. The check is
-"covers" rather than "equals" so that a skipped submission can't revert the
-batch. The surplus, such as a skipped submission's share, is refunded to
-`msg.sender` after the batch applies. If the sender can't accept ETH, the
-surplus stays in the contract and the batch still succeeds.
+Send at least the sum of the submissions' `value`. Any surplus, such as a
+skipped submission's share, is refunded to the sender.
 
 ## `verifyAndUpdateTree`
 
-`GasKillerNestedSDK` only. Settles a [nested tree](/docs/solidity/nested-settlement)
-whose root frame belongs to this contract. As with `verifyAndUpdate`, the router
-builds the call.
+`GasKillerNestedSDK` only. Settles a [nested settlement](/docs/solidity/nested-settlement)
+rooted at this contract. The router builds the call; send the payload as-is.
 
 ```solidity
-struct QuorumSignature {
-    uint256 s;
-    address Raddr;
-    address[] nonSigners;
-    uint256 refBlock;
-}
-
-struct TreeSubmission {
-    bytes32 root;
-    uint256 expiryBlock;
-    bytes32[] expiryProof;
-    QuorumSignature sig;
-    uint256 transitionIndex;
-    bytes4 targetFunction;
-    bytes storageUpdates;
-    bytes32[] proof;
-    bytes[] children;
-}
-
 function verifyAndUpdateTree(TreeSubmission calldata submission) external payable;
 ```
 
-| Field | Purpose |
-| --- | --- |
-| `root` | The signed Merkle root |
-| `expiryBlock` | Last block at which the tree may settle; signed as a leaf |
-| `expiryProof` | Merkle proof of the expiry leaf |
-| `sig` | The quorum signature over `root`, and its reference block |
-| `transitionIndex` | Counter value the root frame was computed against |
-| `targetFunction` | Selector of the tracked function that was simulated |
-| `storageUpdates` | The root frame's program |
-| `proof` | Merkle proof of the root frame's leaf |
-| `children` | One encoded witness per `NESTED` update in the root program, in order |
-
-It runs the same block and transition-index checks as `verifyAndUpdate`, then
-checks that the root leaf (the `verifyAndUpdate` digest, `msg.value` included)
-is in the tree, and has the registry verify the signature and the expiry
-through `verifyAndApprove`. Each `NESTED` update then calls `applyNested` on its
-child, which checks the cached approval in its own registry before applying its
-frame.
+It runs the same block, transition-index and value checks as `verifyAndUpdate`,
+then has each contract further down the chain apply its own part. The signature
+also carries an expiry block, which the payload's `valid_until_block` never
+exceeds.
 
 ## State update types
 
@@ -217,7 +146,7 @@ frame.
 | `LOG0`–`LOG4` | Emit a log with 0–4 indexed topics |
 | `CREATE` | Deploy a contract, nonce-derived address |
 | `CREATE2` | Deploy a contract, salt-derived address |
-| `NESTED` | Apply an SDK callee's own frame, optionally with ETH value. Tree settlement only |
+| `NESTED` | Have a nested Gas Killer contract apply its own part, optionally with ETH value |
 
 Most integrations only ever produce `STORE` and `LOG*`. See
 [Tracked functions](/docs/solidity/tracked-functions#value-bearing-transitions)
@@ -251,37 +180,31 @@ What a failed settlement means. Reverts from the SDK:
 | `0x252f8a0e` | `FutureBlockNumber` | Reference block is not yet mined | Retry; usually a node lagging behind head |
 | `0x305c3e93` | `StaleBlockNumber` | Payload older than `blockStaleMeasure` | Submit a new task — the payload expired |
 | `0x7376e0a2` | `InvalidTransitionIndex` | Contract state advanced since signing | Submit a new task; another transition landed first |
-| `0x8baa579f` | `InvalidSignature` | Recomputed digest ≠ `msgHash` | Send exactly the payload's `value`. Otherwise the payload was altered, or the target's ABI differs from the router's |
+| `0x8baa579f` | `InvalidSignature` | Recomputed digest ≠ `msgHash` | Send exactly the payload's `value`; otherwise the payload was altered |
 | `0x68477238` | `InvalidQuorumSignature` | The registry rejected the signature | See [below](#invalidquorumsignature) |
 | `0xc2e5347d` | `EmptyBatch` | `verifyAndUpdateBatch` called with no submissions | Report it — malformed batch |
 | `0x1eb7025c` | `InsufficientBatchValue` | `msg.value` below the applied submissions' total `value` | Send at least the sum of every submission's `value` |
 | `0x83a33c51` | `BlockStaleMeasureOverflow` | `_setBlockStaleMeasure` given a value above `uint96` | Fix the value your contract passes |
 | `0x287cdced` | `ReentrantTransition` | `verifyAndUpdate` re-entered mid-transition | A `CALL` update re-entered the contract; see `inTransition()` |
-| `0x493f09c4` | `RevertingContext` | A `CALL` or `NESTED` update reverted | Decode the inner revert data it carries. Empty data on a call that moves value often means the contract's balance can't cover it |
+| `0x493f09c4` | `RevertingContext` | An external or nested call reverted | Decode its inner revert data. Empty data on a call that sends ETH usually means the balance is short |
 | `0x30116425` | `DeploymentFailed` | A `CREATE`/`CREATE2` update failed | Often a balance that can't cover the deployment's value |
 | `0x5f6f132c` | `InvalidArguments` | Update arguments malformed | Report it |
 | `0x25773e13` | `MalformedLogPayload` | Log update malformed | Report it |
 
 ### Nested settlement reverts
 
-From `verifyAndUpdateTree` and the frames it applies. A child frame's revert
-reaches the settler wrapped in `RevertingContext(index, target, revertData, callargs)`,
-where `target` is the child and `revertData` holds one of the errors below:
+A revert inside a nested contract reaches you wrapped in `RevertingContext`;
+decode its inner data (`cast decode-error <revertData>`) to find which of these
+it was.
 
-```bash
-cast decode-error <revertData>
-```
-
-| Selector | Error | Cause | Fix |
-| --- | --- | --- | --- |
-| `0x63a089fc` | `NotTreeMember(bytes32)` | The root frame's leaf is not in the signed tree | Send exactly the payload's `value`; otherwise the payload was altered |
-| `0xc5d89109` | `NotApproved(bytes32)` | A child found no approval for the root in its registry | The child is wired to a different registry than the root, or the operator set changed mid-transaction: submit a new task |
-| `0xa5313d69` | `LeafMismatch(bytes32,bytes32)` | A child's recomputed leaf differs from the one its parent named | Usually another transition on the child since the trace moved its transition index: submit a new task |
-| `0x0aa2ca67` | `NotPendingChild(address,bytes32)` | A frame was applied outside its parent's `NESTED` update | Report it |
-| `0x7c315b2e` | `NestedNotApplied(uint256,address)` | A `NESTED` target did not acknowledge its frame | The target is not a `GasKillerNestedSDK` contract |
-| `0x90a8ddf4` | `NestedOutsideTree` | A `NESTED` update reached `verifyAndUpdate` | Report it — malformed payload |
-| `0xa8bab44a` | `MissingWitness(uint256)` | A `NESTED` update had no witness | Report it — malformed payload |
-| `0x3d52f9e6` | `UnconsumedWitnesses(uint256,uint256)` | Witnesses left over after the program ran | Report it — malformed payload |
+| Selector | Error | Fix |
+| --- | --- | --- |
+| `0x63a089fc` | `NotTreeMember` | Send exactly the payload's `value` |
+| `0xa5313d69` | `LeafMismatch` | A nested contract's state changed since signing. Submit a new task |
+| `0xc5d89109` | `NotApproved` | A nested contract is wired to a different registry. Wire every contract to the published one |
+| `0x7c315b2e` | `NestedNotApplied` | A nested contract doesn't inherit `GasKillerNestedSDK` |
+| `0x2e29e1fd` | `ApprovalExpired` | The payload passed its expiry. Submit a new task |
+| `0x0aa2ca67`, `0x90a8ddf4`, `0xa8bab44a`, `0x3d52f9e6`, `0x14259559` | `NotPendingChild`, `NestedOutsideTree`, `MissingWitness`, `UnconsumedWitnesses`, `InvalidExpiryProof` | Malformed payload. Report it |
 
 Reverts that come from the `SchnorrStakeRegistry`, not the SDK:
 
@@ -291,9 +214,7 @@ Reverts that come from the `SchnorrStakeRegistry`, not the SDK:
 | `0x11ea130d` | `FutureReferenceBlock` | Reference block is not yet mined. Retry |
 | `0xbfc6c337` | `NotRegistered(address)` | A listed non-signer is not in this registry. **Your target may be wired to a different registry than the router signs for**, see [Configuration](/docs/solidity/configuration#verify-your-own-wiring) |
 | `0xedb3eb6c` | `NonSignersNotSorted` | Malformed non-signer list. Report it |
-| `0x2e29e1fd` | `ApprovalExpired(uint256)` | A tree submitted after its signed expiry block. Submit a new task |
-| `0x14259559` | `InvalidExpiryProof` | The expiry leaf is not in the tree. Report it |
-| `0xad60149e` | `InvalidApprovalSignature` | The registry rejected a tree's quorum signature, for the same reasons as [`InvalidQuorumSignature`](#invalidquorumsignature) |
+| `0xad60149e` | `InvalidApprovalSignature` | A nested settlement's signature was rejected, for the same reasons as [`InvalidQuorumSignature`](#invalidquorumsignature) |
 
 ### `InvalidQuorumSignature`
 

@@ -1,130 +1,73 @@
 ---
 title: Nested settlement
-description: Settle a call that runs through several SDK contracts as one signed tree.
+description: Settle a call that runs through several Gas Killer contracts in one transaction.
 ---
 
-A tracked function that calls another Gas Killer target can settle the whole
-call stack under one signature. If `A` calls `B` and `B` calls `C`, and all
-three opt in, each contract applies its own signed frame where the native call
-happened, instead of `B` and `C` running their code on-chain.
+When a tracked function calls another Gas Killer contract, the whole call chain
+can settle under one signature. If `A` calls `B` and `B` calls `C`, each contract
+applies its own signed state changes instead of `B` and `C` running their code
+on-chain.
 
 ## When to use it
 
-A flat settlement can replay a call into another contract only by running it,
-so the callee's cost is paid in full on-chain (see
-[What keeps a function extractable](/docs/solidity/tracked-functions#what-keeps-a-function-extractable)).
-Nesting removes that cost when the callee is itself expensive and is a Gas
-Killer target: its frame is a diff like any other, applied for the price of
-its writes.
+Without nesting, a call into another contract is replayed by running it, so you
+pay that contract's full cost on-chain. Nesting removes that cost when the
+callee is itself expensive and is a Gas Killer contract.
 
-A contract with heavy native traffic may be better left as a plain `CALL`. Every
-frame pins its contract's transition index, so any other transition on that
-contract between signing and settlement reverts the whole tree.
+Avoid nesting into a contract with heavy direct traffic. The signature covers
+every contract in the chain at its current state, so a transaction that changes
+any one of them before you settle invalidates the whole payload.
 
 ## Opting in
 
-Inherit `GasKillerNestedSDK` instead of `GasKillerSDK` in every contract that
-roots a tree or joins one. It is `GasKillerSDK` plus the tree entrypoints, and
-adds about 4 KB of runtime bytecode, so a contract that never nests should stay
+Inherit `GasKillerNestedSDK` instead of `GasKillerSDK` in every contract in the
+chain. It adds about 4 KB of bytecode, so contracts that never nest should stay
 on `GasKillerSDK`.
-
-The root of the SDK's `nested-deposit` example forwards each deposit to a vault
-it deploys itself, so the vault can trust its creator as the only depositor:
 
 ```solidity
 import {GasKillerNestedSDK} from "gas-killer-sdk/GasKillerNestedSDK.sol";
-import {DepositVault} from "./DepositVault.sol";
 
 contract DepositGateway is GasKillerNestedSDK {
-    uint256 public deposits;
-
-    DepositVault public immutable vault;
-
-    constructor(address avs, address schnorrRegistry, uint256 receiptRounds) {
-        _setAvsAddress(avs);
-        _setSchnorrRegistry(schnorrRegistry);
-        vault = new DepositVault(avs, schnorrRegistry, receiptRounds);
-    }
+    DepositVault public immutable vault; // also a GasKillerNestedSDK contract
 
     function deposit(address account) external payable trackState {
-        deposits += 1;
         vault.deposit{value: msg.value}(account);
     }
 }
 ```
 
-`DepositVault` inherits `GasKillerNestedSDK` too, marks its `deposit` with
-`trackState`, and reverts unless the caller is the gateway. See the
-[full example](https://github.com/gas-killer/solidity-sdk/tree/main/src/examples/nested-deposit).
+Every contract in the chain must:
 
-Each contract in a tree must:
+- **Inherit `GasKillerNestedSDK`.** A call into any other contract runs natively,
+  as it would without nesting.
+- **Be wired to the same registry**, the one published on
+  [`GET /avs-metadata`](/docs/solidity/configuration).
+- **Mark the called function `trackState`** and make no storage write or
+  external call before it in that function.
 
-- **Inherit `GasKillerNestedSDK`.** Only a contract that reports
-  `IGasKillerNested` (`0x78481874`) through ERC-165 can join a tree. A root that
-  does not report it settles flat.
-- **Use the same registry as the root, and that registry must implement
-  `ISchnorrApprovalRegistry`** (`0xf1c57fc0`). A contract reports
-  `IGasKillerNested` only when its registry does, so a target whose registry
-  doesn't implement `ISchnorrApprovalRegistry` settles flat rather than failing.
-- **Mark the called function `trackState`, with the counter increment before
-  any other storage write or external call** in that function. Replay
-  increments first.
-- **Accept the tightest window in the tree.** Each contract's own
-  `blockStaleMeasure` still bounds the reference block it accepts, so the
-  shortest window applies to the whole tree.
-
-Check a deployment before relying on it:
+Confirm a deployment can take part:
 
 ```bash
 cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x78481874 --rpc-url "$RPC_URL"
 ```
 
-## How a tree settles
+## What changes for you
 
-- **One signature.** The quorum signs a Merkle root over an expiry leaf and one
-  leaf per frame, in execution order. The root contract settles it through
-  `verifyAndUpdateTree`. The registry checks the signature and the expiry once,
-  through `verifyAndApprove`, and caches the approval for the rest of the
-  transaction.
-- **Frames apply in place.** Where the native call happened, the parent's
-  program holds a `NESTED` update naming the child's leaf. The parent calls
-  `applyNested` on the child, which checks the approval in its own registry, its
-  leaf, the Merkle proof, and that the parent reports this leaf as its pending
-  child. A child must return the `applyNested` selector, so a target with no
-  code or a permissive fallback cannot silently skip its frame.
-- **What binds a frame.** A frame's leaf hashes its contract, caller, ETH value
-  and transition index, all taken from the call itself. A frame applied by
-  anyone but its signed parent, with any other value, out of order, or after the
-  signed expiry fails.
-- **Cycles work.** `A → B → A` applies two `A` frames in one tree. The
-  transition guard admits a re-entry from a frame of the same root and still
-  reverts every other.
-- **Value flows as it did natively.** The root leaf binds the `msg.value` the
-  tree settles with, exactly as the `verifyAndUpdate` digest does, and each
-  nested leaf binds the value its parent forwards. A `NESTED` update pays that
-  value out of the parent's balance, as the native call would have. See
-  [Value-bearing transitions](/docs/solidity/tracked-functions#value-bearing-transitions).
+Nothing in the API. Submit, poll and settle as usual, and send the payload
+as-is. Its `data` calls `verifyAndUpdateTree` rather than `verifyAndUpdate`.
 
-A task whose call reaches no other nesting-capable target settles through
-`verifyAndUpdate`: the root leaf of a one-frame tree is that call's digest.
-
-## What changes for the client
-
-Nothing in the API. A nested task is submitted, polled and settled like any
-other. The `ready` payload's `data` is a `verifyAndUpdateTree` call rather than
-`verifyAndUpdate`, and its `valid_until_block` never runs past the tree's signed
-expiry. Send the payload as-is.
+ETH forwarded along the chain works as it does natively, and every hop is bound
+by the signature. See
+[Value-bearing transitions](/docs/solidity/tracked-functions#value-bearing-transitions).
 
 ## Examples
 
-The SDK ships three:
-
-- [`nested-chain`](https://github.com/gas-killer/solidity-sdk/tree/main/src/examples/nested-chain):
-  `NestedRouter` → `NestedVault` → `NestedLedger`, three frames deep.
-- [`nested-cycle`](https://github.com/gas-killer/solidity-sdk/tree/main/src/examples/nested-cycle):
-  `CycleRoot` → `CycleRelay` → `CycleRoot`, a tree that re-enters its root.
 - [`nested-deposit`](https://github.com/gas-killer/solidity-sdk/tree/main/src/examples/nested-deposit):
-  `DepositGateway` → `DepositVault`, a `NESTED` update that forwards ETH.
+  a gateway that forwards ETH to a vault.
+- [`nested-chain`](https://github.com/gas-killer/solidity-sdk/tree/main/src/examples/nested-chain):
+  three contracts deep.
+- [`nested-cycle`](https://github.com/gas-killer/solidity-sdk/tree/main/src/examples/nested-cycle):
+  a chain that calls back into its first contract.
 
-The reverts specific to trees are listed in the
-[Reference](/docs/solidity/reference#nested-settlement-reverts).
+If a nested settlement reverts, see
+[Nested settlement reverts](/docs/solidity/reference#nested-settlement-reverts).
