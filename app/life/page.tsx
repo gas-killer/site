@@ -49,7 +49,7 @@ contract Counter is GasKillerSDK {
 const DEPLOY = `forge create src/Counter.sol:Counter \\
   --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" \\
   --constructor-args 0x0eF3c25243004C0F81Dc678c3411E619D61577ef \\
-                     0x8A86301675ac9617895117afFE9577f5154555F9`
+                     0xC3550328D09EDC4dfda4f171fB1CE39269A2E4f0`
 
 const SUBMIT = `// Ask the operators to run recompute(1000) off-chain
 const { task_id } = await gk("POST", "/tasks", {

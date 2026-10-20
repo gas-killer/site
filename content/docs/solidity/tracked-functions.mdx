@@ -86,7 +86,9 @@ operations, including indexed topics.
 
 If your design genuinely needs a mid-transition external call, it is supported,
 `StateChangeHandlerLib` can replay `CALL`, `CREATE` and `CREATE2`, but it is the
-expensive path and brings the reentrancy considerations below into play.
+expensive path and brings the reentrancy considerations below into play. When
+the callee is itself a Gas Killer target, [nested settlement](/docs/solidity/nested-settlement)
+applies its frame as a diff instead of running it.
 
 ## Reading state during a transition
 
@@ -113,21 +115,41 @@ Contracts that never make external calls during a transition do not need this.
 
 ## Value-bearing transitions
 
-`verifyAndUpdate` is `payable` so a caller can fund `CALL`/`CREATE`/`CREATE2`
-updates that move ETH out of `msg.value` rather than pre-funding the contract.
+`verifyAndUpdate` is `payable`, and the value is part of what the quorum signs.
+A transition settles only with exactly the `msg.value` the task was analyzed
+with: a task sent with `value` renders a payload carrying that same `value`, and
+the digest binds it (see [The signed digest](/docs/solidity/reference#the-signed-digest)).
 
-How much value each update moves, and to whom, is fixed inside the quorum-signed
-updates, and `msg.value` only tops up the balance and cannot redirect anything. That
-leaves exactly two ways to get it wrong:
+This is what makes inbound ETH safe. A tracked function that credits `msg.value`
+(a deposit, a mint for ETH, a payable purchase) replays as plain `STORE`
+updates. Without the binding anyone could settle it while sending nothing, and
+the contract would record ETH it never received.
 
-- **Under-funding** reverts the whole transition: `RevertingContext` for a `CALL`,
-  `DeploymentFailed` for a deployment.
-- **Over-funding is not refunded.** The surplus stays in your contract.
+Outbound value works differently. A `CALL`, `CREATE`, `CREATE2` or `NESTED`
+update moves an amount fixed inside the signed updates, paid out of the
+contract's balance, which includes `msg.value`. A shortfall reverts the whole
+transition: `RevertingContext` (with empty revert data) for a `CALL`,
+`DeploymentFailed` for a deployment.
 
-If your callers might over-send, provide a recovery path: a withdrawal function,
-or a refund executed as a signed `CALL` update in a later transition. The SDK
-intentionally has no balance-delta check on the entrypoint, since the signature
-already fixes every movement.
+<Callout type="warn">
+  **The settler can't top up the balance.** Any ETH the task wasn't analyzed
+  with fails the digest, so a transition analyzed with no value rejects all ETH.
+  A pass-through call, such as a deposit that forwards its `msg.value`, still
+  works, because the value it forwards is the value it was analyzed with. A
+  contract whose updates pay out of its own balance needs another way in:
+  `GasKillerSDK` has no `receive()`, so add one or a payable funding function.
+  If the balance has dropped since the task was analyzed, the transition fails
+  until the contract is funded and the task is resubmitted.
+</Callout>
+
+The router accepts a task with nonzero `value` only for a target whose
+`getMessageHashWithValue` returns the digest the operators sign, and rejects
+anything else with `400 INVALID_REQUEST`. A target that binds the value also
+reports `IGasKillerValueBound` (`0x0fd29ece`) through ERC-165. Check yours:
+
+```bash
+cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x0fd29ece --rpc-url "$RPC_URL"
+```
 
 ## Checklist
 
@@ -137,4 +159,5 @@ already fixes every movement.
   state-changing external calls.
 - If other protocols read you and you make mid-transition calls, they check
   `inTransition()`.
-- If value can be over-sent, there is a way to recover it.
+- If the contract takes tasks with value, it reports `0x0fd29ece`.
+- If its updates pay ETH out of its own balance, it has a way to be funded.

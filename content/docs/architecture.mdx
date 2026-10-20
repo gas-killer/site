@@ -39,7 +39,10 @@ economic security.
 5. **Render** — once the threshold is met, the router persists the completed
    round as a structured *bundle* and renders a *payload*: a full
    `verifyAndUpdate` transaction request (`to`, `data`, `value`, `chain_id`,
-   plus an `estimated_gas` hint and a `valid_until_block` bound). The task
+   plus an `estimated_gas` hint and a `valid_until_block` bound). A call that
+   runs through several SDK contracts can settle as one
+   [nested tree](/docs/solidity/nested-settlement) through
+   `verifyAndUpdateTree` instead. The task
    transitions to `ready` and the payload is served from
    [`GET /tasks/{task_id}`](/docs/api/tasks/getTask).
 6. **Settle** — the client signs the payload and submits it from its own wallet.
@@ -53,7 +56,8 @@ back the transaction and the client submits it. This keeps gas parameters,
 submission timing, and key custody entirely on the client's side.
 
 Because the payload is one *rendering* of the stored bundle, the call target and
-value are server-controlled. Introducing a future on-chain protocol fee, or
+value are server-controlled. The value is the task's own: the signature binds it,
+so the payload settles only with exactly the ETH the task was analyzed with. Introducing a future on-chain protocol fee, or
 routing submission through an account-abstraction bundler, is a server-side
 change to what the payload contains, not a breaking change to integrator code.
 
