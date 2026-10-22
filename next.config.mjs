@@ -22,9 +22,13 @@ const nextConfig = {
   async redirects() {
     const installer =
       "https://raw.githubusercontent.com/gas-killer/gas-analyzer/RonTuretzky/gkvm-m6-host/install-gk.sh"
+    // The private ETH demo (gas-killer/anon) is its own Vercel app with its own API routes, so it is linked, not
+    // proxied under /anon. 307 too: it moves to anon.gaskiller.xyz once that domain's DNS record is in.
+    const anon = "https://gas-killer-anon.vercel.app"
     return [
       { source: "/bash", destination: installer, permanent: false },
       { source: "/install.sh", destination: installer, permanent: false },
+      { source: "/anon", destination: anon, permanent: false },
     ]
   },
 }
