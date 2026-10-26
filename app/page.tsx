@@ -21,6 +21,24 @@ function LifeGlyph() {
   )
 }
 
+// An ETH diamond with its centre hidden, for the private ETH demo at /anon.
+function PrivateGlyph() {
+  const shown = new Set(["2,0", "1,1", "2,1", "3,1", "0,2", "1,2", "3,2", "4,2", "1,3", "2,3", "3,3", "2,4"])
+  return (
+    <div className="grid w-fit shrink-0 grid-cols-5 gap-1" aria-hidden="true">
+      {Array.from({ length: 25 }, (_, i) => {
+        const key = `${i % 5},${Math.floor(i / 5)}`
+        return (
+          <span
+            key={i}
+            className={`size-3 rounded-[2px] ${shown.has(key) ? "bg-emerald-300" : "bg-white/[0.06]"}`}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 export default function Home() {
   return (
     <>
@@ -179,6 +197,28 @@ export default function Home() {
                   <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
                 </span>
               </Link>
+
+              {/* Second demo: a private ETH pool. /anon is a separate app proxied by next.config.mjs, so a plain link. */}
+              <a
+                href="/anon"
+                className="group card-poster mt-5 !p-8 md:!p-10 flex flex-col gap-8 md:flex-row md:items-center"
+              >
+                <PrivateGlyph />
+                <div className="flex-1">
+                  <p className="text-zinc-500 text-xs uppercase tracking-widest mb-3">Live demo · Sepolia</p>
+                  <h3 className="text-2xl md:text-3xl font-semibold text-white mb-3">Send ETH privately, for less gas</h3>
+                  <p className="text-zinc-400 leading-relaxed max-w-2xl">
+                    Every private payment carries a zero-knowledge proof, and checking it on chain costs{" "}
+                    <span className="text-orange-300 font-semibold">640–860k gas</span>. Gas Killer checks it off
+                    chain, so shields, sends, withdrawals and take-ins cost{" "}
+                    <span className="text-emerald-300 font-semibold">26–38% less</span>, with the same privacy.
+                  </p>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-white">
+                  Try the demo
+                  <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
+                </span>
+              </a>
             </div>
           </section>
 
