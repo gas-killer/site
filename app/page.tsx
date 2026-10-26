@@ -175,50 +175,59 @@ export default function Home() {
                 is never a bottleneck. Operators returning incorrect outputs are rejected and slashed.
               </p>
 
-              {/* Live demo: the mechanism above, running on Sepolia */}
-              <Link
-                id="demo"
-                href="/life"
-                className="group card-poster mt-12 scroll-mt-24 !p-8 md:!p-10 flex flex-col gap-8 md:flex-row md:items-center"
-              >
-                <LifeGlyph />
-                <div className="flex-1">
-                  <p className="text-zinc-500 text-xs uppercase tracking-widest mb-3">Live demo · Sepolia</p>
-                  <h3 className="text-2xl md:text-3xl font-semibold text-white mb-3">Watch it run: the Game of Life</h3>
-                  <p className="text-zinc-400 leading-relaxed max-w-2xl">
-                    One generation of Conway's Game of Life costs{" "}
-                    <span className="text-orange-300 font-semibold">16.6M gas</span> as a normal transaction. Gas
-                    Killer settles it for <span className="text-emerald-300 font-semibold">under 1%</span> of that,
-                    and runs two generations that no single transaction could hold.
-                  </p>
-                </div>
-                <span className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-white">
-                  Run the demo
-                  <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
-                </span>
-              </Link>
+            </div>
+          </section>
 
-              {/* Second demo: a private ETH pool. /anon is a separate app proxied by next.config.mjs, so a plain link. */}
-              <a
-                href="/anon"
-                className="group card-poster mt-5 !p-8 md:!p-10 flex flex-col gap-8 md:flex-row md:items-center"
-              >
-                <PrivateGlyph />
-                <div className="flex-1">
-                  <p className="text-zinc-500 text-xs uppercase tracking-widest mb-3">Live demo · Sepolia</p>
-                  <h3 className="text-2xl md:text-3xl font-semibold text-white mb-3">Send ETH privately, for less gas</h3>
-                  <p className="text-zinc-400 leading-relaxed max-w-2xl">
-                    Every private payment carries a zero-knowledge proof, and checking it on chain costs{" "}
-                    <span className="text-orange-300 font-semibold">640–860k gas</span>. Gas Killer checks it off
-                    chain, so shields, sends, withdrawals and take-ins cost{" "}
-                    <span className="text-emerald-300 font-semibold">26–38% less</span>, with the same privacy.
-                  </p>
-                </div>
-                <span className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-white">
-                  Try the demo
-                  <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
-                </span>
-              </a>
+          {/* Live demos: the mechanism above, running on Sepolia. The nav's "Demo" link lands here. */}
+          <section id="demo" className="w-full py-20 md:py-28 border-t border-white/10">
+            <div className="container px-4 md:px-8 max-w-6xl">
+              <p className="mb-8"><span className="eyebrow-chip">Live demos</span></p>
+              <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 text-white max-w-3xl text-balance">
+                Try it on Sepolia.
+              </h2>
+              <p className="text-zinc-400 text-lg leading-relaxed max-w-2xl mb-12 text-pretty">
+                Both demos settle through Gas Killer's operators on Sepolia. Each one shows the gas it used next to
+                what the same transaction costs without Gas Killer.
+              </p>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <Link href="/life" className="group card-poster !p-8 flex flex-col gap-6">
+                  <LifeGlyph />
+                  <div className="flex-1">
+                    <p className="text-zinc-500 text-xs uppercase tracking-widest mb-3">Heavy computation</p>
+                    <h3 className="text-2xl md:text-3xl font-semibold text-white mb-3">The Game of Life</h3>
+                    <p className="text-zinc-400 leading-relaxed">
+                      One generation of Conway's Game of Life costs{" "}
+                      <span className="text-orange-300 font-semibold">16.6M gas</span> as a normal transaction. Gas
+                      Killer settles it for <span className="text-emerald-300 font-semibold">under 1%</span> of that,
+                      and runs two generations that no single transaction could hold.
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-2 text-sm font-medium text-white">
+                    Run the demo
+                    <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
+                  </span>
+                </Link>
+
+                {/* /anon is a separate app proxied by next.config.mjs, so a plain link. */}
+                <a href="/anon" className="group card-poster !p-8 flex flex-col gap-6">
+                  <PrivateGlyph />
+                  <div className="flex-1">
+                    <p className="text-zinc-500 text-xs uppercase tracking-widest mb-3">Zero-knowledge proofs</p>
+                    <h3 className="text-2xl md:text-3xl font-semibold text-white mb-3">Private ETH payments</h3>
+                    <p className="text-zinc-400 leading-relaxed">
+                      Every private payment carries a zero-knowledge proof, and checking it on chain costs{" "}
+                      <span className="text-orange-300 font-semibold">640–860k gas</span>. Gas Killer checks it off
+                      chain, so shields, sends, withdrawals and take-ins cost{" "}
+                      <span className="text-emerald-300 font-semibold">26–38% less</span>, with the same privacy.
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-2 text-sm font-medium text-white">
+                    Try the demo
+                    <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
+                  </span>
+                </a>
+              </div>
             </div>
           </section>
 
