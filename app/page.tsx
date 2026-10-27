@@ -323,8 +323,8 @@ export default function Home() {
                   { name: "Polygon", area: "Agglayer", saving: 65 },
                   { name: "Aave", area: "DeFi", saving: 60, tx: "0xa7a8c34fee3795db241bcdf3e5c0b8b279dcb78f62ceee2f3530c9f38dd1ebec" },
                   { name: "Privacy Pools", area: "Privacy", saving: 57, tx: "0xe7015e7fe38f6833b43f71619d8fab285666773f6b6723437bae56f7eca1d58b" },
-                  { name: "Axelar", area: "Bridging", saving: 40 },
                   { name: "Morpho", area: "DeFi", saving: 40, tx: "0x2e91acd5286eeda304294f8f2c9803b7d140dd0cf7426e16ee285e9f6b1f0fca" },
+                  { name: "Axelar", area: "Bridging", saving: 37, tx: "0x5c2f7ca332352d4d7c14ca04f79bef27775c6fc760045809d1b3ff72f923a345", owned: "0xe3b83f79fbf01b25659f8a814945ab82186a8ad0" },
                 ].map((p) => (
                   <li key={p.name} className="card-poster !p-6">
                     <p className="text-white font-semibold mb-4">{p.name}</p>
@@ -333,7 +333,8 @@ export default function Home() {
                     {"tx" in p && (
                       // The analyzer asks for a Gas Killer account, then replays this mainnet transaction: the one in
                       // gas-analyzer's reports/ or ALL_TRANSACTION_ANALYSES.md that matches the card's figure. `owned`
-                      // marks the contracts a nested saving depends on (Securitize's compliance service).
+                      // marks the contracts a nested saving depends on (Securitize's compliance service, Axelar's auth
+                      // contract; PROTOCOL_SURVEY.md has Axelar). Aztec has no link: the analyzer can't replay its proofs yet.
                       <a
                         href={`/analyzer?network=ethereum&tx=${p.tx}${"owned" in p ? `&owned=${p.owned}` : ""}`}
                         className="mt-4 inline-flex items-center gap-1.5 text-sm text-emerald-300 hover:text-emerald-200 transition-colors"
