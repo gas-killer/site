@@ -315,12 +315,11 @@ export default function Home() {
               <ul className="grid gap-5 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                 {[
                   { name: "Aztec", area: "Root verification", saving: 90 },
-                  { name: "Securitize", area: "RWA", saving: 88 },
-                  { name: "Alchemix", area: "DeFi", saving: 85 },
-                  { name: "Starkware", area: "State updates", saving: 80 },
+                  { name: "Securitize", area: "RWA", saving: 88, tx: "0x2f83819933c4a9d645f00d51e738b25a4181f6e49e9f0ed42f8372c2ecd6cb8c", owned: "0x07a1ebfb9a9a421249ddc71bddb8860cc077e3a9" },
+                  { name: "Alchemix", area: "DeFi", saving: 85, tx: "0x3ec144c4bffb5003e90c0a9574342cfc70024227fe20f87c286278c7fdc07fe5" },
+                  { name: "YieldNest", area: "Rebasing", saving: 79, tx: "0xcaf7bb74b11de8ad34c96b73f2dd88ac6e2408cc5deb2b11f4dcba16145c6710" },
                   { name: "RAILGUN", area: "Privacy", saving: 70, tx: "0x0376edd36b0c9211b1a38f41e5f1c04233478ca4dcf7d4852ef313deb1c57ade" },
-                  { name: "YieldNest", area: "Rebasing", saving: 70 },
-                  { name: "Derive", area: "Derivatives", saving: 65 },
+                  { name: "Derive", area: "Derivatives", saving: 65, tx: "0xf83f74064b25f3a5b0533d1f1e02a891eca4c91b5d4363b5e4dffed26eb22ebb" },
                   { name: "Polygon", area: "Agglayer", saving: 65 },
                   { name: "Aave", area: "DeFi", saving: 60, tx: "0xa7a8c34fee3795db241bcdf3e5c0b8b279dcb78f62ceee2f3530c9f38dd1ebec" },
                   { name: "Privacy Pools", area: "Privacy", saving: 57, tx: "0xe7015e7fe38f6833b43f71619d8fab285666773f6b6723437bae56f7eca1d58b" },
@@ -332,10 +331,11 @@ export default function Home() {
                     <div className="text-5xl font-display font-bold text-emerald-300 mb-2">{p.saving}%</div>
                     <p className="text-zinc-500 text-xs uppercase tracking-widest">{p.area}</p>
                     {"tx" in p && (
-                      // The analyzer asks for a Gas Killer account, then replays this mainnet transaction. Each one is the
-                      // measured transaction in gas-analyzer's ALL_TRANSACTION_ANALYSES.md that matches the card's figure.
+                      // The analyzer asks for a Gas Killer account, then replays this mainnet transaction: the one in
+                      // gas-analyzer's reports/ or ALL_TRANSACTION_ANALYSES.md that matches the card's figure. `owned`
+                      // marks the contracts a nested saving depends on (Securitize's compliance service).
                       <a
-                        href={`/analyzer?network=ethereum&tx=${p.tx}`}
+                        href={`/analyzer?network=ethereum&tx=${p.tx}${"owned" in p ? `&owned=${p.owned}` : ""}`}
                         className="mt-4 inline-flex items-center gap-1.5 text-sm text-emerald-300 hover:text-emerald-200 transition-colors"
                       >
                         See it in the Gas Analyzer <span aria-hidden>→</span>
