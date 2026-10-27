@@ -304,7 +304,7 @@ export default function Home() {
           <section id="protocols" className="relative w-full py-20 md:py-28 border-t border-white/10">
             <div className="pointer-events-none absolute inset-0 grid-dots opacity-30" />
             <div className="relative container px-4 md:px-8 max-w-6xl">
-              <p className="mb-8"><span className="eyebrow-chip">Across protocols</span></p>
+              <p className="mb-8"><span className="eyebrow-chip">Proven savings</span></p>
               <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 text-white max-w-4xl text-balance">
                 Where Gas Killer cuts gas.
               </h2>
