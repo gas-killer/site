@@ -330,19 +330,6 @@ export default function Home() {
                     </li>
                   ))}
               </ul>
-              <div className="mt-10 flex justify-center md:justify-end">
-                <a
-                  href="https://paragraph.com/@gaskiller/halving-railgun-gas-costs-how-gas-killer-scales-privacy-on-ethereum"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-white/20 px-5 py-2.5 text-sm text-zinc-200 hover:border-white/40 hover:text-white transition-colors"
-                >
-                  Read the RAILGUN case study
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <path d="M7 17L17 7M17 7H8M17 7v9" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </a>
-              </div>
             </div>
           </section>
 
