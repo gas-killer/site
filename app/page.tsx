@@ -314,9 +314,9 @@ export default function Home() {
 
               <ul className="grid gap-5 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                 {[
-                  { name: "Aztec", area: "Root verification", saving: 90 },
                   { name: "Securitize", area: "RWA", saving: 88, tx: "0x2f83819933c4a9d645f00d51e738b25a4181f6e49e9f0ed42f8372c2ecd6cb8c", owned: "0x07a1ebfb9a9a421249ddc71bddb8860cc077e3a9" },
                   { name: "Alchemix", area: "DeFi", saving: 85, tx: "0x3ec144c4bffb5003e90c0a9574342cfc70024227fe20f87c286278c7fdc07fe5" },
+                  { name: "Aztec", area: "Root verification", saving: 83, tx: "0x99b5d08e92288d59672f29366b5bdb500d47e8c96d18bdfd6b8eed2dbcf1f131" },
                   { name: "YieldNest", area: "Rebasing", saving: 79, tx: "0xcaf7bb74b11de8ad34c96b73f2dd88ac6e2408cc5deb2b11f4dcba16145c6710" },
                   { name: "RAILGUN", area: "Privacy", saving: 70, tx: "0x0376edd36b0c9211b1a38f41e5f1c04233478ca4dcf7d4852ef313deb1c57ade" },
                   { name: "Derive", area: "Derivatives", saving: 65, tx: "0xf83f74064b25f3a5b0533d1f1e02a891eca4c91b5d4363b5e4dffed26eb22ebb" },
@@ -334,7 +334,8 @@ export default function Home() {
                       // The analyzer asks for a Gas Killer account, then replays this mainnet transaction: the one in
                       // gas-analyzer's reports/ or ALL_TRANSACTION_ANALYSES.md that matches the card's figure. `owned`
                       // marks the contracts a nested saving depends on (Securitize's compliance service, Axelar's auth
-                      // contract; PROTOCOL_SURVEY.md has Axelar). Aztec has no link: the analyzer can't replay its proofs yet.
+                      // contract; PROTOCOL_SURVEY.md has Axelar). PROTOCOL_SURVEY.md also has Aztec's
+                      // epoch proofs, measured on 2026-10-27 with the streaming trace build.
                       <a
                         href={`/analyzer?network=ethereum&tx=${p.tx}${"owned" in p ? `&owned=${p.owned}` : ""}`}
                         className="mt-4 inline-flex items-center gap-1.5 text-sm text-emerald-300 hover:text-emerald-200 transition-colors"
