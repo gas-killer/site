@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useReducer, useState } from "react"
+import { useEffect, useReducer, useRef, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -54,10 +54,10 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-export function AnalyzerPage({ signedIn }: { signedIn: boolean }) {
+export function AnalyzerPage({ signedIn, linked }: { signedIn: boolean; linked?: { network: string; tx: string } }) {
   const [state, dispatch] = useReducer(reducer, initialState)
-  const [txHash, setTxHash] = useState("")
-  const [selectedNetwork, setSelectedNetwork] = useState(NETWORKS[0]?.id ?? "")
+  const [txHash, setTxHash] = useState(linked?.tx ?? "")
+  const [selectedNetwork, setSelectedNetwork] = useState(linked?.network ?? NETWORKS[0]?.id ?? "")
   const [owned, setOwned] = useState<string[]>([])
 
   async function handleAnalyze() {
@@ -82,6 +82,15 @@ export function AnalyzerPage({ signedIn }: { signedIn: boolean }) {
       dispatch({ type: "RUN_ERROR", error: { message: e instanceof Error ? e.message : String(e) } })
     }
   }
+
+  // A linked transaction runs once, as soon as the page is up.
+  const ranLinked = useRef(false)
+  useEffect(() => {
+    if (!linked || ranLinked.current || !signedIn || ANALYZER_DISABLED) return
+    ranLinked.current = true
+    handleAnalyze()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const formDisabled = ANALYZER_DISABLED || !signedIn
   const canAnalyze = !formDisabled && txHash.trim() && selectedNetwork && !state.isRunning
