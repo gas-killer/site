@@ -54,11 +54,11 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-export function AnalyzerPage({ signedIn, linked }: { signedIn: boolean; linked?: { network: string; tx: string } }) {
+export function AnalyzerPage({ signedIn, linked }: { signedIn: boolean; linked?: { network: string; tx: string; owned: string[] } }) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [txHash, setTxHash] = useState(linked?.tx ?? "")
   const [selectedNetwork, setSelectedNetwork] = useState(linked?.network ?? NETWORKS[0]?.id ?? "")
-  const [owned, setOwned] = useState<string[]>([])
+  const [owned, setOwned] = useState<string[]>(linked?.owned ?? [])
 
   async function handleAnalyze() {
     if (!txHash.trim() || !selectedNetwork) return

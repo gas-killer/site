@@ -12,17 +12,22 @@ export const metadata: Metadata = {
 }
 
 const TX_HASH = /^0x[0-9a-fA-F]{64}$/
+const ADDRESS = /^0x[0-9a-f]{40}$/
 
-type Props = { searchParams: Promise<{ network?: string; tx?: string }> }
+type Props = { searchParams: Promise<{ network?: string; tx?: string; owned?: string }> }
 
 export default async function AnalyzerRoute({ searchParams }: Props) {
-  const { network, tx } = await searchParams
+  const { network, tx, owned } = await searchParams
   // A link to one transaction (the homepage's protocol cards): its network and hash fill the form and run once.
-  const linked = tx && TX_HASH.test(tx) && NETWORKS.some((n) => n.id === network) ? { network: network!, tx } : undefined
+  // `owned` (comma-separated) preselects contracts the transaction calls, so the nested estimate runs too.
+  const ownedList = (owned ?? "").split(",").map((a) => a.trim().toLowerCase()).filter((a) => ADDRESS.test(a)).slice(0, 8)
+  const linked =
+    tx && TX_HASH.test(tx) && NETWORKS.some((n) => n.id === network) ? { network: network!, tx, owned: ownedList } : undefined
   const session = await auth.api.getSession({ headers: await headers(), query: { disableCookieCache: true } })
   // A linked transaction needs an account; sign-up brings them back here, and its email link does too.
   if (!session && linked) {
-    redirect(`/signup?next=${encodeURIComponent(`/analyzer?network=${linked.network}&tx=${linked.tx}`)}`)
+    const back = `/analyzer?network=${linked.network}&tx=${linked.tx}${linked.owned.length ? `&owned=${linked.owned.join(",")}` : ""}`
+    redirect(`/signup?next=${encodeURIComponent(back)}`)
   }
   // The analyze route refuses unconfirmed users; the dashboard is where they can resend the confirmation.
   if (session && !session.user.emailVerified) redirect("/dashboard")
