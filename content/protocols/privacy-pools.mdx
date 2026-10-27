@@ -1,0 +1,44 @@
+---
+network: "ethereum"
+title: "Gas Killer × Privacy Pools"
+name: "Privacy Pools"
+area: "Privacy"
+saving: 57
+fn: "PoolVault transact"
+tx: "0xe7015e7fe38f6833b43f71619d8fab285666773f6b6723437bae56f7eca1d58b"
+gasUsed: 788016
+saved: 450016
+description: "Gas Killer could cut the gas cost of a Privacy Pools PoolVault transaction by 47–60%."
+---
+Gas Killer could cut the gas cost of a Privacy Pools PoolVault transaction by **47–60%**, up to about 450,000 gas on each one. Every one carries a full Groth16 zero-knowledge proof check. We measured this on real Ethereum mainnet calls to the PoolVault.
+
+## What we measured
+
+All six PoolVault calls we measured save gas.
+
+| Transaction | Function | Gas today | Gas saved | Saving |
+| --- | --- | --: | --: | --: |
+| [0x8cc80eae…](https://etherscan.io/tx/0x8cc80eae520f1c61fe39f18ab0ea82e4afbbb6ed4c0ddca71d26b5627628f92a) | `ragequit` | 501,769 | 298,984 | **59.59%** |
+| [0xe7015e7f…](https://etherscan.io/tx/0xe7015e7fe38f6833b43f71619d8fab285666773f6b6723437bae56f7eca1d58b) | `transact` | 788,016 | 450,016 | **57.11%** |
+| [0x83d92882…](https://etherscan.io/tx/0x83d928821a47b6fe8b0002b567c6cd32ea6b111a493ecdacf89c06134fdcacc6) | `ragequit` | 485,918 | 275,055 | **56.60%** |
+| [0x3585c6e3…](https://etherscan.io/tx/0x3585c6e357bdf24f500f595ae26d61217c9a1ccc8f911de9e808df32e2d1bfd1) | `ragequit` | 485,882 | 275,019 | **56.60%** |
+| [0x7c4ec4bd…](https://etherscan.io/tx/0x7c4ec4bdac962c1620a1942b05d6fa1f3ce2b8e504a7ffbee5103b8ad6868ae0) | `ragequit` | 477,873 | 248,187 | **51.94%** |
+| [0x4cbeadad…](https://etherscan.io/tx/0x4cbeadad4bc2a553822f5917546fa0c4c2bd37314077a2447b378fb7b93c9fc9) | `ragequit` | 482,024 | 224,240 | **46.52%** |
+
+Savings assume Gas Killer's Schnorr signature scheme.
+
+## Where the saving comes from
+
+The saving comes from the proof check. A Groth16 verification is one pairing (181,000 gas) plus 4 elliptic-curve multiplications and 4 additions, about 205,600 gas, and it runs in the PoolVault inside a read-only call.
+
+- **What gets cheaper:** the proof verification runs off-chain. On-chain, only the new commitments, the spent-note markers, the transfers and the events are applied.
+- **What stays the same:** the proof's statement, the association-set rules and every check the vault enforces.
+- **What integration involves:** the PoolVault would use the Gas Killer SDK. Deposits that arrive through the router or the entrypoint reach it through regular calls, so those contracts would integrate too, as a nested settlement.
+
+## How we measured
+
+We replayed each transaction as Gas Killer would settle it and compared the gas against what it actually cost.
+
+- **Real data:** real mainnet calls to the PoolVault, replayed at the block they ran in.
+- **Includes all costs:** the gas saved is net of the signature check and every storage write.
+- **An estimate:** Privacy Pools has not integrated Gas Killer, so the numbers estimate a future integration.

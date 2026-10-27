@@ -2,6 +2,7 @@ import { Header } from "@/components/header"
 import { ArchitectureDiagram } from "@/components/architecture-diagram"
 import Image from "next/image"
 import Link from "next/link"
+import { protocols } from "collections/server"
 
 // A glider on a small grid, echoing the /life board.
 function LifeGlyph() {
@@ -313,38 +314,21 @@ export default function Home() {
               </p>
 
               <ul className="grid gap-5 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                {[
-                  { name: "Securitize", area: "RWA", saving: 88, tx: "0x2f83819933c4a9d645f00d51e738b25a4181f6e49e9f0ed42f8372c2ecd6cb8c", owned: "0x07a1ebfb9a9a421249ddc71bddb8860cc077e3a9" },
-                  { name: "Alchemix", area: "DeFi", saving: 85, tx: "0x3ec144c4bffb5003e90c0a9574342cfc70024227fe20f87c286278c7fdc07fe5" },
-                  { name: "Aztec", area: "Root verification", saving: 83, tx: "0x99b5d08e92288d59672f29366b5bdb500d47e8c96d18bdfd6b8eed2dbcf1f131" },
-                  { name: "YieldNest", area: "Rebasing", saving: 79, tx: "0xcaf7bb74b11de8ad34c96b73f2dd88ac6e2408cc5deb2b11f4dcba16145c6710" },
-                  { name: "RAILGUN", area: "Privacy", saving: 70, tx: "0x0376edd36b0c9211b1a38f41e5f1c04233478ca4dcf7d4852ef313deb1c57ade" },
-                  { name: "Derive", area: "Derivatives", saving: 65, tx: "0xf83f74064b25f3a5b0533d1f1e02a891eca4c91b5d4363b5e4dffed26eb22ebb" },
-                  { name: "Polygon", area: "Agglayer", saving: 65 },
-                  { name: "Aave", area: "DeFi", saving: 60, tx: "0xa7a8c34fee3795db241bcdf3e5c0b8b279dcb78f62ceee2f3530c9f38dd1ebec" },
-                  { name: "Privacy Pools", area: "Privacy", saving: 57, tx: "0xe7015e7fe38f6833b43f71619d8fab285666773f6b6723437bae56f7eca1d58b" },
-                  { name: "Morpho", area: "DeFi", saving: 40, tx: "0x2e91acd5286eeda304294f8f2c9803b7d140dd0cf7426e16ee285e9f6b1f0fca" },
-                  { name: "Axelar", area: "Bridging", saving: 37, tx: "0x5c2f7ca332352d4d7c14ca04f79bef27775c6fc760045809d1b3ff72f923a345", owned: "0xe3b83f79fbf01b25659f8a814945ab82186a8ad0" },
-                ].map((p) => (
-                  <li key={p.name} className="card-poster !p-6">
-                    <p className="text-white font-semibold mb-4">{p.name}</p>
-                    <div className="text-5xl font-display font-bold text-emerald-300 mb-2">{p.saving}%</div>
-                    <p className="text-zinc-500 text-xs uppercase tracking-widest">{p.area}</p>
-                    {"tx" in p && (
-                      // The analyzer asks for a Gas Killer account, then replays this mainnet transaction: the one in
-                      // gas-analyzer's reports/ or ALL_TRANSACTION_ANALYSES.md that matches the card's figure. `owned`
-                      // marks the contracts a nested saving depends on (Securitize's compliance service, Axelar's auth
-                      // contract; PROTOCOL_SURVEY.md has Axelar). PROTOCOL_SURVEY.md also has Aztec's
-                      // epoch proofs, measured on 2026-10-27 with the streaming trace build.
-                      <a
-                        href={`/analyzer?network=ethereum&tx=${p.tx}${"owned" in p ? `&owned=${p.owned}` : ""}`}
-                        className="mt-4 inline-flex items-center gap-1.5 text-sm text-emerald-300 hover:text-emerald-200 transition-colors"
-                      >
-                        See it in the Gas Analyzer <span aria-hidden>→</span>
-                      </a>
-                    )}
-                  </li>
-                ))}
+                {[...protocols]
+                  .sort((x, y) => y.saving - x.saving)
+                  .map((p) => (
+                    <li key={p.info.path}>
+                      {/* Each protocol's page (content/protocols) breaks down the transaction behind its figure. */}
+                      <Link href={`/protocols/${p.info.path.replace(/\.mdx$/, "")}`} className="group card-poster !p-6 flex h-full flex-col">
+                        <p className="text-white font-semibold mb-4">{p.name}</p>
+                        <div className="text-5xl font-display font-bold text-emerald-300 mb-2">{p.saving}%</div>
+                        <p className="text-zinc-500 text-xs uppercase tracking-widest">{p.area}</p>
+                        <span className="mt-auto pt-4 inline-flex items-center gap-1.5 text-sm text-zinc-300 group-hover:text-white transition-colors">
+                          See the breakdown <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
               </ul>
               <div className="mt-10 flex justify-center md:justify-end">
                 <a

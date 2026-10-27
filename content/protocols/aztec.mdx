@@ -1,0 +1,42 @@
+---
+network: "ethereum"
+title: "Gas Killer × Aztec"
+name: "Aztec"
+area: "Root verification"
+saving: 83
+fn: "submitEpochRootProof"
+tx: "0x99b5d08e92288d59672f29366b5bdb500d47e8c96d18bdfd6b8eed2dbcf1f131"
+gasUsed: 1752317
+saved: 1455342
+analyzer: false
+description: "Gas Killer could cut the gas cost of an Aztec epoch proof submission by about 83%."
+---
+Gas Killer could cut the gas cost of an Aztec epoch proof submission by about **83%**: roughly 1,390,000–1,455,000 of the 1,675,000–1,752,000 gas each `submitEpochRootProof` spends today. We measured this on real Ethereum mainnet submissions to the Aztec rollup in October 2026. The rollup receives about 258 of these a day, at a median of 1.75M gas, which is more proof-verification gas than any other contract we have measured.
+
+## What we measured
+
+All three submissions we replayed in full save 83%.
+
+| Transaction | Function | Gas today | Gas saved | Saving |
+| --- | --- | --: | --: | --: |
+| [0x99b5d08e…](https://etherscan.io/tx/0x99b5d08e92288d59672f29366b5bdb500d47e8c96d18bdfd6b8eed2dbcf1f131) | `submitEpochRootProof` | 1,752,317 | 1,455,342 | **83.05%** |
+| [0x1c36fa10…](https://etherscan.io/tx/0x1c36fa106f4197cdde4a8b3772fd7b16c568e0555a0bec39eaf04a27da26fd10) | `submitEpochRootProof` | 1,733,099 | 1,439,027 | **83.03%** |
+| [0xc08b4b96…](https://etherscan.io/tx/0xc08b4b963d320a39bcfb2b75c2c41e84f7da759f311e7cbb07815df7c312497f) | `submitEpochRootProof` | 1,674,882 | 1,389,675 | **82.97%** |
+
+Savings assume Gas Killer's Schnorr signature scheme.
+
+## Where the saving comes from
+
+Each submission verifies an epoch proof. In the call trace of [0x99b5d08e…](https://etherscan.io/tx/0x99b5d08e92288d59672f29366b5bdb500d47e8c96d18bdfd6b8eed2dbcf1f131), 721,697 gas is a read-only call to Aztec's Honk verifier, 152,456 gas is precompiles, including the point-evaluation precompile, and 12,761 gas is another read. The rest is the rollup's own bookkeeping.
+
+- **What gets cheaper:** the proof verification runs off-chain. On-chain, only the rollup's resulting storage changes and events are applied.
+- **What integration involves:** the Aztec rollup contract would use the Gas Killer SDK.
+
+## How we measured
+
+We replayed each transaction as Gas Killer would settle it and compared the gas against what it actually cost.
+
+- **Real data:** real mainnet `submitEpochRootProof` calls from October 2026, replayed at the block they ran in.
+- **Includes all costs:** the gas saved is net of the signature check and every storage write.
+- **An estimate:** Aztec has not integrated Gas Killer, so the numbers estimate a future integration.
+- **Large traces:** each transaction's trace runs to several gigabytes, so we measured these with a build of the analyzer that streams the trace. The browser analyzer can't run them yet.
