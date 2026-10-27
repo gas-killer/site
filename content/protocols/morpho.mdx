@@ -1,0 +1,48 @@
+---
+network: "ethereum"
+title: "Gas Killer × Morpho"
+name: "Morpho"
+area: "DeFi"
+saving: 40
+fn: "VaultV2 redeem"
+tx: "0x2e91acd5286eeda304294f8f2c9803b7d140dd0cf7426e16ee285e9f6b1f0fca"
+gasUsed: 280874
+saved: 113568
+description: "Gas Killer could cut the gas cost of a Morpho VaultV2 deposit, withdrawal or redemption by about 14–40%."
+---
+Gas Killer could cut the gas cost of a Morpho VaultV2 deposit, withdrawal or redemption by about **14–40%**, up to about 113,000 gas on each one. Before it can price a share, the vault reads its allocation and accrued interest across markets, and that read is what Gas Killer removes. We measured this on real Ethereum mainnet calls to vaults from three curators: Sentora RLUSD, Steakhouse USDC and Gauntlet USDC.
+
+## What we measured
+
+| Transaction | Vault | Function | Gas today | Gas saved | Saving |
+| --- | --- | --- | --: | --: | --: |
+| [0x2e91acd5…](https://etherscan.io/tx/0x2e91acd5286eeda304294f8f2c9803b7d140dd0cf7426e16ee285e9f6b1f0fca) | Sentora RLUSD | `redeem` | 280,874 | 113,568 | **40.43%** |
+| [0xf1a44360…](https://etherscan.io/tx/0xf1a443607f902beb8c70aa2b768c5b611e65c8d52c4b1cce8eeb17129fe608d0) | Sentora RLUSD | `withdraw` | 285,593 | 113,415 | **39.71%** |
+| [0xe0576f55…](https://etherscan.io/tx/0xe0576f554f4d0e3d4bc866f7d14346505171563e04152d098b822017d15eeca5) | Sentora RLUSD | `redeem` | 297,986 | 113,532 | **38.10%** |
+| [0x6472ad5e…](https://etherscan.io/tx/0x6472ad5e3b21b636e3de25e2cbce9268303ed3045cb97d8d00a6d8222dc43565) | Sentora RLUSD | `withdraw` | 302,821 | 113,483 | **37.48%** |
+| [0x91e57e07…](https://etherscan.io/tx/0x91e57e0729ba753226ff5c8b43f45565b247135c45d806e0d3e176cbb16f3421) | Steakhouse USDC | `redeem` | 384,248 | 93,156 | **24.24%** |
+| [0x20bae938…](https://etherscan.io/tx/0x20bae938d175a58c26685748430a215dea799b3cf92c16402dc84c0e1152e499) | Steakhouse USDC | `withdraw` | 389,035 | 93,443 | **24.02%** |
+| [0xabcab7b2…](https://etherscan.io/tx/0xabcab7b2196099bdc6b929bd080566f0799c6aeb09ade509846f33bf0fee3833) | Steakhouse USDC | `redeem` | 405,914 | 93,499 | **23.03%** |
+| [0xb53a6aee…](https://etherscan.io/tx/0xb53a6aee035d498b1caca243b6f075146f3150802be5baa1fd7243d312825d6a) | Steakhouse USDC | `deposit` | 394,794 | 88,856 | **22.51%** |
+| [0x75d0b00d…](https://etherscan.io/tx/0x75d0b00d40f55130935e8a92b81c0c27c32a81c17370f31e3146cde5cb11eace) | Gauntlet USDC | `withdraw` | 322,057 | 53,618 | **16.65%** |
+| [0x1b1dc70c…](https://etherscan.io/tx/0x1b1dc70c3e2dac7be16b8fbaa63efd9c998bdafd2edff719946cf00f947858bf) | Gauntlet USDC | `deposit` | 351,765 | 50,447 | **14.34%** |
+
+Savings assume Gas Killer's Schnorr signature scheme. Within each vault the saving is nearly the same amount of gas whatever the function, because it is the vault's fixed share-pricing read, not anything that grows with the amount.
+
+## Where the saving comes from
+
+Each call spends 164,000–191,000 gas on read-only calls. The largest is the vault reading its own allocation and accrued interest across the markets it lends to: 179,571 gas in one Steakhouse USDC call.
+
+- **What gets cheaper:** the share-pricing reads run off-chain. On-chain, only the share and asset balances, the transfers and the events are applied.
+- **What stays the same:** the share price, the amounts and every check the vault enforces.
+- **What integration involves:** the VaultV2 contract would use the Gas Killer SDK. The markets it reads stay as they are.
+- **What saves nothing:** `multicall` on the same vaults. Batching entry points adds bookkeeping without adding computation.
+
+## How we measured
+
+We replayed each transaction as Gas Killer would settle it and compared the gas against what it actually cost.
+
+- **Real data:** real mainnet calls to VaultV2 vaults, replayed at the block they ran in.
+- **Includes all costs:** the gas saved is net of the signature check and every storage write.
+- **An estimate:** these vaults have not integrated Gas Killer, so the numbers estimate a future integration.
+- **Volume:** the Steakhouse USDC vault alone received about 12 qualifying calls a day.

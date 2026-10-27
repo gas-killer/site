@@ -1,0 +1,45 @@
+---
+network: "ethereum"
+title: "Gas Killer × Axelar"
+name: "Axelar"
+area: "Bridging"
+saving: 37
+fn: "Gateway execute"
+tx: "0x5c2f7ca332352d4d7c14ca04f79bef27775c6fc760045809d1b3ff72f923a345"
+gasUsed: 285629
+saved: 105880
+owned: "0xe3b83f79fbf01b25659f8a814945ab82186a8ad0"
+description: "Gas Killer could cut the gas cost of the Axelar Gateway's execute by 22–37%."
+---
+Gas Killer could cut the gas cost of the Axelar Gateway's `execute` by **22–37%**, about 92,000–107,000 gas on each call. Each `execute` approves a batch of cross-chain messages after checking validator signatures. We measured this on real Ethereum mainnet calls in October 2026. The Gateway received 137 `execute` calls in one day.
+
+## What we measured
+
+All five calls we measured save gas.
+
+| Transaction | Function | Gas today | Gas saved | Saving |
+| --- | --- | --: | --: | --: |
+| [0x5c2f7ca3…](https://etherscan.io/tx/0x5c2f7ca332352d4d7c14ca04f79bef27775c6fc760045809d1b3ff72f923a345) | `execute` | 285,629 | 105,880 | **37.07%** |
+| [0x44d96e5f…](https://etherscan.io/tx/0x44d96e5f0b6a62c78c0ec4baeee8419e63ab45ee7cae2908bff0b4080ccf09a1) | `execute` | 288,648 | 106,762 | **36.99%** |
+| [0x1b32c4f8…](https://etherscan.io/tx/0x1b32c4f88c6c6cd227dc3baa9ff0b969856b22168d5b307546a4440afc0df0a0) | `execute` | 288,900 | 106,714 | **36.94%** |
+| [0xd3240dc3…](https://etherscan.io/tx/0xd3240dc31bbd2aa3441fe38db2b0f7096a522f0b47acf8f6e9ab245959ef4e58) | `execute` | 350,580 | 98,372 | **28.06%** |
+| [0xf22581da…](https://etherscan.io/tx/0xf22581da072028a061f0edac8ad66cb832e0b306bc7c8bf878a87977452ccbf4) | `execute` | 417,149 | 92,445 | **22.16%** |
+
+Savings assume Gas Killer's Schnorr signature scheme.
+
+## Where the saving comes from
+
+The saving comes from the validator-signature check. The Gateway doesn't run it itself: it calls a separate auth contract ([`0xe3b83f79…`](https://etherscan.io/address/0xe3b83f79fbf01b25659f8a814945ab82186a8ad0)), which spends about 120,000 gas, nearly all of it on `ecrecover`.
+
+- **What gets cheaper:** the signature check runs off-chain. On-chain, only the approved messages and the events are applied.
+- **What stays the same:** which messages are approved, and every rule the auth contract enforces.
+- **What integration involves:** both the Gateway and the auth contract would use the Gas Killer SDK, settling together as a nested settlement. Without the auth contract, the Gateway alone saves nothing.
+
+## How we measured
+
+We replayed each transaction as Gas Killer would settle it and compared the gas against what it actually cost.
+
+- **Real data:** real mainnet `execute` calls from October 2026, replayed at the block they ran in.
+- **Includes all costs:** the gas saved is net of the signature check and every storage write.
+- **Nested settlement:** measured with the auth contract integrated too. The analyzer link below includes it.
+- **An estimate:** Axelar has not integrated Gas Killer, so the numbers estimate a future integration.
