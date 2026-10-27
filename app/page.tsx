@@ -367,7 +367,6 @@ export default function Home() {
                       Analyze a transaction
                       <span aria-hidden>→</span>
                     </Link>
-                    <span className="text-zinc-500 text-sm">Free account · Ethereum and Sepolia</span>
                   </div>
                 </div>
                 <ol className="poster-frame grid gap-px bg-white/10 overflow-hidden">
