@@ -357,7 +357,7 @@ export default function Home() {
                   </h2>
                   <p className="text-zinc-400 text-lg leading-relaxed mb-10 text-pretty">
                     Paste a transaction your contract has already processed. The Gas Analyzer replays it and shows
-                    what it would have cost through Gas Killer. It's the same analysis we ran for RAILGUN.
+                    what it would have cost through Gas Killer.
                   </p>
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
                     <Link
