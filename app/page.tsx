@@ -314,23 +314,32 @@ export default function Home() {
 
               <ul className="grid gap-5 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                 {[
-                  { name: "Aztec", area: "Root verification", saving: 90 },
+                  { name: "Aztec", area: "Root verification", saving: 90, tx: "0x9a8d9838eef857f9994b0729b72bd146eede46b1fde4b113220d1e79997694ff" },
                   { name: "Securitize", area: "RWA", saving: 88 },
                   { name: "Alchemix", area: "DeFi", saving: 85 },
                   { name: "Starkware", area: "State updates", saving: 80 },
-                  { name: "RAILGUN", area: "Privacy", saving: 70 },
-                  { name: "YieldNest", area: "Rebasing", saving: 70 },
+                  { name: "RAILGUN", area: "Privacy", saving: 70, tx: "0x7c731150234add278ecae3ee9b6bcd35ee50435cc69bc47cce1a008e54c1f2ce" },
+                  { name: "YieldNest", area: "Rebasing", saving: 70, tx: "0x50a40f345526cec689b36b7b80535726238e5e65ad0ba5dd429b0262075f988b" },
                   { name: "Derive", area: "Derivatives", saving: 65 },
                   { name: "Polygon", area: "Agglayer", saving: 65 },
                   { name: "Aave", area: "DeFi", saving: 60 },
                   { name: "Privacy Pools", area: "Privacy", saving: 57 },
                   { name: "Axelar", area: "Bridging", saving: 40 },
-                  { name: "Morpho", area: "DeFi", saving: 40 },
+                  { name: "Morpho", area: "DeFi", saving: 40, tx: "0x16a0a31c0547f2f35018c38f0c2fa3bdcf1320e6a75f998caaa957747e9dc568" },
                 ].map((p) => (
                   <li key={p.name} className="card-poster !p-6">
                     <p className="text-white font-semibold mb-4">{p.name}</p>
                     <div className="text-5xl font-display font-bold text-emerald-300 mb-2">{p.saving}%</div>
                     <p className="text-zinc-500 text-xs uppercase tracking-widest">{p.area}</p>
+                    {"tx" in p && (
+                      // The analyzer asks for a Gas Killer account, then replays this mainnet transaction.
+                      <a
+                        href={`/analyzer?network=ethereum&tx=${p.tx}`}
+                        className="mt-4 inline-flex items-center gap-1.5 text-sm text-emerald-300 hover:text-emerald-200 transition-colors"
+                      >
+                        See it in the Gas Analyzer <span aria-hidden>→</span>
+                      </a>
+                    )}
                   </li>
                 ))}
               </ul>
