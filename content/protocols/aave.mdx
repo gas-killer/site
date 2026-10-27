@@ -25,8 +25,6 @@ All six borrows we measured save gas, from 14% to 64%. They are V3 borrows, pick
 | [0x89123090…](https://etherscan.io/tx/0x89123090ed69760e08e4504365e796d5e923f40f78f100e99e2c7f7693a500b2) | `borrow` (typical size) | 306,943 | 75,143 | **24.5%** |
 | [0x97151cb4…](https://etherscan.io/tx/0x97151cb479b8e17dbb84e299aca7ae58d16bfabac89d737e300ddd0b03d9f048) | `borrow` | 268,466 | 37,821 | **14.1%** |
 
-Savings assume Gas Killer's Schnorr signature scheme.
-
 ### Aave V4
 
 Aave V4 borrows save 17–46%, from the same health-factor price reads. We measured five V4 borrows from October 2026, sent to the Main and Bluechip spokes.
@@ -40,24 +38,3 @@ Aave V4 borrows save 17–46%, from the same health-factor price reads. We measu
 | [0xa6415540…](https://etherscan.io/tx/0xa64155401048c6bfab178ab827b30448de7de8dfcf7a81f752fe2a857ee8bf95) | Main (typical size) | 279,475 | 48,937 | **17.5%** |
 
 In V4 each spoke would use the Gas Killer SDK. The hub stays as it is: its work is mostly storage writes and the token transfer, which have to be applied anyway.
-
-## Where the saving comes from
-
-The saving comes from the health-factor check in every borrow. Before it lends, the Pool reads the oracle price and balance of every asset in the borrower's position. The largest borrow we measured made 10 `getAssetPrice` calls and 24 price-feed reads, about 517,000 gas of reads. A typical borrow makes 2 `getAssetPrice` calls, about 114,000 gas of reads.
-
-- **What gets cheaper:** the health-factor check runs off-chain. On-chain, only the debt, the index updates, the token transfer and the events are applied.
-- **What stays the same:** the amount lent, the interest-rate update and every risk rule are exactly what the Pool enforces today.
-- **What integration involves:** the Aave V3 Pool would use the Gas Killer SDK. The oracle and token contracts stay as they are.
-- **Who gains:** borrowers, and most of all those with several collateral assets.
-
-## How we measured
-
-We replayed each transaction as Gas Killer would settle it and compared the gas against what it actually cost.
-
-- **Real data:** real mainnet borrows from October 2026, replayed at the block they ran in.
-- **Includes all costs:** the gas saved is net of the signature check and every storage write.
-- **An estimate:** the Pool has not integrated Gas Killer, so the numbers estimate a future integration.
-- **Check it yourself:** you can run any of these transactions through the Gas Killer analyzer at [gaskiller.xyz/analyzer](https://gaskiller.xyz/analyzer).
-- **Consistent over time:** 10 borrows we measured in September 2026 saved 15–60%, the same range as now.
-- **What saves nothing:** `supply`, `repay` and most `withdraw` calls do little work beyond their storage writes, so they save nothing.
-- **Volume:** the Aave V3 Pool received 362 successful borrows in the 8 hours to block 26,199,227, about 1,090 a day. Aave V4's spokes received about 175 direct borrows in the day to block 26,199,586, plus more inside `multicall`.

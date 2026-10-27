@@ -10,7 +10,7 @@ gasUsed: 714878
 saved: 566549
 description: "Gas Killer could cut the gas cost of ynETH MAX's processAccounting by about 76–79%: roughly 565,000 of the 715,000–745,000 gas each update spends today."
 ---
-Gas Killer could cut the gas cost of ynETH MAX's `processAccounting` by about **76–79%**: roughly 565,000 of the 715,000–745,000 gas each update spends today. We measured this on real Ethereum mainnet transactions to the ynETH MAX vault. The saving comes from pricing the vault's strategy positions, which Gas Killer moves off-chain, and it needs no change to what the accounting update writes.
+Gas Killer could cut the gas cost of ynETH MAX's `processAccounting` by about **76–79%**: roughly 565,000 of the 715,000–745,000 gas each update spends today. We measured this on real Ethereum mainnet transactions to the ynETH MAX vault. The saving comes from pricing the vault's strategy positions, and it needs no change to what the accounting update writes.
 
 ## What we measured
 
@@ -24,23 +24,4 @@ All five `processAccounting` transactions we measured save over 75%, and the sav
 | [0xe29d8160…](https://etherscan.io/tx/0xe29d81603083f244d9b0f12dd4c494993ee85472f8a5481b5affbd2b013408ac) | `processAccounting` | 744,448 | 565,106 | **75.9%** |
 | [0xc6995839…](https://etherscan.io/tx/0xc69958393747a9481d4bde0087b6c48646c376644f99bf336bd25714464500e5) | `processAccounting` | 744,047 | 564,705 | **75.9%** |
 
-We also measured four ynRWAx `requestWithdrawal` transactions. They save about 7%, because most of their gas goes to deploying a new withdrawal-request contract, which has to happen on-chain. Savings assume Gas Killer's Schnorr signature scheme.
-
-## Where the saving comes from
-
-The saving comes from how `processAccounting` values the vault. Each update reads the vault's position in every strategy it allocates to, then writes the new total. About 530,000 of the 744,000 gas is those reads.
-
-- **What gets cheaper:** the position reads and the arithmetic over them run off-chain. On-chain, the update only writes the new totals.
-- **What stays the same:** the vault's total assets, its share price and its events are exactly what the contract would produce today.
-- **What integration involves:** one contract, the ynETH MAX vault, would use the Gas Killer SDK, and one sender, the keeper that calls `processAccounting` today, would submit through Gas Killer. The strategies it reads from stay as they are.
-- **Who gains:** YieldNest pays less for every accounting update. The same approach applies to other YieldNest vaults built on the same `Vault` contract.
-
-## How we measured
-
-We replayed each transaction as Gas Killer would settle it and compared the gas against what it actually cost.
-
-- **Real data:** real mainnet transactions, replayed at the block they ran in.
-- **Includes all costs:** the gas saved is net of the signature check and every storage write.
-- **An estimate:** the vault has not integrated Gas Killer, so the numbers estimate a future integration.
-- **Check it yourself:** you can run any of these transactions through the Gas Killer analyzer at [gaskiller.xyz/analyzer](https://gaskiller.xyz/analyzer).
-- **Volume:** we saw 53 `processAccounting` calls in the 30 days we sampled, about 1.8 a day. The total saving grows with how often the vault updates and with gas prices.
+We also measured four ynRWAx `requestWithdrawal` transactions. They save about 7%, because most of their gas goes to deploying a new withdrawal-request contract, which has to happen on-chain.
