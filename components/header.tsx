@@ -44,7 +44,7 @@ const SECTION_LINKS = [
   { href: "#how", label: "How" },
   { href: "#demo", label: "Demo" },
   { href: "#services", label: "Services" },
-  { href: "#case-study", label: "Case study" },
+  { href: "#protocols", label: "Protocols" },
 ]
 
 type IconProps = { className?: string }

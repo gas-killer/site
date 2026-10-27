@@ -300,32 +300,40 @@ export default function Home() {
           </section>
 
           {/* Case Study */}
-          <section id="case-study" className="relative w-full py-20 md:py-28 border-t border-white/10">
+          <section id="protocols" className="relative w-full py-20 md:py-28 border-t border-white/10">
             <div className="pointer-events-none absolute inset-0 grid-dots opacity-30" />
             <div className="relative container px-4 md:px-8 max-w-6xl">
-              <p className="mb-8"><span className="eyebrow-chip">Case study · RAILGUN</span></p>
+              <p className="mb-8"><span className="eyebrow-chip">Across protocols</span></p>
               <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 text-white max-w-4xl text-balance">
-                Privacy on Ethereum at half the cost.
+                Where Gas Killer cuts gas.
               </h2>
               <p className="text-zinc-400 text-lg leading-relaxed max-w-2xl mb-12 text-pretty">
-                RAILGUN uses zk-SNARKs for shielded transactions on Ethereum: powerful, but expensive
-                for everyday users. We ran Gas Killer against 400 historical RAILGUN transactions from
-                October 2025.
+                Estimated gas savings from running each protocol's most expensive functions through Gas Killer.
+                They cover privacy, bridging, lending, derivatives and real-world assets.
               </p>
 
-              <p className="text-zinc-500 text-xs tracking-[0.25em] uppercase mb-6">
-                Average Gas Killer savings for RAILGUN
-              </p>
-              <div className="grid gap-5 md:grid-cols-2">
-                <div className="card-poster !p-8 md:!p-10">
-                  <div className="text-6xl md:text-7xl font-display font-bold text-emerald-300 mb-4">40.9%</div>
-                  <p className="text-zinc-500 text-sm uppercase tracking-widest">Shield</p>
-                </div>
-                <div className="card-poster !p-8 md:!p-10">
-                  <div className="text-6xl md:text-7xl font-display font-bold text-emerald-300 mb-4">53.9%</div>
-                  <p className="text-zinc-500 text-sm uppercase tracking-widest">Transact</p>
-                </div>
-              </div>
+              <ul className="grid gap-5 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                {[
+                  { name: "Aztec", area: "Root verification", saving: 90 },
+                  { name: "Securitize", area: "RWA", saving: 88 },
+                  { name: "Alchemix", area: "DeFi", saving: 85 },
+                  { name: "Starkware", area: "State updates", saving: 80 },
+                  { name: "RAILGUN", area: "Privacy", saving: 70 },
+                  { name: "YieldNest", area: "Rebasing", saving: 70 },
+                  { name: "Derive", area: "Derivatives", saving: 65 },
+                  { name: "Polygon", area: "Agglayer", saving: 65 },
+                  { name: "Aave", area: "DeFi", saving: 60 },
+                  { name: "Privacy Pools", area: "Privacy", saving: 57 },
+                  { name: "Axelar", area: "Bridging", saving: 40 },
+                  { name: "Morpho", area: "DeFi", saving: 40 },
+                ].map((p) => (
+                  <li key={p.name} className="card-poster !p-6">
+                    <p className="text-white font-semibold mb-4">{p.name}</p>
+                    <div className="text-5xl font-display font-bold text-emerald-300 mb-2">{p.saving}%</div>
+                    <p className="text-zinc-500 text-xs uppercase tracking-widest">{p.area}</p>
+                  </li>
+                ))}
+              </ul>
               <div className="mt-10 flex justify-center md:justify-end">
                 <a
                   href="https://paragraph.com/@gaskiller/halving-railgun-gas-costs-how-gas-killer-scales-privacy-on-ethereum"
@@ -333,7 +341,7 @@ export default function Home() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 rounded-full border border-white/20 px-5 py-2.5 text-sm text-zinc-200 hover:border-white/40 hover:text-white transition-colors"
                 >
-                  Read the full post
+                  Read the RAILGUN case study
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <path d="M7 17L17 7M17 7H8M17 7v9" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
