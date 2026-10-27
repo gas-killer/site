@@ -314,25 +314,26 @@ export default function Home() {
 
               <ul className="grid gap-5 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                 {[
-                  { name: "Aztec", area: "Root verification", saving: 90, tx: "0x9a8d9838eef857f9994b0729b72bd146eede46b1fde4b113220d1e79997694ff" },
+                  { name: "Aztec", area: "Root verification", saving: 90 },
                   { name: "Securitize", area: "RWA", saving: 88 },
                   { name: "Alchemix", area: "DeFi", saving: 85 },
                   { name: "Starkware", area: "State updates", saving: 80 },
-                  { name: "RAILGUN", area: "Privacy", saving: 70, tx: "0x7c731150234add278ecae3ee9b6bcd35ee50435cc69bc47cce1a008e54c1f2ce" },
-                  { name: "YieldNest", area: "Rebasing", saving: 70, tx: "0x50a40f345526cec689b36b7b80535726238e5e65ad0ba5dd429b0262075f988b" },
+                  { name: "RAILGUN", area: "Privacy", saving: 70, tx: "0x0376edd36b0c9211b1a38f41e5f1c04233478ca4dcf7d4852ef313deb1c57ade" },
+                  { name: "YieldNest", area: "Rebasing", saving: 70 },
                   { name: "Derive", area: "Derivatives", saving: 65 },
                   { name: "Polygon", area: "Agglayer", saving: 65 },
-                  { name: "Aave", area: "DeFi", saving: 60 },
-                  { name: "Privacy Pools", area: "Privacy", saving: 57 },
+                  { name: "Aave", area: "DeFi", saving: 60, tx: "0xa7a8c34fee3795db241bcdf3e5c0b8b279dcb78f62ceee2f3530c9f38dd1ebec" },
+                  { name: "Privacy Pools", area: "Privacy", saving: 57, tx: "0xe7015e7fe38f6833b43f71619d8fab285666773f6b6723437bae56f7eca1d58b" },
                   { name: "Axelar", area: "Bridging", saving: 40 },
-                  { name: "Morpho", area: "DeFi", saving: 40, tx: "0x16a0a31c0547f2f35018c38f0c2fa3bdcf1320e6a75f998caaa957747e9dc568" },
+                  { name: "Morpho", area: "DeFi", saving: 40, tx: "0x2e91acd5286eeda304294f8f2c9803b7d140dd0cf7426e16ee285e9f6b1f0fca" },
                 ].map((p) => (
                   <li key={p.name} className="card-poster !p-6">
                     <p className="text-white font-semibold mb-4">{p.name}</p>
                     <div className="text-5xl font-display font-bold text-emerald-300 mb-2">{p.saving}%</div>
                     <p className="text-zinc-500 text-xs uppercase tracking-widest">{p.area}</p>
                     {"tx" in p && (
-                      // The analyzer asks for a Gas Killer account, then replays this mainnet transaction.
+                      // The analyzer asks for a Gas Killer account, then replays this mainnet transaction. Each one is the
+                      // measured transaction in gas-analyzer's ALL_TRANSACTION_ANALYSES.md that matches the card's figure.
                       <a
                         href={`/analyzer?network=ethereum&tx=${p.tx}`}
                         className="mt-4 inline-flex items-center gap-1.5 text-sm text-emerald-300 hover:text-emerald-200 transition-colors"
