@@ -64,10 +64,7 @@ export default async function ProtocolPage({ params }: Props) {
             All protocols
           </Link>
 
-          <div className="space-y-3">
-            <p className="text-zinc-500 text-xs uppercase tracking-widest">
-              {p.area} · Ethereum mainnet
-            </p>
+          <div>
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white">
               {p.saving}% less gas for {p.name}.
             </h1>
