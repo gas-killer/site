@@ -24,22 +24,3 @@ All five calls we measured save gas.
 | [0x1b32c4f8…](https://etherscan.io/tx/0x1b32c4f88c6c6cd227dc3baa9ff0b969856b22168d5b307546a4440afc0df0a0) | `execute` | 288,900 | 106,714 | **36.94%** |
 | [0xd3240dc3…](https://etherscan.io/tx/0xd3240dc31bbd2aa3441fe38db2b0f7096a522f0b47acf8f6e9ab245959ef4e58) | `execute` | 350,580 | 98,372 | **28.06%** |
 | [0xf22581da…](https://etherscan.io/tx/0xf22581da072028a061f0edac8ad66cb832e0b306bc7c8bf878a87977452ccbf4) | `execute` | 417,149 | 92,445 | **22.16%** |
-
-Savings assume Gas Killer's Schnorr signature scheme.
-
-## Where the saving comes from
-
-The saving comes from the validator-signature check. The Gateway doesn't run it itself: it calls a separate auth contract ([`0xe3b83f79…`](https://etherscan.io/address/0xe3b83f79fbf01b25659f8a814945ab82186a8ad0)), which spends about 120,000 gas, nearly all of it on `ecrecover`.
-
-- **What gets cheaper:** the signature check runs off-chain. On-chain, only the approved messages and the events are applied.
-- **What stays the same:** which messages are approved, and every rule the auth contract enforces.
-- **What integration involves:** both the Gateway and the auth contract would use the Gas Killer SDK, settling together as a nested settlement. Without the auth contract, the Gateway alone saves nothing.
-
-## How we measured
-
-We replayed each transaction as Gas Killer would settle it and compared the gas against what it actually cost.
-
-- **Real data:** real mainnet `execute` calls from October 2026, replayed at the block they ran in.
-- **Includes all costs:** the gas saved is net of the signature check and every storage write.
-- **Nested settlement:** measured with the auth contract integrated too. The analyzer link below includes it.
-- **An estimate:** Axelar has not integrated Gas Killer, so the numbers estimate a future integration.

@@ -27,22 +27,4 @@ Gas Killer could cut the gas cost of a Morpho VaultV2 deposit, withdrawal or red
 | [0x75d0b00d…](https://etherscan.io/tx/0x75d0b00d40f55130935e8a92b81c0c27c32a81c17370f31e3146cde5cb11eace) | Gauntlet USDC | `withdraw` | 322,057 | 53,618 | **16.65%** |
 | [0x1b1dc70c…](https://etherscan.io/tx/0x1b1dc70c3e2dac7be16b8fbaa63efd9c998bdafd2edff719946cf00f947858bf) | Gauntlet USDC | `deposit` | 351,765 | 50,447 | **14.34%** |
 
-Savings assume Gas Killer's Schnorr signature scheme. Within each vault the saving is nearly the same amount of gas whatever the function, because it is the vault's fixed share-pricing read, not anything that grows with the amount.
-
-## Where the saving comes from
-
-Each call spends 164,000–191,000 gas on read-only calls. The largest is the vault reading its own allocation and accrued interest across the markets it lends to: 179,571 gas in one Steakhouse USDC call.
-
-- **What gets cheaper:** the share-pricing reads run off-chain. On-chain, only the share and asset balances, the transfers and the events are applied.
-- **What stays the same:** the share price, the amounts and every check the vault enforces.
-- **What integration involves:** the VaultV2 contract would use the Gas Killer SDK. The markets it reads stay as they are.
-- **What saves nothing:** `multicall` on the same vaults. Batching entry points adds bookkeeping without adding computation.
-
-## How we measured
-
-We replayed each transaction as Gas Killer would settle it and compared the gas against what it actually cost.
-
-- **Real data:** real mainnet calls to VaultV2 vaults, replayed at the block they ran in.
-- **Includes all costs:** the gas saved is net of the signature check and every storage write.
-- **An estimate:** these vaults have not integrated Gas Killer, so the numbers estimate a future integration.
-- **Volume:** the Steakhouse USDC vault alone received about 12 qualifying calls a day.
+Within each vault the saving is nearly the same amount of gas whatever the function, because it is the vault's fixed share-pricing read, not anything that grows with the amount.

@@ -10,7 +10,7 @@ gasUsed: 724515
 saved: 505863
 description: "Gas Killer could cut the gas cost of Railgun's private transfers by 61–79%, about 72% on a typical transaction."
 ---
-Gas Killer could cut the gas cost of Railgun's private transfers by **61–79%**, about 72% on a typical transaction. We measured this on 15 real mainnet calls to the Railgun smart wallet, and every one of them saved. Most of the gas goes to ZK proof verification and Poseidon hashing, which is the work Gas Killer moves off-chain.
+Gas Killer could cut the gas cost of Railgun's private transfers by **61–79%**, about 72% on a typical transaction. We measured this on 15 real mainnet calls to the Railgun smart wallet, and every one of them saved. Most of the gas goes to ZK proof verification and Poseidon hashing.
 
 ## What we measured
 
@@ -28,25 +28,4 @@ All 15 direct calls we measured save between 61% and 79%. A sample is below, cov
 | [0x7c731150…](https://etherscan.io/tx/0x7c731150234add278ecae3ee9b6bcd35ee50435cc69bc47cce1a008e54c1f2ce) | RelayAdapt bundle | 1,120,780 | 749,350 | **66.9%** |
 | [0x2d754e6f…](https://etherscan.io/tx/0x2d754e6f8a34058e5d07596e627cbc70e0c704279e9f745a4c0baef80389cca7) | RelayAdapt bundle | 523,496 | 237,154 | **45.3%** |
 
-Savings assume Gas Killer's Schnorr signature scheme.
-
 Railgun processes roughly 106 of these transactions a day, so the saving recurs on each one.
-
-## Where the saving comes from
-
-The saving comes from proof verification and Poseidon hashing inside the Railgun smart wallet. What a transaction leaves behind is small: commitment and nullifier slots, plus a few token transfers.
-
-- **What gets cheaper:** the ZK verification and hashing run off-chain. On-chain, only the new commitments, nullifiers and transfers are applied.
-- **What stays the same:** privacy guarantees, commitments and nullifiers are exactly what the contract produces today.
-- **What integration involves:** the smart wallet would use the Gas Killer SDK. RelayAdapt bundles also save, at 45–68%, once RelayAdapt integrates alongside it.
-- **Who gains:** users pay less to shield, transfer and unshield, and relayers pay less to submit.
-
-## How we measured
-
-We replayed each transaction as Gas Killer would settle it and compared the gas against what it actually cost.
-
-- **Real data:** real mainnet transactions, replayed at the block they ran in.
-- **Includes all costs:** the gas saved is net of the signature check and every storage write.
-- **An estimate:** Railgun has not integrated Gas Killer, so the numbers estimate a future integration. The RelayAdapt figures also include an estimated fixed cost for the two-contract setup.
-- **Check it yourself:** you can run any of these transactions through the Gas Killer analyzer at [gaskiller.xyz/analyzer](https://gaskiller.xyz/analyzer).
-- **Volume:** in a 40,000-block sample, 53% of successful Railgun transactions went straight to the smart wallet and 39% went through RelayAdapt.
