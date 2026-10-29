@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { formatGas, formatNative, mostGasInCallees, savedPercent } from "@/lib/analyzer-utils"
+import { formatGas, formatNative, gasKillerEstimate, mostGasInCallees, savedPercent } from "@/lib/analyzer-utils"
 import { NETWORKS, ranUnderGlamsterdam } from "@/lib/networks"
 import type { AnalyzeResponse, FrameTreeAnalysis } from "@/lib/wasm/analyzer"
 import {
@@ -21,7 +21,18 @@ import {
 } from "./nested-settlement"
 import { ShareButton } from "./share-button"
 
-export function AnalysisResults({ response, owned }: { response: AnalyzeResponse; owned: string[] }) {
+export function AnalysisResults({
+  response,
+  owned,
+  initialNested,
+  signedIn = true,
+}: {
+  response: AnalyzeResponse
+  owned: string[]
+  // A nested estimate already run, as an example carries, rather than one to fetch.
+  initialNested?: { analysis: FrameTreeAnalysis; owned: string[] }
+  signedIn?: boolean
+}) {
   const { result, tx, usdPrice } = response
   const network = NETWORKS.find((n) => n.id === tx.network)
   const { callees } = response
@@ -33,15 +44,12 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
   const nested = useNestedSettlement(
     response,
     owned.filter((a) => (callees ? inTrace.has(a) : a !== target)),
+    initialNested,
   )
   const nestedAnalysis = nested.showNested ? nested.estimate?.analysis : undefined
 
   const original = tx.gasUsed
-  // The analyzer's estimate covers the state updates; settling also verifies the operators' signature.
-  // The nested run always prices the struct-log trace, while `result` may come from the prestate net form,
-  // so only nesting's gain over the target alone carries over, not its absolute figure.
-  const nestedGain = nestedAnalysis ? nestedAnalysis.root_only_gas - nestedAnalysis.nested_gas : 0
-  const estimate = result.gas_estimate + result.signature_verification_gas - nestedGain
+  const estimate = gasKillerEstimate(result, nestedAnalysis)
   const saved = original - estimate
   const percent = savedPercent(original, estimate)
   const share = nestedAnalysis ? nested.estimate?.share : response.share
@@ -134,7 +142,12 @@ export function AnalysisResults({ response, owned }: { response: AnalyzeResponse
             <NestedSettlementStatus running={nested.running} error={nested.error} />
           ) : (
             callees.length > 0 && (
-              <NestedSettlementPicker response={response} nested={nested} defaultOpen={nested.owned.length > 0} />
+              <NestedSettlementPicker
+                response={response}
+                nested={nested}
+                defaultOpen={nested.owned.length > 0}
+                signedIn={signedIn}
+              />
             )
           )}
 

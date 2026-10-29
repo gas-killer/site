@@ -1,6 +1,6 @@
 "use client"
 
-import type { ReactNode } from "react"
+import type { ComponentProps } from "react"
 import dynamic from "next/dynamic"
 
 const AnalyzerPage = dynamic(
@@ -11,14 +11,6 @@ const AnalyzerPage = dynamic(
   { ssr: false }
 )
 
-export function AnalyzerLoader({
-  signedIn,
-  linked,
-  examples,
-}: {
-  signedIn: boolean
-  linked?: { network: string; tx: string; owned: string[] }
-  examples?: ReactNode
-}) {
-  return <AnalyzerPage signedIn={signedIn} linked={linked} examples={examples} />
+export function AnalyzerLoader(props: ComponentProps<typeof AnalyzerPage>) {
+  return <AnalyzerPage {...props} />
 }

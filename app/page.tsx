@@ -2,7 +2,7 @@ import { Header } from "@/components/header"
 import { ArchitectureDiagram } from "@/components/architecture-diagram"
 import Image from "next/image"
 import Link from "next/link"
-import { ProtocolCards } from "@/components/protocol-cards"
+import { protocols } from "collections/server"
 
 // A glider on a small grid, echoing the /life board.
 function LifeGlyph() {
@@ -313,7 +313,23 @@ export default function Home() {
                 They cover privacy, bridging, lending, derivatives and real-world assets.
               </p>
 
-              <ProtocolCards className="grid-cols-2 md:grid-cols-3 lg:grid-cols-4" />
+              <ul className="grid gap-5 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                {[...protocols]
+                  .sort((x, y) => y.saving - x.saving)
+                  .map((p) => (
+                    <li key={p.info.path}>
+                      {/* Each protocol's page (content/protocols) breaks down the transaction behind its figure. */}
+                      <Link href={`/protocols/${p.info.path.replace(/\.mdx$/, "")}`} className="group card-poster !p-6 flex h-full flex-col">
+                        <p className="text-white font-semibold mb-4">{p.name}</p>
+                        <div className="text-5xl font-display font-bold text-emerald-300 mb-2">{p.saving}%</div>
+                        <p className="text-zinc-500 text-xs uppercase tracking-widest">{p.area}</p>
+                        <span className="mt-auto pt-4 inline-flex items-center gap-1.5 text-sm text-zinc-300 group-hover:text-white transition-colors">
+                          See the breakdown <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+              </ul>
             </div>
           </section>
 
