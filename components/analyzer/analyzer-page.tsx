@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useReducer, useRef, useState } from "react"
+import { type ReactNode, useEffect, useReducer, useRef, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -54,7 +54,15 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-export function AnalyzerPage({ signedIn, linked }: { signedIn: boolean; linked?: { network: string; tx: string; owned: string[] } }) {
+export function AnalyzerPage({
+  signedIn,
+  linked,
+  examples,
+}: {
+  signedIn: boolean
+  linked?: { network: string; tx: string; owned: string[] }
+  examples?: ReactNode
+}) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [txHash, setTxHash] = useState(linked?.tx ?? "")
   const [selectedNetwork, setSelectedNetwork] = useState(linked?.network ?? NETWORKS[0]?.id ?? "")
@@ -248,6 +256,23 @@ export function AnalyzerPage({ signedIn, linked }: { signedIn: boolean; linked?:
 
           {state.response && (
             <AnalysisResults response={state.response} owned={state.owned} />
+          )}
+
+          {examples && (
+            <section className="space-y-6 pt-8 border-t border-white/10">
+              <div className="space-y-3">
+                <p className="font-display italic text-xs tracking-[0.3em] uppercase text-zinc-500">
+                  Examples
+                </p>
+                <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-white">
+                  Savings we've measured.
+                </h2>
+                <p className="text-zinc-400 max-w-2xl leading-relaxed">
+                  Real transactions from popular protocols, replayed through Gas Killer. Open one to see where the saving comes from.
+                </p>
+              </div>
+              {examples}
+            </section>
           )}
         </div>
       </main>

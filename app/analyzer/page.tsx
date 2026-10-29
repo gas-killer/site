@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { AnalyzerLoader } from "@/components/analyzer/analyzer-loader"
+import { ProtocolCards } from "@/components/protocol-cards"
 import { auth } from "@/lib/auth"
 import { NETWORKS } from "@/lib/networks"
 
@@ -32,5 +33,12 @@ export default async function AnalyzerRoute({ searchParams }: Props) {
   // The analyze route refuses unconfirmed users; the dashboard is where they can resend the confirmation.
   if (session && !session.user.emailVerified) redirect("/dashboard")
 
-  return <AnalyzerLoader signedIn={!!session} linked={linked} />
+  // The protocol collection is server-only, so the cards render here and pass through the client-only analyzer.
+  return (
+    <AnalyzerLoader
+      signedIn={!!session}
+      linked={linked}
+      examples={<ProtocolCards className="grid-cols-2 md:grid-cols-3" />}
+    />
+  )
 }
