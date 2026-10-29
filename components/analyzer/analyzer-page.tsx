@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { useEffect, useReducer, useRef, useState } from "react"
 import { ArrowRight, ChevronDown } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,10 +31,12 @@ type State = {
 
 type RunError = { message: string; code?: string }
 
-type View =
-  | { kind: "form" }
-  | { kind: "examples" }
-  | { kind: "example"; summary: ExampleSummary; analysis: ExampleAnalysis }
+// The view lives in the URL (`?examples` for the picker, `?examples=<slug>` for one), so the browser's back
+// button and a return from a protocol's breakdown page land where the visitor left off.
+function showView(query: "" | "?examples" | `?examples=${string}`) {
+  window.history.pushState(null, "", `/analyzer${query}`)
+  window.scrollTo({ top: 0 })
+}
 
 type Action =
   | { type: "RUN_START"; statusMessage: string }
@@ -73,20 +76,25 @@ export function AnalyzerPage({
   usdPrice: number | null
 }) {
   const [state, dispatch] = useReducer(reducer, initialState)
-  const [view, setView] = useState<View>({ kind: "form" })
-  const [loadingExample, setLoadingExample] = useState<string | null>(null)
+  const searchParams = useSearchParams()
+  const picking = searchParams.has("examples")
+  const picked = examples.find((e) => e.slug === searchParams.get("examples"))
+  const [loaded, setLoaded] = useState<{ slug: string; analysis: ExampleAnalysis } | null>(null)
+  const shown = picked && loaded?.slug === picked.slug ? loaded.analysis : undefined
   const [txHash, setTxHash] = useState(linked?.tx ?? "")
   const [selectedNetwork, setSelectedNetwork] = useState(linked?.network ?? NETWORKS[0]?.id ?? "")
   const [owned, setOwned] = useState<string[]>(linked?.owned ?? [])
 
-  async function openExample(summary: ExampleSummary) {
-    setLoadingExample(summary.slug)
-    try {
-      setView({ kind: "example", summary, analysis: await EXAMPLE_ANALYSES[summary.slug]() })
-    } finally {
-      setLoadingExample(null)
+  useEffect(() => {
+    if (!picked || loaded?.slug === picked.slug) return
+    let current = true
+    EXAMPLE_ANALYSES[picked.slug]().then((analysis) => {
+      if (current) setLoaded({ slug: picked.slug, analysis })
+    })
+    return () => {
+      current = false
     }
-  }
+  }, [picked, loaded])
 
   async function handleAnalyze() {
     if (!txHash.trim() || !selectedNetwork) return
@@ -168,28 +176,28 @@ export function AnalyzerPage({
             </Alert>
           )}
 
-          {view.kind === "examples" && (
+          {picking && !shown && (
             <ExamplePicker
               examples={examples}
-              loading={loadingExample}
-              onPick={openExample}
-              onBack={() => setView({ kind: "form" })}
+              loading={picked?.slug ?? null}
+              onPick={(example) => showView(`?examples=${example.slug}`)}
+              onBack={() => showView("")}
             />
           )}
 
-          {view.kind === "example" && (
+          {picked && shown && (
             <ExampleView
-              summary={view.summary}
-              analysis={view.analysis}
+              summary={picked}
+              analysis={shown}
               usdPrice={usdPrice}
               signedIn={signedIn}
-              onBack={() => setView({ kind: "examples" })}
+              onBack={() => showView("?examples")}
             />
           )}
 
           {/* Hidden rather than unmounted, so what the visitor entered is still there when they come back. */}
           <form
-            hidden={view.kind !== "form"}
+            hidden={picking}
             onSubmit={(e) => {
               e.preventDefault()
               if (canAnalyze) handleAnalyze()
@@ -203,7 +211,7 @@ export function AnalyzerPage({
                     type="button"
                     variant="link"
                     size="sm"
-                    onClick={() => setView({ kind: "examples" })}
+                    onClick={() => showView("?examples")}
                     className="h-auto px-0 text-zinc-300 hover:text-white"
                   >
                     See an example analysis
@@ -286,7 +294,7 @@ export function AnalyzerPage({
             </Card>
           </form>
 
-          {view.kind === "form" && state.error && (
+          {!picking && state.error && (
             <Alert variant="destructive" className="border-rose-500/30 bg-rose-950/40 text-rose-200">
               <AlertTitle>Analysis failed</AlertTitle>
               {state.error.code === "trace_too_large" ? (
@@ -307,7 +315,7 @@ export function AnalyzerPage({
             </Alert>
           )}
 
-          {view.kind === "form" && state.response && (
+          {!picking && state.response && (
             <AnalysisResults response={state.response} owned={state.owned} />
           )}
         </div>

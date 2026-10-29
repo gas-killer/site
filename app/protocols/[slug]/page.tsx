@@ -1,9 +1,10 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeft, ArrowRight, ExternalLink } from "lucide-react"
+import { Suspense } from "react"
+import { ArrowRight, ExternalLink } from "lucide-react"
 import { protocols } from "collections/server"
 import { Header } from "@/components/header"
+import { ProtocolBackLink, ProtocolsLink } from "@/components/protocol-back-link"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { GasBar } from "@/components/analyzer/analysis-results"
 import { formatGas, savedPercent } from "@/lib/analyzer-utils"
@@ -59,10 +60,10 @@ export default async function ProtocolPage({ params }: Props) {
       <Header />
       <main className="flex-1">
         <div className="container max-w-4xl px-4 py-12 md:py-16 space-y-10">
-          <Link href="/#protocols" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-white transition-colors">
-            <ArrowLeft className="size-4" aria-hidden />
-            All protocols
-          </Link>
+          {/* The pages are static, so where the visitor came from is only known in the browser. */}
+          <Suspense fallback={<ProtocolsLink />}>
+            <ProtocolBackLink slug={slugOf(p.info.path)} />
+          </Suspense>
 
           <div>
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white">

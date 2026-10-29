@@ -93,7 +93,7 @@ export function ExampleView({
         <h2 className="text-xl font-semibold text-white">{summary.fn}</h2>
         <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">{summary.description}</p>
         <Link
-          href={`/protocols/${summary.slug}`}
+          href={`/protocols/${summary.slug}?from=analyzer`}
           className="inline-flex items-center gap-1.5 text-sm text-emerald-300 underline-offset-4 hover:underline"
         >
           Read the full breakdown
