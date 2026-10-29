@@ -1,3 +1,5 @@
+import type { AnalyzeTraceResult, FrameTreeAnalysis } from "@/lib/wasm/analyzer"
+
 export function formatGas(gas: number): string {
   return gas.toLocaleString()
 }
@@ -9,6 +11,17 @@ export function formatGas(gas: number): string {
  */
 export function mostGasInCallees(nativeCallGas: number, gasUsed: number): boolean {
   return gasUsed > 0 && nativeCallGas * 2 >= gasUsed
+}
+
+/**
+ * Gas the transaction would cost settled through Gas Killer. The analyzer's estimate covers the state updates;
+ * settling also verifies the operators' signature. The nested run always prices the struct-log trace, while
+ * `result` may come from the prestate net form, so only nesting's gain over the target alone carries over, not
+ * its absolute figure.
+ */
+export function gasKillerEstimate(result: AnalyzeTraceResult, nested?: FrameTreeAnalysis): number {
+  const nestedGain = nested ? nested.root_only_gas - nested.nested_gas : 0
+  return result.gas_estimate + result.signature_verification_gas - nestedGain
 }
 
 /** Percent of `gasUsed` that settling for `estimate` saves; negative when it costs more. */

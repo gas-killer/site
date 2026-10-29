@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Check, ChevronDown, ExternalLink, Sparkles, X } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -17,13 +18,20 @@ export type NestedSettlementState = ReturnType<typeof useNestedSettlement>
 
 /**
  * What the transaction would save if contracts it calls integrated Gas Killer too, settling as nested
- * frames under one signature. Estimates `preselected` straight away when it isn't empty.
+ * frames under one signature. Estimates `preselected` straight away when it isn't empty, unless `ran`
+ * already holds an estimate.
  */
-export function useNestedSettlement({ tx, share }: AnalyzeResponse, preselected: string[]) {
+export function useNestedSettlement(
+  { tx, share }: AnalyzeResponse,
+  preselected: string[],
+  ran?: { analysis: FrameTreeAnalysis; owned: string[] },
+) {
   const [initial] = useState(preselected)
-  const [owned, setOwned] = useState(preselected)
+  const [owned, setOwned] = useState(ran?.owned ?? preselected)
   const [running, setRunning] = useState(false)
-  const [estimate, setEstimate] = useState<{ analysis: FrameTreeAnalysis; owned: string[]; share?: string } | null>(null)
+  const [estimate, setEstimate] = useState<{ analysis: FrameTreeAnalysis; owned: string[]; share?: string } | null>(
+    ran ?? null,
+  )
   const [error, setError] = useState<string | null>(null)
   const [showNested, setShowNested] = useState(true)
   const started = useRef(false)
@@ -74,10 +82,12 @@ export function NestedSettlementPicker({
   response: { tx, callees },
   nested,
   defaultOpen,
+  signedIn,
 }: {
   response: AnalyzeResponse
   nested: NestedSettlementState
   defaultOpen: boolean
+  signedIn: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const { owned, toggle, running, error, estimate, rerun } = nested
@@ -124,22 +134,35 @@ export function NestedSettlementPicker({
           })}
         </ul>
 
-        <Button
-          type="button"
-          size="sm"
-          onClick={rerun}
-          disabled={running || owned.length === 0 || unchanged}
-          className="bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500"
-        >
-          {running ? (
-            <>
-              <Spinner className="mr-2 text-black" />
-              Estimating...
-            </>
-          ) : (
-            "Rerun with nested savings"
-          )}
-        </Button>
+        {signedIn ? (
+          <Button
+            type="button"
+            size="sm"
+            onClick={rerun}
+            disabled={running || owned.length === 0 || unchanged}
+            className="bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500"
+          >
+            {running ? (
+              <>
+                <Spinner className="mr-2 text-black" />
+                Estimating...
+              </>
+            ) : (
+              "Rerun with nested savings"
+            )}
+          </Button>
+        ) : (
+          // Signed out, which only an example allows: sign-up lands back on the analyzer with these preselected.
+          <Button asChild size="sm" className="bg-white text-black hover:bg-zinc-200">
+            <Link
+              href={`/signup?next=${encodeURIComponent(
+                `/analyzer?network=${tx.network}&tx=${tx.hash}${owned.length ? `&owned=${owned.join(",")}` : ""}`,
+              )}`}
+            >
+              Sign up to rerun with nested savings
+            </Link>
+          </Button>
+        )}
 
         {error && <EstimateFailed error={error} />}
       </CollapsibleContent>
