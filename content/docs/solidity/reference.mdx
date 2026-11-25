@@ -5,7 +5,9 @@ description: GasKillerSDK and GasKillerNestedSDK API surface, state update types
 
 import { Callout } from "fumadocs-ui/components/callout"
 
-API surface of `GasKillerSDK`. Inheriting it gives your contract everything on
+API surface of `GasKillerSDK` as of
+[solidity-sdk v0.2.0](https://github.com/gas-killer/solidity-sdk/releases/tag/v0.2.0),
+the version the router serves. Inheriting it gives your contract everything on
 this page.
 
 ```solidity
@@ -23,10 +25,15 @@ abstract contract GasKillerNestedSDK is GasKillerSDK, IGasKillerNested
 | Constant | Value | Meaning |
 | --- | --- | --- |
 | — | `300` | Default `blockStaleMeasure`, in blocks, when unset |
-| ERC-165 id | `0x82b35a01` | `IGasKillerSDK`; the router requires it |
-| ERC-165 id | `0xce8e6efc` | `IGasKillerSDKBatch`; batching and the in-transition latch |
-| ERC-165 id | `0x0fd29ece` | `IGasKillerValueBound`; required for tasks with value |
+| ERC-165 id | `0x57a9b002` | `IGasKillerSDK` v0.2.0; the router requires it |
+| ERC-165 id | `0xe40b0195` | `IGasKillerSDKBatch` v0.2.0; batching and the in-transition latch |
+| ERC-165 id | `0x0fd29ece` | `IGasKillerValueBound`; the digest binds `msg.value` |
 | ERC-165 id | `0x78481874` | `IGasKillerNested`; the contract can take part in nested settlement |
+
+The `IGasKillerSDK` id is the `verifyAndUpdate` selector, so it names the
+settlement format. A target reporting v0.1.0's `0x82b35a01` signs a different
+digest, and the router refuses it: see
+[Upgrading from v0.1.0](/docs/solidity/upgrading).
 
 The quorum threshold is not an SDK constant. It belongs to the
 `SchnorrStakeRegistry` the target is wired to, as `thresholdNum / thresholdDen`
@@ -39,7 +46,6 @@ it by hand), but its parameters explain every failure mode.
 
 ```solidity
 function verifyAndUpdate(
-    bytes32 msgHash,
     uint32 referenceBlockNumber,
     bytes calldata storageUpdates,
     uint256 transitionIndex,
@@ -52,25 +58,32 @@ function verifyAndUpdate(
 
 | Parameter | Purpose |
 | --- | --- |
-| `msgHash` | The signed digest; recomputed on-chain and compared |
 | `referenceBlockNumber` | Block the operator set is evaluated at |
-| `storageUpdates` | ABI-encoded `(StateUpdateType[], bytes[])` — the diff to apply |
+| `storageUpdates` | ABI-encoded `(StateUpdateType[], bytes[])`, the program to apply |
 | `transitionIndex` | Counter value this payload was computed against |
 | `targetFunction` | Selector of the tracked function that was simulated |
 | `s` | Aggregate Schnorr response scalar |
 | `Raddr` | Aggregate nonce, as `address(R)` |
 | `nonSigners` | Operators that did not sign, in strictly ascending order |
 
-It executes in this order, so an earlier check masks any later one:
+The call carries no digest. The contract rebuilds it from these fields, its own
+address, the chain id and `msg.value`, and the registry checks the signature
+against that. It executes in this order, so an earlier check masks any later one:
 
 1. `referenceBlockNumber < block.number` → else `FutureBlockNumber`
 2. `referenceBlockNumber + blockStaleMeasure >= block.number` → else `StaleBlockNumber`
 3. `transitionIndex + 1 == stateTransitionCount()` → else `InvalidTransitionIndex`
-4. Digest, including `msg.value`, matches `msgHash` → else `InvalidSignature`
-5. `isValidSignature` on the configured registry: subtract each non-signer's key
-   and weight from the aggregate, check the threshold, verify the signature →
-   else `InvalidQuorumSignature`, or a registry revert
-6. Apply the updates
+4. `isValidSignature` on the configured registry, over the rebuilt digest:
+   subtract each non-signer's key and weight from the aggregate, check the
+   threshold, verify the signature → else `InvalidQuorumSignature`, or a
+   registry revert
+5. Apply the updates in order, each `STORE` checked against
+   [protected storage](/docs/solidity/protection#protected-storage) and each
+   call against the [call policy](/docs/solidity/protection#restricting-calls)
+
+A payload that differs from what the quorum signed in any field, including the
+ETH sent with it, fails at step 4 with `InvalidQuorumSignature`, the same error
+as a bad signature.
 
 Verification gas doesn't grow with the size of the operator set: one `ecrecover`
 against the registry's cached aggregate key, plus one point subtraction per
@@ -79,14 +92,18 @@ non-signer.
 ### The signed digest
 
 ```solidity
-sha256(abi.encode(transitionIndex, address(this), targetFunction, storageUpdates))
+sha256(abi.encode(transitionIndex, block.chainid, address(this), targetFunction, storageUpdates))
 // with msg.value appended when the transition carries ETH:
-sha256(abi.encode(transitionIndex, address(this), targetFunction, storageUpdates, msg.value))
+sha256(abi.encode(transitionIndex, block.chainid, address(this), targetFunction, storageUpdates, msg.value))
 ```
 
-It binds the payload to one contract, one state of it, and the exact ETH sent.
+It binds the payload to one chain, one contract, one state of it, and the exact
+ETH sent. The chain id stops a payload signed for one chain from settling on
+another, even for a contract deployed at the same address on both.
 `getMessageHash(transitionIndex, targetFunction, storageUpdates)` and
-`getMessageHashWithValue(..., value)` return it for off-chain checks.
+`getMessageHashWithValue(..., value)` return it for off-chain checks. Call them
+on the deployed contract, on the chain it settles on: a fork or another
+deployment gives a different digest.
 
 ## `verifyAndUpdateBatch`
 
@@ -95,7 +112,6 @@ transition after the first verifies at warm-access prices.
 
 ```solidity
 struct TaskSubmission {
-    bytes32 msgHash;
     uint32 referenceBlockNumber;
     bytes storageUpdates;
     uint256 transitionIndex;
@@ -119,7 +135,8 @@ the batch, so someone settling one submission first can't void the rest. Only a
 gap in the indexes reverts, with `InvalidTransitionIndex`.
 
 Send at least the sum of the submissions' `value`. Any surplus, such as a
-skipped submission's share, is refunded to the sender.
+skipped submission's share, is refunded to the sender. No submission may spend
+ETH that a later one brought (`UnattributedValueSpent`).
 
 ## `verifyAndUpdateTree`
 
@@ -142,13 +159,18 @@ exceeds.
 | Type | Effect |
 | --- | --- |
 | `STORE` | Write a 32-byte value to a storage slot |
-| `CALL` | External call, optionally with ETH value |
+| `CALL` | External call, optionally with ETH value, with the result and callee gas the trace saw |
 | `LOG0`–`LOG4` | Emit a log with 0–4 indexed topics |
-| `CREATE` | Deploy a contract, nonce-derived address |
+| `CREATE` | Deploy a contract, nonce-derived address, checked against the traced one |
 | `CREATE2` | Deploy a contract, salt-derived address |
 | `NESTED` | Have a nested Gas Killer contract apply its own part, optionally with ETH value |
+| `STATICCALL_CHECK` | Re-run a read the trace made and check its result |
+| `BALANCE_CHECK` | Check an account's ETH balance |
+| `CODEHASH_CHECK` | Check an account's code hash |
 
-Most integrations only ever produce `STORE` and `LOG*`. See
+Most integrations only ever produce `STORE` and `LOG*`. The `*_CHECK` ops, and
+the result a `CALL` carries, pin what your function read from other contracts:
+see [Pinned observations](/docs/solidity/protection#pinned-observations). See
 [Tracked functions](/docs/solidity/tracked-functions#value-bearing-transitions)
 for the funding rules that apply to the value-bearing types.
 
@@ -171,6 +193,18 @@ From `TransitionGuard`:
 Both use fixed hashed slots, and `TransitionGuard` uses EIP-1153 transient
 storage, so a Cancun-or-later EVM is required.
 
+From `GasKillerSDK`, the hooks that decide what a program may do. See
+[Protecting your contract](/docs/solidity/protection):
+
+| Member | Default |
+| --- | --- |
+| `_protectedRanges()` | No ranges beyond the SDK's own |
+| `gasKillerProtectedRanges()` | Returns the merged list a settlement checks |
+| `_unsafeDisableStorageGuard()` | `false` |
+| `_allowSelfCall(bytes4)` | `false`: every call to the contract itself is rejected |
+| `_authorizeCall(...)` | Allows every `CALL`, `CREATE`, `CREATE2` and `NESTED` |
+| `_maxOutgoingValue()` | No cap |
+
 ## Revert selectors
 
 What a failed settlement means. Reverts from the SDK:
@@ -180,16 +214,37 @@ What a failed settlement means. Reverts from the SDK:
 | `0x252f8a0e` | `FutureBlockNumber` | Reference block is not yet mined | Retry; usually a node lagging behind head |
 | `0x305c3e93` | `StaleBlockNumber` | Payload older than `blockStaleMeasure` | Submit a new task — the payload expired |
 | `0x7376e0a2` | `InvalidTransitionIndex` | Contract state advanced since signing | Submit a new task; another transition landed first |
-| `0x8baa579f` | `InvalidSignature` | Recomputed digest ≠ `msgHash` | Send exactly the payload's `value`; otherwise the payload was altered |
-| `0x68477238` | `InvalidQuorumSignature` | The registry rejected the signature | See [below](#invalidquorumsignature) |
+| `0x68477238` | `InvalidQuorumSignature` | The registry rejected the signature over the rebuilt digest | See [below](#invalidquorumsignature) |
 | `0xc2e5347d` | `EmptyBatch` | `verifyAndUpdateBatch` called with no submissions | Report it — malformed batch |
 | `0x1eb7025c` | `InsufficientBatchValue` | `msg.value` below the applied submissions' total `value` | Send at least the sum of every submission's `value` |
+| `0x4f70fb1c` | `UnattributedValueSpent` | A batch item spent ETH a later item brought | Settle the items separately |
 | `0x83a33c51` | `BlockStaleMeasureOverflow` | `_setBlockStaleMeasure` given a value above `uint96` | Fix the value your contract passes |
 | `0x287cdced` | `ReentrantTransition` | `verifyAndUpdate` re-entered mid-transition | A `CALL` update re-entered the contract; see `inTransition()` |
 | `0x493f09c4` | `RevertingContext` | An external or nested call reverted | Decode its inner revert data. Empty data on a call that sends ETH usually means the balance is short |
 | `0x30116425` | `DeploymentFailed` | A `CREATE`/`CREATE2` update failed | Often a balance that can't cover the deployment's value |
+| `0x3f7e9ccd` | `ObservationMismatch` | Something the trace read from outside (a call's result, a balance, a code hash, a created address) changed before settlement | Submit a new task |
+| `0x3f1711dc` | `InsufficientCallGas` | The transaction's gas limit leaves too little for a `CALL` update's signed gas | Resend with a higher gas limit |
+| `0x82b6b1be` | `ProtectedSlotWrite` | A `STORE` would change [protected storage](/docs/solidity/protection#protected-storage) | Your tracked function changes protected state natively, so it can't settle through Gas Killer |
+| `0x5b043860` | `SelfCall` | A `CALL` to the contract itself with a selector `_allowSelfCall` rejects | Allow the selector if your tracked function calls `this.foo()`, see [Restricting calls](/docs/solidity/protection#restricting-calls) |
+| `0x7505e672` | `OutgoingValueExceeded` | The program sends more ETH than `_maxOutgoingValue()` | Raise the cap, or the program isn't one you meant to allow |
+| `0x9feaa755` | `InvalidRanges` | Your `_protectedRanges()` list is unsorted, overlapping or collides with an SDK slot | Fix the list; this reverts at deployment |
+| `0xe71a5618` | `NoProtectedRanges` | A program ran with an empty protected-range list | Report it |
+| `0x9ddf439b` | `MalformedOp` | A `CALL` or `CREATE` update isn't in the v0.2.0 layout | Report it |
 | `0x5f6f132c` | `InvalidArguments` | Update arguments malformed | Report it |
 | `0x25773e13` | `MalformedLogPayload` | Log update malformed | Report it |
+
+Reverts from the optional
+[extensions](/docs/solidity/protection#rate-limits-and-allow-lists), when your
+contract inherits one:
+
+| Selector | Error | Cause |
+| --- | --- | --- |
+| `0x7d795dd9` | `OutgoingRateLimitExceeded` | A program's op would send more ETH than the outgoing budget holds |
+| `0x3aa9ea29` | `NativeOutflowRateLimitExceeded` | A `limitsOutflow` function paid out more ETH than the budget holds |
+| `0x55bc90b6` | `TokenRateLimitExceeded` | A listed token's outflow passed its budget |
+| `0x06d96b82` | `UnrecognizedTokenCall` | A call to a listed token that the limit can't account for |
+| `0xa9e16ce5` | `CallNotAllowed` | A `CALL` or `NESTED` target and selector not on the allow-list |
+| `0x241efdd1` | `DeploymentNotAllowed` | A `CREATE`/`CREATE2` while deployments are off |
 
 ### Nested settlement reverts
 
@@ -219,8 +274,12 @@ Reverts that come from the `SchnorrStakeRegistry`, not the SDK:
 
 ### `InvalidQuorumSignature`
 
-The registry returned `false`. There are two causes:
+The registry returned `false` for the digest the contract rebuilt. There are
+three causes:
 
+- **The payload was changed.** The digest covers every field, plus the chain and
+  the ETH sent, so sending any `value` but the payload's, or settling on another
+  chain, fails here. Send the payload as-is.
 - **Too few signers.** The operators who signed hold less than the threshold
   share of the registry's weight. This is transient: too many operators missed
   the round.
@@ -234,7 +293,7 @@ The registry returned `false`. There are two causes:
   locally by replaying the payload at a block inside its validity window:
 
 ```bash
-cast call "$TO" "$DATA" --from "$FROM" --block <n> --rpc-url "$RPC_URL"
+cast call "$TO" "$DATA" --from "$FROM" --value "$VALUE" --block <n> --rpc-url "$RPC_URL"
 ```
 
   A payload that reverts at *every* block in its window is not a timing problem:
@@ -243,6 +302,7 @@ cast call "$TO" "$DATA" --from "$FROM" --block <n> --rpc-url "$RPC_URL"
 
 ## Source
 
-- [`gas-killer/solidity-sdk`](https://github.com/gas-killer/solidity-sdk) — the SDK
+- [`gas-killer/solidity-sdk`](https://github.com/gas-killer/solidity-sdk) — the SDK,
+  whose README covers verification, protected storage and the call policy in depth
 - [`gas-killer/example-contracts`](https://github.com/gas-killer/example-contracts) —
   worked examples of progressively richer targets

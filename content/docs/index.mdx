@@ -64,7 +64,9 @@ Inheriting `GasKillerSDK` is what makes a contract a valid target. It supplies:
 | `stateTransitionCount()` | Binds a payload to one specific state, so it cannot be replayed. |
 | `avsAddress` / `schnorrRegistry` | The operator set the contract trusts. |
 | `inTransition()` | Lets external readers reject mid-transition state. |
+| Protected storage and call policy | Stop a signed program from rewriting the SDK's state, or calling back into the contract. |
 
-See the [Solidity Reference](/docs/solidity/reference) for the full surface, and
+The router serves targets built on solidity-sdk v0.2.0. See the
+[Solidity Reference](/docs/solidity/reference) for the full surface, and
 [Configuration](/docs/solidity/configuration) for the addresses a target must be
 wired to.

@@ -41,10 +41,11 @@ You can borrow one for this guide, or use your own.
 
 <Tab value="Use the public demo target">
 
-A deployed `ArraySummation` on Sepolia, already wired to the live operator set:
+A deployed `ArraySummation` on Sepolia, already wired to the live operator set.
+The router publishes its address, so read it from there rather than copying it:
 
 ```bash
-export TARGET_ADDRESS="0x92080876E018688d0E7f1a8693280dAA62005735"
+export TARGET_ADDRESS=$(curl -s "$ROUTER_URL/avs-metadata" | jq -r .contracts.demoTarget)
 ```
 
 Its tracked function is `sum(uint256[] indexes)`, which adds up the array
@@ -55,7 +56,7 @@ Check it is still a live target before relying on it. `true` means the router
 will accept tasks for it:
 
 ```bash
-cast call "$TARGET_ADDRESS" "supportsInterface(bytes4)(bool)" 0x82b35a01 \
+cast call "$TARGET_ADDRESS" "supportsInterface(bytes4)(bool)" 0x57a9b002 \
   --rpc-url "$RPC_URL"
 ```
 
@@ -273,7 +274,7 @@ A `ready` response looks like this:
   "error": null,
   "payload": {
     "to": "0x92080876e018688d0e7f1a8693280daa62005735",
-    "data": "0x82b35a01000000000000000000000000000000000000000000000000000000000000002a",
+    "data": "0x57a9b002000000000000000000000000000000000000000000000000000000000000002a",
     "value": "0x0",
     "chain_id": 11155111,
     "estimated_gas": 257468,
