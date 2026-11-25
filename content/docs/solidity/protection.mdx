@@ -105,23 +105,45 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GasKillerSDK} from "gas-killer-sdk/GasKillerSDK.sol";
 import {StateUpdateType} from "gas-killer-sdk/StateChangeHandlerLib.sol";
 
+/// Holds `token` and pays it out only to `payee`.
 contract Vault is GasKillerSDK {
-    error NoDeployments(uint256 index);
     error DisallowedCall(uint256 index);
 
     IERC20 public immutable token;
+    address public immutable payee;
 
-    // constructor wires the SDK and sets `token`
+    constructor(address avs, address schnorrRegistry, IERC20 token_, address payee_) {
+        _setAvsAddress(avs);
+        _setSchnorrRegistry(schnorrRegistry);
+        token = token_;
+        payee = payee_;
+    }
 
+    /// Programs send no ETH.
+    function _maxOutgoingValue() internal pure override returns (uint256) {
+        return 0;
+    }
+
+    /// The only op a program may run is `token.transfer(payee, amount)`.
     function _authorizeCall(uint256 index, StateUpdateType kind, address target, uint256, bytes memory data)
         internal
+        view
         override
     {
-        if (kind == StateUpdateType.CREATE || kind == StateUpdateType.CREATE2) revert NoDeployments(index);
-        if (target == address(token) && bytes4(data) != IERC20.transfer.selector) revert DisallowedCall(index);
+        if (kind != StateUpdateType.CALL || target != address(token)) revert DisallowedCall(index);
+        if (data.length != 68 || bytes4(data) != IERC20.transfer.selector) revert DisallowedCall(index);
+        uint256 to;
+        assembly {
+            to := mload(add(data, 0x24)) // the first argument, after the length word and selector
+        }
+        if (to != uint256(uint160(payee))) revert DisallowedCall(index);
     }
 }
 ```
+
+It denies by default: every deployment, nested call and call to another
+contract is rejected, and so is any ETH. A program can still send `payee` any
+amount of the token; to bound that over time, use a rate-limit base below.
 
 No hook is told which tracked function a transition is for, because nothing
 checks that against the program. Write every rule to be safe for any program.

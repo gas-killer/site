@@ -45,7 +45,8 @@ A deployed `ArraySummation` on Sepolia, already wired to the live operator set.
 The router publishes its address, so read it from there rather than copying it:
 
 ```bash
-export TARGET_ADDRESS=$(curl -s "$ROUTER_URL/avs-metadata" | jq -er .contracts.demoTarget)
+TARGET_ADDRESS=$(curl -fsS "$ROUTER_URL/avs-metadata" | jq -r ".contracts.demoTarget // empty")
+export TARGET_ADDRESS="${TARGET_ADDRESS:?the router did not publish a demo target}"
 ```
 
 Its tracked function is `sum(uint256[] indexes)`, which adds up the array
