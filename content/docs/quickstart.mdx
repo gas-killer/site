@@ -45,7 +45,7 @@ A deployed `ArraySummation` on Sepolia, already wired to the live operator set.
 The router publishes its address, so read it from there rather than copying it:
 
 ```bash
-export TARGET_ADDRESS=$(curl -s "$ROUTER_URL/avs-metadata" | jq -r .contracts.demoTarget)
+export TARGET_ADDRESS=$(curl -s "$ROUTER_URL/avs-metadata" | jq -er .contracts.demoTarget)
 ```
 
 Its tracked function is `sum(uint256[] indexes)`, which adds up the array
@@ -263,7 +263,8 @@ const payload = await pollUntilReady(task_id)
 
 </Tabs>
 
-A `ready` response looks like this:
+A `ready` response looks like this. The IDs, gas estimate and block number are
+illustrative; yours will differ:
 
 ```json
 {

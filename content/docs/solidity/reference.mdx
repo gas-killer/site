@@ -31,9 +31,7 @@ abstract contract GasKillerNestedSDK is GasKillerSDK, IGasKillerNested
 | ERC-165 id | `0x78481874` | `IGasKillerNested`; the contract can take part in nested settlement |
 
 The `IGasKillerSDK` id is the `verifyAndUpdate` selector, so it names the
-settlement format. A target reporting v0.1.0's `0x82b35a01` signs a different
-digest, and the router refuses it: see
-[Upgrading from v0.1.0](/docs/solidity/upgrading).
+settlement format. The router accepts only targets that report `0x57a9b002`.
 
 The quorum threshold is not an SDK constant. It belongs to the
 `SchnorrStakeRegistry` the target is wired to, as `thresholdNum / thresholdDen`

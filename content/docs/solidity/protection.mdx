@@ -101,12 +101,25 @@ value should write a policy with two hooks:
   ops (`OutgoingValueExceeded`).
 
 ```solidity
-function _authorizeCall(uint256 index, StateUpdateType kind, address target, uint256, bytes memory data)
-    internal
-    override
-{
-    if (kind == StateUpdateType.CREATE || kind == StateUpdateType.CREATE2) revert NoDeployments(index);
-    if (target == address(token) && bytes4(data) != IERC20.transfer.selector) revert DisallowedCall(index);
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {GasKillerSDK} from "gas-killer-sdk/GasKillerSDK.sol";
+import {StateUpdateType} from "gas-killer-sdk/StateChangeHandlerLib.sol";
+
+contract Vault is GasKillerSDK {
+    error NoDeployments(uint256 index);
+    error DisallowedCall(uint256 index);
+
+    IERC20 public immutable token;
+
+    // constructor wires the SDK and sets `token`
+
+    function _authorizeCall(uint256 index, StateUpdateType kind, address target, uint256, bytes memory data)
+        internal
+        override
+    {
+        if (kind == StateUpdateType.CREATE || kind == StateUpdateType.CREATE2) revert NoDeployments(index);
+        if (target == address(token) && bytes4(data) != IERC20.transfer.selector) revert DisallowedCall(index);
+    }
 }
 ```
 

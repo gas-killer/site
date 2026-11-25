@@ -120,8 +120,8 @@ would otherwise debug from a revert:
 cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x57a9b002 --rpc-url "$RPC_URL"
 ```
 
-`false` usually means the contract was built on an older SDK. See
-[Upgrading from v0.1.0](/docs/solidity/upgrading).
+`false` means the contract doesn't inherit `GasKillerSDK` from solidity-sdk
+v0.2.0. Check that `lib/solidity-sdk` is at the `v0.2.0` tag.
 
 </Step>
 
