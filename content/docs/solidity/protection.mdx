@@ -1,0 +1,196 @@
+---
+title: Protecting your contract
+description: What a signed program may change, what it may call, and what it pins from the trace.
+---
+
+import { Callout } from "fumadocs-ui/components/callout"
+
+A settlement runs a program the operator quorum signed: storage writes, logs, and
+sometimes calls. The quorum attests that the program is what your tracked
+function produced. The SDK also limits what any program can do, so that a
+compromised quorum can't simply rewrite your contract. Three mechanisms do that,
+and the first two are on by default:
+
+| Mechanism | Default | What it stops |
+| --- | --- | --- |
+| [Protected storage](#protected-storage) | The SDK's own slots | A `STORE` that rewrites your owner, the registry or the transition counter |
+| [Call policy](#restricting-calls) | Calls to the contract itself rejected | A `CALL` that reaches functions gated on `msg.sender == address(this)` |
+| [Pinned observations](#pinned-observations) | Emitted by the analyzer | A settlement that runs against external state the trace didn't see |
+
+This page is the integration view. The SDK's
+[README](https://github.com/gas-killer/solidity-sdk/tree/v0.2.0#protected-storage)
+has the full rules and measured costs.
+
+## Protected storage
+
+Every `STORE` is checked, right before it runs, against a list of protected
+storage ranges. A write that would change a protected bit reverts the whole
+transition with `ProtectedSlotWrite`.
+
+**On by default.** With no code, every target protects the SDK's own state: the
+transition counter, and the configuration namespace holding `avsAddress`,
+`schnorrRegistry` and `blockStaleMeasure`. Behind an EIP-1967 proxy, the
+implementation, beacon and admin slots are protected too.
+
+**Add your own privileged slots.** If your contract has an owner, a pauser, or
+any state that grants control, list its slots by overriding `_protectedRanges()`.
+Return inclusive `[start, end]` ranges in ascending order:
+
+```solidity
+import {StorageGuard} from "gas-killer-sdk/libraries/StorageGuard.sol";
+
+function _protectedRanges() internal pure override returns (StorageGuard.ProtectedRange[] memory r) {
+    r = new StorageGuard.ProtectedRange[](1);
+    r[0] = StorageGuard.ProtectedRange(0, 0, StorageGuard.FULL); // Ownable._owner, in slot 0
+}
+```
+
+Find the slots with `forge inspect <Contract> storage-layout`. `StorageGuard.FULL`
+protects every bit of the range; a narrower mask on one slot protects part of a
+packed slot. The list is `pure`, so it is fixed in your contract's code, and it
+is validated once at deployment: an unsorted or overlapping list, or one that
+collides with an SDK slot, makes the constructor revert with `InvalidRanges`.
+`gasKillerProtectedRanges()` returns the merged list a settlement checks.
+
+**The rule is that no protected bit may change.** A write that leaves the value
+as it is passes, which is how honest programs carry the counter's new value. The
+transition counter may also move forward, never back. As a consequence, a
+tracked function that natively changes protected state (sets a new owner,
+changes the registry, upgrades the proxy) can't be settled through Gas Killer.
+Call those functions directly.
+
+<Callout type="warn">
+  Protection covers signed `STORE`s only. Mapping entries live at hashed slots
+  and can't be listed, so a compromised quorum could still credit itself a
+  balance and withdraw it later through your own functions. For contracts that
+  pay out by balance, see [Rate limits and allow-lists](#rate-limits-and-allow-lists).
+</Callout>
+
+A contract whose security already rests entirely on the quorum, with no owner,
+no upgrade path and nothing a rewrite could take over, can switch the check off
+by overriding `_unsafeDisableStorageGuard()` to return `true`. With it off, a
+malicious program can overwrite any slot, including the registry that verifies
+signatures.
+
+## Restricting calls
+
+A signed `CALL` runs real code with your contract's authority. It can't pass an
+`onlyOwner` check, but it can move tokens and ETH your contract holds.
+
+**Calls to the contract itself are rejected by default**, with
+`SelfCall(index, selector)`. Internal calls (`foo()`) are jumps and aren't
+affected, but `this.foo()` and `try this.foo()` are real calls. If a tracked
+function uses them, allow those selectors, and only those:
+
+```solidity
+function _allowSelfCall(bytes4 selector) internal pure override returns (bool) {
+    return selector == this.doThing.selector;
+}
+```
+
+An allowed self-call runs natively, outside the rest of the policy, so allow
+only functions that are safe with any arguments.
+
+**Everything else is allowed until you say otherwise.** A contract that makes no
+external calls and holds nothing has nothing more to restrict. One that holds
+value should write a policy with two hooks:
+
+- **`_authorizeCall(index, kind, target, value, data)`** runs before every
+  `CALL`, `CREATE`, `CREATE2` and `NESTED` op. Revert to reject it.
+- **`_maxOutgoingValue()`** caps the ETH one program may send, summed over its
+  ops (`OutgoingValueExceeded`).
+
+```solidity
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {GasKillerSDK} from "gas-killer-sdk/GasKillerSDK.sol";
+import {StateUpdateType} from "gas-killer-sdk/StateChangeHandlerLib.sol";
+
+/// Holds `token` and pays it out only to `payee`.
+contract Vault is GasKillerSDK {
+    error DisallowedCall(uint256 index);
+
+    IERC20 public immutable token;
+    address public immutable payee;
+
+    constructor(address avs, address schnorrRegistry, IERC20 token_, address payee_) {
+        _setAvsAddress(avs);
+        _setSchnorrRegistry(schnorrRegistry);
+        token = token_;
+        payee = payee_;
+    }
+
+    /// Programs send no ETH.
+    function _maxOutgoingValue() internal pure override returns (uint256) {
+        return 0;
+    }
+
+    /// The only op a program may run is `token.transfer(payee, amount)`.
+    function _authorizeCall(uint256 index, StateUpdateType kind, address target, uint256, bytes memory data)
+        internal
+        view
+        override
+    {
+        if (kind != StateUpdateType.CALL || target != address(token)) revert DisallowedCall(index);
+        if (data.length != 68 || bytes4(data) != IERC20.transfer.selector) revert DisallowedCall(index);
+        uint256 to;
+        assembly {
+            to := mload(add(data, 0x24)) // the first argument, after the length word and selector
+        }
+        if (to != uint256(uint160(payee))) revert DisallowedCall(index);
+    }
+}
+```
+
+It denies by default: every deployment, nested call and call to another
+contract is rejected, and so is any ETH. A program can still send `payee` any
+amount of the token; to bound that over time, use a rate-limit base below.
+
+No hook is told which tracked function a transition is for, because nothing
+checks that against the program. Write every rule to be safe for any program.
+
+### Rate limits and allow-lists
+
+The SDK ships drop-in bases for contracts that hold value. Inherit one in place
+of `GasKillerSDK` (each has a `Nested` variant):
+
+| Base | Adds |
+| --- | --- |
+| `GasKillerOutgoingRateLimit` | A token-bucket limit on ETH that programs send over time |
+| `GasKillerTokenRateLimit` | The same, plus per-token budgets for up to 8 ERC-20s |
+| `GasKillerCallAllowList` | Default-deny calls: only listed `(target, selector)` pairs run |
+
+The rate-limit bases also provide `limitsOutflow`, a modifier for your own
+payout functions (`withdraw`, `redeem`). It charges what they pay out to the
+same budget, which closes the route where a program credits a balance and a
+later call withdraws it. Never put it on a `trackState` function. See
+[the README](https://github.com/gas-killer/solidity-sdk/tree/v0.2.0#restricting-calls)
+before using any of them: each changes which hook you override.
+
+## Pinned observations
+
+Your tracked function runs off-chain against the chain's state at the reference
+block, and the settlement lands some blocks later. If your function read another
+contract (a price, a balance, a call's return value), that value may have moved
+in between. So the analyzer pins what your function observed from outside, and
+settlement checks it again at the same point in the program:
+
+- a `CALL` carries the result the trace saw;
+- `STATICCALL_CHECK`, `BALANCE_CHECK` and `CODEHASH_CHECK` re-check reads that
+  changed nothing;
+- a `CREATE` carries the address it deployed to.
+
+Only observations that affect what the program does are pinned. If one changed, the settlement
+reverts with `ObservationMismatch`, and a new task settles against the new
+state. A `CALL` also carries the gas its callee had, and a settlement sent with
+too little gas to give it that reverts with `InsufficientCallGas`, so a submitter
+can't starve a callee into another path. Resend with a higher gas limit.
+
+<Callout>
+  Pins make settlement fail when what they pin moves, and some of that anyone
+  can move: ETH can be pushed to any account. A function whose writes depend on
+  a frequently changing external value settles less reliably the longer its
+  payload waits.
+</Callout>
+
+Block values (`block.timestamp`, `block.number`) aren't pinned. A transition is
+defined as of its reference block, and carries the values the trace saw there.

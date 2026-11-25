@@ -52,10 +52,15 @@ Every contract in the chain must:
 - **Mark the called function `trackState`** and make no storage write or
   external call before it in that function.
 
-Confirm a deployment can take part:
+Confirm every contract in the chain can take part, the root and each one it
+calls. Every line must print `true`: the router routes a tree only when every
+contract in it is on SDK v0.2.0 and nests.
 
 ```bash
-cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x78481874 --rpc-url "$RPC_URL"
+for c in "$ROOT" "$CHILD"; do  # every contract in the chain
+  cast call "$c" "supportsInterface(bytes4)(bool)" 0x78481874 --rpc-url "$RPC_URL"
+  cast call "$c" "supportsInterface(bytes4)(bool)" 0x57a9b002 --rpc-url "$RPC_URL"
+done
 ```
 
 ## What changes for you
@@ -67,13 +72,17 @@ ETH forwarded along the chain works as it does natively, and every hop is bound
 by the signature. See
 [Value-bearing transitions](/docs/solidity/tracked-functions#value-bearing-transitions).
 
+Each contract applies its own part under its own
+[protected storage and call policy](/docs/solidity/protection), so one contract's
+settings don't loosen another's.
+
 ## Examples
 
-- [`nested-deposit`](https://github.com/gas-killer/solidity-sdk/tree/main/src/examples/nested-deposit):
+- [`nested-deposit`](https://github.com/gas-killer/solidity-sdk/tree/v0.2.0/src/examples/nested-deposit):
   a gateway that forwards ETH to a vault.
-- [`nested-chain`](https://github.com/gas-killer/solidity-sdk/tree/main/src/examples/nested-chain):
+- [`nested-chain`](https://github.com/gas-killer/solidity-sdk/tree/v0.2.0/src/examples/nested-chain):
   three contracts deep.
-- [`nested-cycle`](https://github.com/gas-killer/solidity-sdk/tree/main/src/examples/nested-cycle):
+- [`nested-cycle`](https://github.com/gas-killer/solidity-sdk/tree/v0.2.0/src/examples/nested-cycle):
   a chain that calls back into its first contract.
 
 If a nested settlement reverts, see

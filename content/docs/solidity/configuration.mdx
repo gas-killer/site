@@ -96,6 +96,7 @@ Expose a guarded setter:
 ```solidity
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {GasKillerSDK} from "gas-killer-sdk/GasKillerSDK.sol";
+import {StorageGuard} from "gas-killer-sdk/libraries/StorageGuard.sol";
 
 contract Counter is GasKillerSDK, Ownable {
     constructor(address avs, address schnorrRegistry)
@@ -110,8 +111,20 @@ contract Counter is GasKillerSDK, Ownable {
         _setAvsAddress(avs);
         _setSchnorrRegistry(schnorrRegistry);
     }
+
+    /// The owner can rewire the contract, so no signed program may change it.
+    /// `Ownable._owner` is in slot 0 here; check with `forge inspect`.
+    function _protectedRanges() internal pure override returns (StorageGuard.ProtectedRange[] memory r) {
+        r = new StorageGuard.ProtectedRange[](1);
+        r[0] = StorageGuard.ProtectedRange(0, 0, StorageGuard.FULL);
+    }
 }
 ```
+
+The configuration itself is protected storage, so a signed program can never
+change it, and a `trackState` function that changes it can't settle. Keep the
+setter an ordinary function you call directly, as here. Protect the slot that guards it too: the owner,
+in this example. See [Protected storage](/docs/solidity/protection#protected-storage).
 
 ## `blockStaleMeasure`
 
@@ -154,6 +167,6 @@ All public, all `view`:
 | `blockStaleMeasure()` | Effective value, including the `300` default |
 | `stateTransitionCount()` | Transitions applied so far |
 | `inTransition()` | True while a transition is being applied |
-| `supportsInterface(0x82b35a01)` | Whether the router will accept this target |
-| `supportsInterface(0x0fd29ece)` | Whether the digest binds `msg.value`, so the router accepts tasks with value |
+| `supportsInterface(0x57a9b002)` | Whether the target is on SDK v0.2.0, so the router will accept it |
 | `supportsInterface(0x78481874)` | Whether the target can join a [nested tree](/docs/solidity/nested-settlement) |
+| `gasKillerProtectedRanges()` | The [protected storage](/docs/solidity/protection#protected-storage) ranges a settlement checks |

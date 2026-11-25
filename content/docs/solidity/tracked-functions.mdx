@@ -58,7 +58,10 @@ forge inspect src/Counter.sol:Counter storage-layout
 
 SDK state is unaffected either way, since the configuration namespace is ERC-7201 and
 the transition counter is at a hashed slot, so neither consumes slots your
-variables could occupy.
+variables could occupy. Both are
+[protected storage](/docs/solidity/protection#protected-storage): no signed
+program can change them. Declare your own privileged slots, such as an owner,
+the same way.
 
 ## What keeps a function extractable
 
@@ -72,7 +75,12 @@ That works cleanly when the tracked function:
   is dramatically more expensive to extract and may not complete at all for a
   heavy function.
 - **Makes no state-changing external calls.** Read-only calls (`STATICCALL`, so
-  `view`/`pure` on another contract) are fine and are ignored by the analysis.
+  `view`/`pure` on another contract) are fine. When a write depends on what one
+  returned, the program re-checks it at settlement, see
+  [Pinned observations](/docs/solidity/protection#pinned-observations).
+- **Changes no protected storage.** A function that natively changes the SDK's
+  configuration or a slot you protect, such as transferring ownership, fails at
+  settlement with `ProtectedSlotWrite`. Call it directly instead.
 
 Emitting logs is fully supported: they are reproduced as `LOG0`–`LOG4`
 operations, including indexed topics.
@@ -86,9 +94,11 @@ operations, including indexed topics.
 
 If your design needs a state-changing external call, it is supported, but the
 call is replayed by running it, which is the expensive path, and it brings the
-reentrancy considerations below into play. When the callee is itself a Gas
-Killer contract, [nested settlement](/docs/solidity/nested-settlement) avoids
-that cost.
+reentrancy considerations below into play. It also runs under your
+[call policy](/docs/solidity/protection#restricting-calls), which rejects calls
+to your own contract unless you allow them: if the function uses `this.foo()`,
+allow that selector. When the callee is itself a Gas Killer contract,
+[nested settlement](/docs/solidity/nested-settlement) avoids that cost.
 
 ## Reading state during a transition
 
@@ -121,13 +131,10 @@ whole settlement reverts.
   funding function.
 </Callout>
 
-The router rejects a task with nonzero `value` (`400 INVALID_REQUEST`) unless
-the target binds `msg.value`, which every contract on the current SDK does.
-Check yours:
-
-```bash
-cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x0fd29ece --rpc-url "$RPC_URL"
-```
+Every SDK v0.2.0 contract binds `msg.value` into the signed digest, so the
+router accepts tasks with value for any target it serves. To cap or rate-limit
+the ETH a signed program can send out, see
+[Restricting calls](/docs/solidity/protection#restricting-calls).
 
 ## Checklist
 
@@ -135,7 +142,8 @@ cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x0fd29ece --rpc-url "$RPC
 - Tracked state is declared first, and the layout is pinned by a test.
 - The tracked function succeeds, touches only its own storage, and makes no
   state-changing external calls.
+- Privileged slots, such as an owner, are listed in `_protectedRanges()`.
+- Any `this.foo()` a tracked function makes is allowed in `_allowSelfCall`.
 - If other protocols read you and you make mid-transition calls, they check
   `inTransition()`.
-- If the contract takes ETH, it reports `0x0fd29ece`.
-- If it pays ETH out of its own balance, it has a way to be funded.
+- If the contract pays ETH out of its own balance, it has a way to be funded.

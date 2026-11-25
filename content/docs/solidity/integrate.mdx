@@ -15,7 +15,7 @@ different stage:
 
 | Requirement | Enforced by | Symptom when missing |
 | --- | --- | --- |
-| Inherits `GasKillerSDK` | Router, at submit time | Task rejected — the target does not report the interface |
+| Inherits `GasKillerSDK` from solidity-sdk v0.2.0 | Router, at submit time | Task rejected — the target does not report the v0.2.0 interface |
 | `avsAddress` and `schnorrRegistry` wired to the live deployment | Router, while building the payload | Task fails — the router will not return a payload that cannot settle |
 | Mutating functions marked `trackState` | Nothing — it is your replay protection | Silent: stale payloads stay applicable |
 
@@ -35,10 +35,11 @@ see [Configuration](/docs/solidity/configuration).
 ## Install
 
 ```bash
-forge install gas-killer/solidity-sdk
+forge install gas-killer/solidity-sdk@v0.2.0
 ```
 
-Add the remapping to `remappings.txt` (or `foundry.toml`):
+Pin the release tag: the router serves v0.2.0 targets, and `main` moves ahead
+of it. Add the remapping to `remappings.txt` (or `foundry.toml`):
 
 ```
 gas-killer-sdk/=lib/solidity-sdk/src/
@@ -87,8 +88,14 @@ contract Counter is GasKillerSDK {
 ```
 
 That is the whole contract-side integration. `verifyAndUpdate`,
-`verifyAndUpdateBatch`, `stateTransitionCount()`, `supportsInterface`, and the
-transition guard all come from the base.
+`verifyAndUpdateBatch`, `stateTransitionCount()`, `supportsInterface`, the
+transition guard, and protection for the SDK's own storage all come from the
+base.
+
+`Counter` has no owner and makes no external calls, so it needs nothing more. A
+contract with an owner or other control state should declare those slots, and
+one that holds value should restrict what a signed program may call. See
+[Protecting your contract](/docs/solidity/protection).
 
 ## Deploy and verify
 
@@ -110,12 +117,11 @@ would otherwise debug from a revert:
 **The router will accept it.** Must return `true`, or task submission is rejected:
 
 ```bash
-cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x82b35a01 --rpc-url "$RPC_URL"
+cast call "$TARGET" "supportsInterface(bytes4)(bool)" 0x57a9b002 --rpc-url "$RPC_URL"
 ```
 
-If the tracked function is `payable` and tasks will carry ETH, `0x0fd29ece`
-must return `true` as well, or the router rejects every task with nonzero
-`value`. See [Value-bearing transitions](/docs/solidity/tracked-functions#value-bearing-transitions).
+`false` means the contract doesn't inherit `GasKillerSDK` from solidity-sdk
+v0.2.0. Check that `lib/solidity-sdk` is at the `v0.2.0` tag.
 
 </Step>
 
@@ -177,6 +183,8 @@ and the `Recomputed` log directly, without running the loop on-chain.
 - **[Tracked functions](/docs/solidity/tracked-functions)** — what `trackState`
   guarantees, storage layout rules, what keeps a function extractable, and how
   ETH moves through a settlement.
+- **[Protecting your contract](/docs/solidity/protection)** — protected storage,
+  the call policy, and what a settlement re-checks from the trace.
 - **[Nested settlement](/docs/solidity/nested-settlement)** — settle a call
   through several SDK contracts as one signed tree.
 - **[Reference](/docs/solidity/reference)** — full API surface, state update

@@ -41,10 +41,12 @@ You can borrow one for this guide, or use your own.
 
 <Tab value="Use the public demo target">
 
-A deployed `ArraySummation` on Sepolia, already wired to the live operator set:
+A deployed `ArraySummation` on Sepolia, already wired to the live operator set.
+The router publishes its address, so read it from there rather than copying it:
 
 ```bash
-export TARGET_ADDRESS="0x92080876E018688d0E7f1a8693280dAA62005735"
+TARGET_ADDRESS=$(curl -fsS "$ROUTER_URL/avs-metadata" | jq -r ".contracts.demoTarget // empty")
+export TARGET_ADDRESS="${TARGET_ADDRESS:?the router did not publish a demo target}"
 ```
 
 Its tracked function is `sum(uint256[] indexes)`, which adds up the array
@@ -55,7 +57,7 @@ Check it is still a live target before relying on it. `true` means the router
 will accept tasks for it:
 
 ```bash
-cast call "$TARGET_ADDRESS" "supportsInterface(bytes4)(bool)" 0x82b35a01 \
+cast call "$TARGET_ADDRESS" "supportsInterface(bytes4)(bool)" 0x57a9b002 \
   --rpc-url "$RPC_URL"
 ```
 
@@ -262,7 +264,8 @@ const payload = await pollUntilReady(task_id)
 
 </Tabs>
 
-A `ready` response looks like this:
+A `ready` response looks like this. The IDs, gas estimate and block number are
+illustrative; yours will differ:
 
 ```json
 {
@@ -272,8 +275,8 @@ A `ready` response looks like this:
   "updated_at": 1753180812,
   "error": null,
   "payload": {
-    "to": "0x92080876e018688d0e7f1a8693280daa62005735",
-    "data": "0x82b35a01000000000000000000000000000000000000000000000000000000000000002a",
+    "to": "0x20b53e69ea0996ad311e3b72b092aa13247689df",
+    "data": "0x57a9b002000000000000000000000000000000000000000000000000000000000000002a",
     "value": "0x0",
     "chain_id": 11155111,
     "estimated_gas": 257468,

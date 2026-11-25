@@ -321,7 +321,7 @@ function Integrate() {
       </p>
 
       <h3>1. Install the SDK</h3>
-      <CodeBlock>forge install gas-killer/solidity-sdk</CodeBlock>
+      <CodeBlock>forge install gas-killer/solidity-sdk@v0.2.0</CodeBlock>
       <p className="small">
         Add the remapping <code>gas-killer-sdk/=lib/solidity-sdk/src/</code> and set <code>evm_version = "cancun"</code>{" "}
         in your <code>foundry.toml</code>.
